@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    title: 'News Feed',
+    title: 'ACTUFEED',
     loading: 'Loading news...',
     error: 'Error loading news',
     refresh: 'Refresh',
@@ -101,7 +101,7 @@ export const translations = {
     filter: 'Filter'
   },
   fr: {
-    title: 'Fil d\'actualités',
+    title: 'ACTUFEED',
     loading: 'Chargement des actualités...',
     error: 'Erreur lors du chargement des actualités',
     refresh: 'Actualiser',

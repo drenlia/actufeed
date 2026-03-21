@@ -56,6 +56,7 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
     
     // Prevent concurrent fetches for the same tab
     if (isFetchingRef.current) {
+      console.warn('[News Feed] Already fetching, skipping duplicate request')
       return
     }
     
@@ -553,6 +554,37 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
     }
   }, [tabId, tabSourcesKey, fetchNewsInternal])
 
+  // Handle network reconnection after sleep/offline
+  // This fixes the issue where refresh doesn't work after computer wakes from sleep
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[News Feed] Network reconnected, resetting fetch lock')
+      // Reset the fetching flag in case it got stuck
+      isFetchingRef.current = false
+      // Auto-refresh news after reconnection (but only if we have cached news)
+      if (news.length > 0) {
+        console.log('[News Feed] Auto-refreshing after reconnection...')
+        fetchNewsInternal(false, true, false) // Force refresh without toast
+      }
+    }
+    
+    const handleVisibilityChange = () => {
+      // When tab becomes visible again after being hidden (e.g., after sleep)
+      if (!document.hidden) {
+        console.log('[News Feed] Tab became visible, resetting fetch lock')
+        isFetchingRef.current = false
+      }
+    }
+    
+    window.addEventListener('online', handleOnline)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [fetchNewsInternal, news.length])
+
   return {
     news,
     loading,
@@ -560,6 +592,11 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
     isInitialLoad,
     newItemIds,
     fetchNews,
-    refreshNews: () => fetchNews(true, true)
+    refreshNews: () => {
+      // Always reset the fetching flag before manual refresh
+      // This ensures refresh works even if the flag got stuck
+      isFetchingRef.current = false
+      return fetchNews(true, true)
+    }
   }
 }

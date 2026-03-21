@@ -1,0 +1,445 @@
+/* Splash Screen Overlay */
+.splash-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.5s ease-out;
+  cursor: default;
+}
+
+.splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 50px;
+  animation: unfoldNewspaper 1s ease-out;
+  position: relative;
+}
+
+/* Newspaper Icon Container */
+.splash-icon {
+  width: 200px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: scaleIn 0.8s ease-out;
+}
+
+/* Document/Paper */
+.splash-document {
+  width: 160px;
+  height: 180px;
+  background: #ffffff;
+  border-radius: 8px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: documentAppear 1s ease-out;
+}
+
+/* Folded corner */
+.splash-fold {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #f1f5f9 50%, #e2e8f0 50%);
+  border-bottom-left-radius: 4px;
+  box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.1);
+  animation: foldAppear 0.6s ease-out 0.4s both;
+}
+
+/* Headline bar */
+.splash-headline {
+  position: absolute;
+  top: 30px;
+  left: 20px;
+  width: 100px;
+  height: 15px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 4px;
+  animation: slideInFromLeft 0.8s ease-out 0.6s both;
+}
+
+/* Text lines container */
+.splash-text-lines {
+  position: absolute;
+  top: 60px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.splash-line {
+  height: 8px;
+  background: #cbd5e1;
+  border-radius: 4px;
+  animation: slideInFromLeft 0.8s ease-out both;
+}
+
+.splash-line:nth-child(1) {
+  width: 80px;
+  animation-delay: 0.7s;
+}
+
+.splash-line:nth-child(2) {
+  width: 90px;
+  animation-delay: 0.8s;
+}
+
+.splash-line:nth-child(3) {
+  width: 70px;
+  animation-delay: 0.9s;
+}
+
+/* RSS waves (bottom right) */
+.splash-rss {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-rss-ring {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border: 4px solid #764ba2;
+  border-radius: 50%;
+  animation: rssRingPulse 1s ease-out 1s both;
+}
+
+.splash-rss-dot {
+  width: 20px;
+  height: 20px;
+  background: #764ba2;
+  border-radius: 50%;
+  animation: rssDotPulse 1s ease-out 1.1s both;
+}
+
+/* NEWSFEED Title - Professional Design */
+.splash-title {
+  font-size: 4.5em;
+  font-weight: 900;
+  color: white;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-shadow: 
+    0 2px 10px rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(255, 255, 255, 0.1);
+  animation: titleFadeIn 0.8s ease-out 1.2s both;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  position: relative;
+  padding: 0 20px;
+}
+
+/* Subtle underline accent */
+.splash-title::after {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 2px;
+  animation: underlineGrow 0.6s ease-out 1.6s both;
+}
+
+/* Dismiss/Skip Button - Top Center, Prominent */
+.splash-dismiss {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 32px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeInDown 0.6s ease-out 0.3s both;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.splash-dismiss:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateX(-50%) translateY(-3px);
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.3);
+}
+
+.splash-dismiss:active {
+  transform: translateX(-50%) translateY(-1px);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInDown {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes unfoldNewspaper {
+  0% {
+    transform: scaleY(0) translateY(-50%);
+    opacity: 0;
+  }
+  60% {
+    transform: scaleY(1.05) translateY(0);
+  }
+  100% {
+    transform: scaleY(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes documentAppear {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scaleY(1.05);
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes foldAppear {
+  0% {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.1) rotate(0deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromLeft {
+  0% {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes rssRingPulse {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes rssDotPulse {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes titleFadeIn {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+    letter-spacing: 0.3em;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    letter-spacing: 0.15em;
+  }
+}
+
+@keyframes underlineGrow {
+  0% {
+    width: 0;
+    opacity: 0;
+  }
+  100% {
+    width: 80px;
+    opacity: 1;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .splash-icon {
+    width: 150px;
+    height: 170px;
+  }
+
+  .splash-document {
+    width: 120px;
+    height: 140px;
+  }
+
+  .splash-fold {
+    width: 45px;
+    height: 45px;
+  }
+
+  .splash-headline {
+    top: 25px;
+    left: 15px;
+    width: 70px;
+    height: 12px;
+  }
+
+  .splash-text-lines {
+    top: 45px;
+    left: 15px;
+    gap: 6px;
+  }
+
+  .splash-line {
+    height: 6px;
+  }
+
+  .splash-line:nth-child(1) {
+    width: 60px;
+  }
+
+  .splash-line:nth-child(2) {
+    width: 70px;
+  }
+
+  .splash-line:nth-child(3) {
+    width: 50px;
+  }
+
+  .splash-rss {
+    bottom: 15px;
+    right: 15px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .splash-rss-ring {
+    width: 30px;
+    height: 30px;
+    border-width: 3px;
+  }
+
+  .splash-rss-dot {
+    width: 15px;
+    height: 15px;
+  }
+
+  .splash-title {
+    font-size: 2.8em;
+    letter-spacing: 0.12em;
+    padding: 0 15px;
+  }
+  
+  .splash-title::after {
+    width: 60px;
+    bottom: -12px;
+  }
+
+  .splash-dismiss {
+    top: 25px;
+    padding: 12px 28px;
+    font-size: 1em;
+  }
+
+  .splash-content {
+    gap: 35px;
+  }
+}
+
+@media (max-width: 480px) {
+  .splash-title {
+    font-size: 2.2em;
+    letter-spacing: 0.1em;
+  }
+  
+  .splash-title::after {
+    width: 50px;
+  }
+
+  .splash-content {
+    gap: 30px;
+  }
+  
+  .splash-dismiss {
+    top: 20px;
+    padding: 10px 24px;
+    font-size: 0.95em;
+  }
+}

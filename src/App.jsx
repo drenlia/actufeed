@@ -10,6 +10,7 @@ import { SubHeader } from './components/SubHeader'
 import { NewsList } from './components/NewsList'
 import { Settings } from './components/Settings'
 import { TabNavigation } from './components/TabNavigation'
+import { SplashScreen } from './components/SplashScreen'
 import { ToastProvider } from './contexts/ToastContext'
 import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, saveTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
 import { loadSettingsPreferences, saveSettingsPreferences } from './utils/settingsStorage'
@@ -28,6 +29,7 @@ function AppContent() {
   const [tabs, setTabs] = useState([])
   const [subheaderCollapsed, setSubheaderCollapsed] = useState(false)
   const [showToastMessages, setShowToastMessages] = useState(false)
+  const [showSplash, setShowSplash] = useState(true)
 
   // Load tabs on mount and read active tab from URL or localStorage
   useEffect(() => {
@@ -321,6 +323,11 @@ function AppContent() {
   }
 
   const t = translations[uiLanguage]
+
+  // Show Splash Screen on first load
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} />
+  }
 
   // Show Settings as full page
   if (showSettings) {
