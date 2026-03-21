@@ -1,6 +1,6 @@
-# News Feed Application
+# ACTUFEED
 
-A modern, bilingual news aggregator that brings together the latest articles from multiple sources in one convenient place. The application automatically fetches news from RSS feeds, displays them in an easy-to-read format, and lets you organize your reading with customizable tabs.
+A News Feed Application. Modern, bilingual news aggregator that brings together the latest articles from multiple sources in one convenient place. The application automatically fetches news from RSS feeds, displays them in an easy-to-read format, and lets you organize your reading with customizable tabs.
 
 ![News Feed Application](public/newsfeed.png)
 
