@@ -1,0 +1,22 @@
+---
+description: Guidelines for when to create documentation files
+alwaysApply: true
+---
+
+# Documentation Creation Guidelines
+
+Only create `.md` documentation files for:
+
+1. **Major refactoring** - Significant changes to code architecture or structure
+2. **Design changes** - Important changes to system design, patterns, or approaches
+3. **Explicit user requests** - When the user specifically asks for documentation
+
+**Do not create** documentation files for:
+- Routine bug fixes
+- Standard feature additions
+- Regular code updates
+- Repository rebranding or naming changes
+- Minor configuration changes
+- Everyday development tasks
+
+Keep the project documentation clean and focused on truly important architectural and design information.

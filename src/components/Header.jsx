@@ -4,7 +4,7 @@ export const Header = ({ uiLanguage, onLanguageToggle, articleCount, totalCount,
   const t = translations[uiLanguage]
   
   // GitHub repository URL
-  const githubUrl = 'https://github.com/drenlia/newsfeed'
+  const githubUrl = 'https://github.com/drenlia/actufeed'
   
   return (
     <header className="site-header">

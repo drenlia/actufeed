@@ -1,9 +1,9 @@
 services:
-  newsfeed:
+  actufeed:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: newsfeed-app
+    container_name: actufeed-app
     ports:
       - "3072:3072"
     restart: unless-stopped

@@ -1,8 +1,8 @@
-# News Feed Application
+# ACTUFEED
 
 A modern, bilingual news aggregator that brings together the latest articles from multiple sources in one convenient place. The application automatically fetches news from RSS feeds, displays them in an easy-to-read format, and lets you organize your reading with customizable tabs.
 
-![News Feed Application](public/newsfeed.png)
+![ACTUFEED Application](public/actufeed.png)
 
 ## Features
 
@@ -95,7 +95,7 @@ This setup ensures secure communication and prevents issues when fetching RSS fe
 
 **View logs:**
 ```bash
-docker compose logs -f newsfeed
+docker compose logs -f actufeed
 ```
 
 **Stop the application:**
@@ -128,7 +128,7 @@ ports:
 
 **Application won't start:**
 - Check that Docker is running: `docker ps`
-- View logs: `docker compose logs newsfeed`
+- View logs: `docker compose logs actufeed`
 - Try rebuilding: `docker compose down && docker compose up -d --build`
 
 **Can't access the application:**
@@ -147,5 +147,5 @@ ports:
 
 For issues or questions, please check the application logs using:
 ```bash
-docker compose logs -f newsfeed
+docker compose logs -f actufeed
 ```

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Build script for News Feed Application
+# Build script for ACTUFEED
 # This script builds and starts the Docker container
 
 set -e  # Exit on error
 
-echo "🚀 Building and starting News Feed Application..."
+echo "🚀 Building and starting ACTUFEED..."
 echo ""
 
 # Check if Docker is running
@@ -35,7 +35,7 @@ echo ""
 echo "📰 Access the application at: http://localhost:3072"
 echo ""
 echo "💡 Useful commands:"
-echo "   View logs:    docker compose logs -f newsfeed"
+echo "   View logs:    docker compose logs -f actufeed"
 echo "   Stop app:     docker compose down"
 echo "   Restart app:  docker compose restart"
 echo ""

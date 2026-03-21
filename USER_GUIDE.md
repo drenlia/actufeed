@@ -1,6 +1,6 @@
 # User Guide
 
-This guide explains all features and options available in the News Feed application.
+This guide explains all features and options available in ACTUFEED.
 
 ## News Feed Page
 

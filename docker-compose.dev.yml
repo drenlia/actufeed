@@ -1,9 +1,9 @@
 services:
-  newsfeed:
+  actufeed:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: newsfeed-app-dev
+    container_name: actufeed-app-dev
     ports:
       - "3072:3072"  # Vite dev server (same port as production)
     volumes:

@@ -1,4 +1,4 @@
-# Docker Setup for Newsfeed Application
+# Docker Setup for ACTUFEED
 
 This project is containerized using Docker Compose v2.
 
@@ -16,7 +16,7 @@ This project is containerized using Docker Compose v2.
 
 2. **View logs:**
    ```bash
-   docker compose logs -f newsfeed
+   docker compose logs -f actufeed
    ```
 
 3. **Stop the application:**
@@ -62,7 +62,7 @@ If you encounter issues:
 
 2. **View container logs:**
    ```bash
-   docker compose logs newsfeed
+   docker compose logs actufeed
    ```
 
 3. **Rebuild from scratch:**
