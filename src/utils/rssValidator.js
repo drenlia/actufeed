@@ -128,9 +128,29 @@ export const validateRssFeed = async (feedUrl) => {
       channel = rss.querySelector('channel')
       items = channel ? channel.querySelectorAll('item') : []
     } else if (feed) {
-      // Atom format
-      channel = feed
-      items = feed.querySelectorAll('entry')
+      // Atom (including Atom 1.0: xmlns http://www.w3.org/2005/Atom) — not supported for manual sources;
+      // the app reader only ingests RSS 2.0-style <item> elements.
+      const channelTitle = feed.querySelector('title')?.textContent?.trim() || ''
+      const entryCount = feed.querySelectorAll('entry').length
+      const selfLinkEl = Array.from(feed.querySelectorAll('link')).find(
+        (l) => (l.getAttribute('rel') || 'alternate') === 'self'
+      )
+      return {
+        valid: false,
+        incompatibleFeedFormat: 'atom10',
+        errors: [],
+        warnings: [],
+        channel: {
+          title: channelTitle || 'Atom feed',
+          description: feed.querySelector('subtitle')?.textContent?.trim() || '',
+          link:
+            selfLinkEl?.getAttribute('href') ||
+            feed.querySelector('link[href]')?.getAttribute('href') ||
+            feedUrl,
+          language: feed.getAttribute('xml:lang') || '',
+          itemCount: entryCount,
+        },
+      }
     } else if (rdf) {
       // RDF format
       channel = rdf.querySelector('channel')

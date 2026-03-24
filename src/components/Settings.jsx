@@ -406,8 +406,12 @@ export const Settings = ({ uiLanguage, onClose }) => {
       } else {
         setFeedTitle('')
       }
-      if (!result.valid && result.errors && result.errors.length > 0) {
-        showError(result.errors[0])
+      if (!result.valid) {
+        if (result.incompatibleFeedFormat === 'atom10') {
+          warning(t.atomFeedNotCompatible)
+        } else if (result.errors && result.errors.length > 0) {
+          showError(result.errors[0])
+        }
       }
     } catch (error) {
       const errorResult = {
@@ -898,8 +902,17 @@ export const Settings = ({ uiLanguage, onClose }) => {
                     <div className="feed-validation-error">
                       <div className="validation-header">
                         <span className="validation-icon">✗</span>
-                        <strong>{t.feedInvalid}</strong>
+                        <strong>
+                          {feedValidationResult.incompatibleFeedFormat === 'atom10'
+                            ? t.atomFeedNotCompatible
+                            : t.feedInvalid}
+                        </strong>
                       </div>
+                      {feedValidationResult.incompatibleFeedFormat === 'atom10' && (
+                        <div className="validation-warnings atom-feed-incompatible">
+                          <p className="atom-feed-incompatible-detail">{t.atomFeedNotCompatibleDetail}</p>
+                        </div>
+                      )}
                       {feedValidationResult.errors && feedValidationResult.errors.length > 0 && (
                         <div className="validation-errors">
                           <strong>{t.feedMissingFields}:</strong>

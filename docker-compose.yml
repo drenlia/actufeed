@@ -27,3 +27,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: syslog
+      options:
+        # Default: host loopback (like localhost) — only useful if something on the Docker host listens on UDP 514
+        syslog-address: "${SYSLOG_ADDRESS:-udp://127.0.0.1:514}"
+        tag: "app{{.Name}} env=prod"
+        syslog-facility: "daemon"

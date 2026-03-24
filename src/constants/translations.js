@@ -85,6 +85,9 @@ export const translations = {
     feedWarnings: 'Warnings',
     feedAdded: 'Feed added successfully',
     feedAddError: 'Error adding feed',
+    atomFeedNotCompatible: 'Atom 1.0 feed (not supported)',
+    atomFeedNotCompatibleDetail:
+      'This URL is an Atom 1.0 feed. Actufeed only supports RSS 2.0 for manually added sources, so articles from this feed will not appear. Use an RSS 2.0 URL (for example a site’s “RSS” link that serves <rss version="2.0">), or a different source.',
     enterFeedUrl: 'Enter RSS feed URL...',
     detectingLanguage: 'Auto-detecting...',
     createTab: 'Create Tab',
@@ -186,6 +189,9 @@ export const translations = {
     feedWarnings: 'Avertissements',
     feedAdded: 'Flux ajouté avec succès',
     feedAddError: 'Erreur lors de l\'ajout du flux',
+    atomFeedNotCompatible: 'Flux Atom 1.0 (non pris en charge)',
+    atomFeedNotCompatibleDetail:
+      'Cette URL est un flux Atom 1.0. Actufeed ne prend en charge que le format RSS 2.0 pour les sources ajoutées manuellement : les articles de ce flux ne s’afficheront pas. Utilisez une adresse RSS 2.0 (par exemple le lien « RSS » d’un site qui renvoie <rss version="2.0">), ou une autre source.',
     enterFeedUrl: 'Entrez l\'URL du flux RSS...',
     detectingLanguage: 'Détection automatique...',
     createTab: 'Créer un onglet',

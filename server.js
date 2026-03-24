@@ -3,6 +3,8 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createServer } from 'http';
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import iconv from 'iconv-lite';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -397,6 +399,116 @@ const isPrivateIP = (hostname) => {
   return privateIPPatterns.some(pattern => pattern.test(hostname));
 };
 
+// --- Resolved-address SSRF guard (production): hostname literals can still resolve to private/metadata IPs ---
+
+function ipv4ToUint32(ip) {
+  const m = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return null;
+  const parts = [m[1], m[2], m[3], m[4]].map((x) => parseInt(x, 10));
+  if (parts.some((n) => n > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+function isBlockedResolvedIPv4(ip) {
+  const n = ipv4ToUint32(ip);
+  if (n === null) return true;
+  const b0 = n >>> 24;
+  const b1 = (n >>> 16) & 0xff;
+  if (b0 === 0) return true; // 0.0.0.0/8
+  if (b0 === 10) return true; // 10.0.0.0/8
+  if (b0 === 127) return true; // 127.0.0.0/8
+  if (b0 === 169 && b1 === 254) return true; // 169.254.0.0/16 (link-local, cloud metadata)
+  if (b0 === 172 && b1 >= 16 && b1 <= 31) return true; // 172.16.0.0/12
+  if (b0 === 192 && b1 === 168) return true; // 192.168.0.0/16
+  if (b0 === 100 && b1 >= 64 && b1 <= 127) return true; // 100.64.0.0/10 (CGNAT)
+  if (b0 >= 224) return true; // 224.0.0.0/4 multicast + reserved
+  return false;
+}
+
+/** @returns {{ mappedV4?: string, parts?: number[] } | null} */
+function expandIPv6Parts(address) {
+  const addr = address.split('%')[0].toLowerCase();
+  const mapped = addr.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (mapped) return { mappedV4: mapped[1] };
+  if (addr.includes('::')) {
+    const [head, tail] = addr.split('::', 2);
+    const left = head ? head.split(':').filter((x) => x.length) : [];
+    const right = tail ? tail.split(':').filter((x) => x.length) : [];
+    const missing = 8 - left.length - right.length;
+    if (missing < 0) return null;
+    const parts = [...left, ...Array(missing).fill('0'), ...right];
+    if (parts.length !== 8) return null;
+    return { parts: parts.map((p) => parseInt(p, 16)) };
+  }
+  const parts = addr.split(':');
+  if (parts.length !== 8) return null;
+  return { parts: parts.map((p) => parseInt(p, 16)) };
+}
+
+function isBlockedResolvedIPv6(ip) {
+  const v = ip.split('%')[0];
+  const m = v.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (m) return isBlockedResolvedIPv4(m[1]);
+  const expanded = expandIPv6Parts(v);
+  if (!expanded) return true;
+  if (expanded.mappedV4) return isBlockedResolvedIPv4(expanded.mappedV4);
+  const p = expanded.parts;
+  if (p.every((x) => x === 0)) return true; // ::
+  if (p.every((x, i) => (i === 7 ? x === 1 : x === 0))) return true; // ::1
+  if (p[0] >= 0xfe80 && p[0] <= 0xfebf) return true; // fe80::/10
+  if (p[0] >= 0xfc00 && p[0] <= 0xfdff) return true; // fc00::/7 ULA
+  if (p[0] >= 0xff00) return true; // ff00::/8 multicast
+  return false;
+}
+
+function isBlockedResolvedAddress(ip) {
+  if (net.isIPv4(ip)) return isBlockedResolvedIPv4(ip);
+  if (net.isIPv6(ip)) return isBlockedResolvedIPv6(ip);
+  return true;
+}
+
+/**
+ * Ensures the URL's host does not resolve (or parse) to a non-public address.
+ * Skipped in development so local / private feed URLs keep working.
+ * Fetch still uses the original URL string so TLS SNI and cert validation are unchanged.
+ */
+async function assertSafeFetchTarget(url) {
+  if (process.env.NODE_ENV === 'development') {
+    return { ok: true };
+  }
+
+  const host = url.hostname;
+  if (net.isIPv4(host) || net.isIPv6(host)) {
+    return isBlockedResolvedAddress(host)
+      ? { ok: false, error: 'Target address is not allowed' }
+      : { ok: true };
+  }
+
+  let results;
+  try {
+    results = await dns.lookup(host, { all: true, verbatim: true });
+  } catch (e) {
+    const code = e && e.code;
+    if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'EAI_NODATA') {
+      return { ok: false, error: 'Host could not be resolved' };
+    }
+    console.warn(`[RSS Proxy] DNS lookup failed for ${host}:`, e.message);
+    return { ok: false, error: 'Host could not be resolved' };
+  }
+
+  if (!results.length) {
+    return { ok: false, error: 'Host could not be resolved' };
+  }
+
+  for (const { address } of results) {
+    if (isBlockedResolvedAddress(address)) {
+      return { ok: false, error: 'Resolved address is not allowed' };
+    }
+  }
+
+  return { ok: true };
+}
+
 const validateFeedUrl = (feedUrl) => {
   let url;
   
@@ -421,9 +533,6 @@ const validateFeedUrl = (feedUrl) => {
     if (isPrivateIP(hostname)) {
       return { valid: false, error: 'Private IP addresses are not allowed' };
     }
-    
-    // TODO: DNS resolution check (optional, more secure but slower)
-    // For now, hostname check is sufficient for most cases
   }
   
   // URL length limit
@@ -447,6 +556,12 @@ app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
   const validation = validateFeedUrl(feedUrl);
   if (!validation.valid) {
     return res.status(400).json({ error: validation.error });
+  }
+
+  const feedUrlObj = new URL(feedUrl);
+  const resolvedOk = await assertSafeFetchTarget(feedUrlObj);
+  if (!resolvedOk.ok) {
+    return res.status(400).json({ error: resolvedOk.error });
   }
 
   try {
