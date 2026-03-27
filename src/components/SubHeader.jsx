@@ -21,7 +21,6 @@ export const SubHeader = ({
   autoRefresh,
   onAutoRefreshChange,
   collapsed,
-  onToggleCollapse
 }) => {
   const t = translations[uiLanguage]
 
@@ -29,20 +28,13 @@ export const SubHeader = ({
     onSearchChange('')
   }
 
+  if (collapsed) {
+    return null
+  }
+
   return (
-    <div className={`sub-header ${collapsed ? 'collapsed' : ''}`}>
-      <button
-        className="sub-header-toggle"
-        onClick={onToggleCollapse}
-        title={collapsed ? 'Show filters' : 'Hide filters'}
-        aria-label={collapsed ? 'Show filters' : 'Hide filters'}
-      >
-        <span className={`chevron ${collapsed ? 'chevron-down' : 'chevron-up'}`}>
-          {collapsed ? '▼' : '▲'}
-        </span>
-      </button>
-      {!collapsed && (
-        <div className="controls-container">
+    <div className="sub-header">
+      <div className="controls-container">
         {/* Group 1: Language Filters */}
         <div className="control-group-section">
           <span className="control-section-label">{t.view || 'View'}</span>
@@ -144,7 +136,6 @@ export const SubHeader = ({
           </button>
         </div>
       </div>
-      )}
     </div>
   )
 }

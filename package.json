@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "server": "node server.js",
     "start": "node server.js",
-    "dev:docker": "concurrently -n vite,proxy -c blue,green \"npm run dev\" \"node server.js\""
+    "dev:docker": "concurrently -n vite,proxy -c blue,green \"npm run dev\" \"env NODE_ENV=development node server.js\""
   },
   "dependencies": {
     "dompurify": "^3.3.1",

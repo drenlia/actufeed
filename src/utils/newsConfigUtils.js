@@ -98,7 +98,10 @@ export const exportConfig = (config) => {
       selectedCountries: settingsPreferences.selectedCountries instanceof Set 
         ? Array.from(settingsPreferences.selectedCountries)
         : settingsPreferences.selectedCountries || [],
-      subheaderCollapsed: settingsPreferences.subheaderCollapsed || false,
+      subheaderCollapsed:
+        typeof settingsPreferences.subheaderCollapsed === 'boolean'
+          ? settingsPreferences.subheaderCollapsed
+          : true,
       showToastMessages: settingsPreferences.showToastMessages !== undefined 
         ? settingsPreferences.showToastMessages 
         : false
@@ -157,7 +160,10 @@ export const importConfig = (file) => {
               selectedCountries: data.settings.selectedCountries 
                 ? new Set(data.settings.selectedCountries)
                 : new Set(),
-              subheaderCollapsed: data.settings.subheaderCollapsed || false,
+              subheaderCollapsed:
+                typeof data.settings.subheaderCollapsed === 'boolean'
+                  ? data.settings.subheaderCollapsed
+                  : true,
               showToastMessages: data.settings.showToastMessages !== undefined 
                 ? data.settings.showToastMessages 
                 : false

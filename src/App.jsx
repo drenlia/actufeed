@@ -14,6 +14,7 @@ import { SplashScreen } from './components/SplashScreen'
 import { ToastProvider } from './contexts/ToastContext'
 import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, saveTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
 import { loadSettingsPreferences, saveSettingsPreferences } from './utils/settingsStorage'
+import { countExpandableDescriptionItems } from './utils/newsDescriptionExpand'
 
 // Inner App component that uses hooks (must be inside ToastProvider)
 function AppContent() {
@@ -27,16 +28,37 @@ function AppContent() {
   const [showSettings, setShowSettings] = useState(false)
   const [activeTabId, setActiveTabIdState] = useState(null)
   const [tabs, setTabs] = useState([])
-  const [subheaderCollapsed, setSubheaderCollapsed] = useState(false)
+  const [subheaderCollapsed, setSubheaderCollapsed] = useState(
+    () => loadSettingsPreferences().subheaderCollapsed
+  )
   const [showToastMessages, setShowToastMessages] = useState(false)
   const [showSplash, setShowSplash] = useState(true)
+  const [colorMode, setColorMode] = useState(() => loadSettingsPreferences().theme)
+  const [descExpandAllSignal, setDescExpandAllSignal] = useState({ nonce: 0, expanded: true })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorMode
+  }, [colorMode])
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  const toggleColorMode = useCallback(() => {
+    setColorMode((m) => {
+      const next = m === 'dark' ? 'light' : 'dark'
+      saveSettingsPreferences({ theme: next })
+      return next
+    })
+  }, [])
 
   // Load tabs on mount and read active tab from URL or localStorage
   useEffect(() => {
     // Load subheader collapsed state and toast messages preference from preferences
     const preferences = loadSettingsPreferences()
-    setSubheaderCollapsed(preferences.subheaderCollapsed || false)
+    setSubheaderCollapsed(preferences.subheaderCollapsed)
     setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : false)
+    setColorMode(preferences.theme)
     
     const loadedTabs = loadTabs()
     setTabs(loadedTabs)
@@ -248,7 +270,7 @@ function AppContent() {
     return [...sources]
   }, [tabs, activeTabId])
   
-  const { news, loading, error, isInitialLoad, newItemIds, fetchNews, refreshNews } = useNews(tabSources, activeTabId, showToastMessages)
+  const { news, loading, error, newItemIds, fetchNews, refreshNews } = useNews(tabSources, activeTabId, showToastMessages)
   
   // Store refreshNews in a ref so it's available in the Settings onClose callback
   const refreshNewsRef = useRef(refreshNews)
@@ -292,6 +314,11 @@ function AppContent() {
   const filteredNews = filterNews(news, filters, combinedCategories)
   const sortedNews = sortNews(filteredNews, sortBy)
 
+  const expandableDescCount = useMemo(
+    () => countExpandableDescriptionItems(sortedNews),
+    [sortedNews]
+  )
+
   // Get available categories (only those with matching articles)
   const availableCategories = getAvailableCategories(news, combinedCategories, filters)
 
@@ -333,12 +360,15 @@ function AppContent() {
   if (showSettings) {
     return (
       <div className="app">
-        <Header 
+        <Header
           uiLanguage={uiLanguage}
           onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
           onSettingsClick={() => setShowSettings(false)}
           showArticleCount={false}
           isSettingsPage={true}
+          onTitleClick={() => setShowSettings(false)}
+          colorMode={colorMode}
+          onColorModeToggle={toggleColorMode}
         />
         <Settings
           uiLanguage={uiLanguage}
@@ -354,7 +384,7 @@ function AppContent() {
   // Main News Feed page
   return (
     <div className="app">
-        <Header 
+        <Header
           uiLanguage={uiLanguage}
           onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
           articleCount={sortedNews.length}
@@ -362,14 +392,29 @@ function AppContent() {
           onSettingsClick={() => setShowSettings(true)}
           showArticleCount={true}
           isSettingsPage={false}
+          onTitleClick={scrollToTop}
+          colorMode={colorMode}
+          onColorModeToggle={toggleColorMode}
+          filtersCollapsed={subheaderCollapsed}
+          onToggleFilters={() => {
+            const newState = !subheaderCollapsed
+            setSubheaderCollapsed(newState)
+            saveSettingsPreferences({ subheaderCollapsed: newState })
+          }}
+          hasExpandableDescriptions={expandableDescCount > 0}
+          onExpandAllDescriptions={() =>
+            setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: true }))
+          }
+          onShrinkAllDescriptions={() =>
+            setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: false }))
+          }
         />
         {tabs.length > 1 && (
-          <TabNavigation 
+          <TabNavigation
             tabs={tabs}
             activeTabId={activeTabId}
             onTabClick={handleTabChange}
             onTabRename={handleTabRename}
-            uiLanguage={uiLanguage}
           />
         )}
         <SubHeader
@@ -392,11 +437,6 @@ function AppContent() {
           autoRefresh={autoRefresh}
           onAutoRefreshChange={setAutoRefresh}
           collapsed={subheaderCollapsed}
-          onToggleCollapse={() => {
-            const newState = !subheaderCollapsed
-            setSubheaderCollapsed(newState)
-            saveSettingsPreferences({ subheaderCollapsed: newState })
-          }}
         />
 
         <main className="main">
@@ -404,11 +444,11 @@ function AppContent() {
             news={sortedNews}
             uiLanguage={uiLanguage}
             loading={loading}
-            isInitialLoad={isInitialLoad}
             error={error}
             newItemIds={newItemIds}
             combinedCategories={combinedCategories}
             onCategoryClick={toggleCategory}
+            expandAllSignal={descExpandAllSignal}
           />
         </main>
       </div>

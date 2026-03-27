@@ -48,6 +48,9 @@ export const saveCategories = (cats) => {
   }
 }
 
+// Bump when article shape changes (e.g. descriptionFull for expand). Invalidates old caches.
+export const NEWS_CACHE_SCHEMA_VERSION = 5
+
 // Load cached news from localStorage
 // Now supports tab-aware caching with tabId parameter
 export const loadCachedNews = (currentSources = null, tabId = null) => {
@@ -58,6 +61,9 @@ export const loadCachedNews = (currentSources = null, tabId = null) => {
       const cached = localStorage.getItem(tabCacheKey)
       if (cached) {
         const parsed = JSON.parse(cached)
+        if (parsed.schemaVersion !== NEWS_CACHE_SCHEMA_VERSION) {
+          return null
+        }
         if (parsed.news && parsed.news.length > 0) {
           // Convert date strings back to Date objects
           let newsWithDates = parsed.news.map(item => ({
@@ -97,6 +103,9 @@ export const loadCachedNews = (currentSources = null, tabId = null) => {
     const cached = localStorage.getItem('newsfeed-cache')
     if (cached) {
       const parsed = JSON.parse(cached)
+      if (parsed.schemaVersion !== NEWS_CACHE_SCHEMA_VERSION) {
+        return null
+      }
       if (parsed.news && parsed.news.length > 0) {
         // Convert date strings back to Date objects
         let newsWithDates = parsed.news.map(item => ({
@@ -151,7 +160,8 @@ export const saveNewsToCache = (newsData, tabId = null) => {
     const cacheData = {
       news: newsData,
       articleIds: articleIds, // Store IDs separately for quick access
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      schemaVersion: NEWS_CACHE_SCHEMA_VERSION,
     }
     
     if (tabId) {
@@ -172,7 +182,8 @@ export const saveNewsToCache = (newsData, tabId = null) => {
         const cacheData = {
           news: newsData,
           articleIds: articleIds,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          schemaVersion: NEWS_CACHE_SCHEMA_VERSION,
         }
         localStorage.setItem(`newsfeed-cache-tab-${tabId}`, JSON.stringify(cacheData))
       } else {
@@ -180,7 +191,8 @@ export const saveNewsToCache = (newsData, tabId = null) => {
         const cacheData = {
           news: newsData,
           articleIds: articleIds,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          schemaVersion: NEWS_CACHE_SCHEMA_VERSION,
         }
         localStorage.setItem('newsfeed-cache', JSON.stringify(cacheData))
       }

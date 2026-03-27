@@ -118,6 +118,8 @@ export const getSearchableText = (item) => {
   const searchableParts = [
     item.title || '',
     item.description || '',
+    item.descriptionFull || '',
+    item.content || '',
     item.source || '', // Outlet
     item.region || '', // City
     location.city,

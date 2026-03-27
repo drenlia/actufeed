@@ -374,6 +374,67 @@ async function fetchWithRetry(feedUrl, retries = 2) {
   throw lastError || new Error('Failed after all retries');
 }
 
+/** Fetch start of HTML document for logo discovery (bounded size, SSRF-safe URL only). */
+const MAX_HTML_LOGO_SNIPPET_BYTES = 450 * 1024;
+
+async function fetchHtmlSnippetForLogo(pageUrl) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  ];
+  const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+
+  const response = await fetch(pageUrl, {
+    signal: controller.signal,
+    headers: {
+      'User-Agent': userAgent,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,fr-CA;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      Referer: new URL(pageUrl).origin + '/',
+      'Cache-Control': 'no-cache',
+      DNT: '1',
+      Connection: 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+    },
+    redirect: 'follow',
+  });
+
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    const buf = Buffer.from(await response.arrayBuffer()).slice(0, MAX_HTML_LOGO_SNIPPET_BYTES);
+    return buf.toString('utf8');
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (total < MAX_HTML_LOGO_SNIPPET_BYTES) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value?.length) {
+      chunks.push(Buffer.from(value));
+      total += value.length;
+    }
+  }
+  try {
+    await reader.cancel();
+  } catch {
+    // ignore
+  }
+
+  const buf = Buffer.concat(chunks).slice(0, MAX_HTML_LOGO_SNIPPET_BYTES);
+  return buf.toString('utf8');
+}
+
 // SSRF Protection: Validate URL is safe to fetch
 const isPrivateIP = (hostname) => {
   // Check for localhost variants
@@ -601,6 +662,286 @@ app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
       error: `Failed to fetch feed: ${error.message}`,
       url: feedUrl 
     });
+  }
+});
+
+// HTML snippet proxy (homepage / marketing page) — logo discovery only
+app.get('/api/proxy/html', apiLimiter, async (req, res) => {
+  const pageUrl = req.query.url;
+
+  if (!pageUrl) {
+    return res.status(400).json({ error: 'Missing url parameter' });
+  }
+
+  const validation = validateFeedUrl(pageUrl);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+
+  let pageUrlObj;
+  try {
+    pageUrlObj = new URL(pageUrl);
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL format' });
+  }
+
+  const resolvedOk = await assertSafeFetchTarget(pageUrlObj);
+  if (!resolvedOk.ok) {
+    return res.status(400).json({ error: resolvedOk.error });
+  }
+
+  try {
+    const html = await fetchHtmlSnippetForLogo(pageUrl);
+    const trimmed = html.trim();
+    const looksLikeHtml =
+      trimmed.startsWith('<!DOCTYPE') ||
+      trimmed.startsWith('<html') ||
+      trimmed.startsWith('<!--') ||
+      /<html[\s>]/i.test(trimmed.slice(0, 5000));
+
+    if (!looksLikeHtml) {
+      return res.status(400).json({ error: 'Response does not appear to be HTML' });
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(html, 'utf8'));
+  } catch (error) {
+    const statusCode = error.name === 'AbortError' ? 504 : 500;
+    console.error(`[HTML Proxy] Error fetching ${pageUrl}: ${error.message}`);
+    if (statusCode === 504) {
+      return res.status(504).json({ error: 'Request timeout' });
+    }
+    res.status(statusCode).json({
+      error: `Failed to fetch page: ${error.message}`,
+      url: pageUrl,
+    });
+  }
+});
+
+/** Detect image format from first bytes (favicon.ico often has wrong Content-Type). */
+function looksLikeImageMagic(buf) {
+  if (!buf || buf.length < 4) return false;
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true;
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return true;
+  if (buf[0] === 0xff && buf[1] === 0xd8) return true;
+  if (buf[0] === 0 && buf[1] === 0 && (buf[2] === 1 || buf[2] === 2) && buf[3] === 0) return true;
+  if (
+    buf.length >= 12 &&
+    buf.slice(0, 4).toString('ascii') === 'RIFF' &&
+    buf.slice(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return true;
+  }
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return true;
+  return false;
+}
+
+// Lightweight image URL check for favicon / logo discovery (HEAD then ranged GET)
+app.get('/api/proxy/asset/check', apiLimiter, async (req, res) => {
+  const assetUrl = req.query.url;
+
+  if (!assetUrl) {
+    return res.status(400).json({ ok: false, error: 'Missing url parameter' });
+  }
+
+  const validation = validateFeedUrl(assetUrl);
+  if (!validation.valid) {
+    return res.status(400).json({ ok: false, error: validation.error });
+  }
+
+  let urlObj;
+  try {
+    urlObj = new URL(assetUrl);
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Invalid URL format' });
+  }
+
+  const resolvedOk = await assertSafeFetchTarget(urlObj);
+  if (!resolvedOk.ok) {
+    return res.status(400).json({ ok: false, error: resolvedOk.error });
+  }
+
+  const userAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+  const probe = async (method) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(assetUrl, {
+        method,
+        signal: controller.signal,
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'image/*,*/*;q=0.5',
+          ...(method === 'GET' ? { Range: 'bytes=0-2047' } : {}),
+        },
+        redirect: 'follow',
+      });
+
+      if (!response.ok) return false;
+
+      const ct = (response.headers.get('content-type') || '').toLowerCase();
+      const looksImageType =
+        ct.includes('image/') ||
+        ct.includes('x-icon') ||
+        ct.includes('microsoft.icon');
+
+      if (method === 'HEAD') {
+        return looksImageType;
+      }
+
+      const buf = Buffer.from(await response.arrayBuffer());
+      if (buf.length === 0) return false;
+      if (looksImageType) return true;
+      return looksLikeImageMagic(buf);
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  try {
+    let ok = await probe('HEAD');
+    if (!ok) ok = await probe('GET');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.json({ ok });
+  } catch {
+    return res.json({ ok: false });
+  }
+});
+
+// Wikimedia Commons — logo lookup by outlet name (follows https://meta.wikimedia.org/wiki/User-Agent_policy)
+const WIKIMEDIA_USER_AGENT =
+  'Actufeed/1.0 (news aggregator; +https://github.com/drenlia/actufeed)';
+
+const validateSourceNameForWikimedia = (s) => {
+  if (typeof s !== 'string') return false;
+  const t = s.trim();
+  if (t.length < 2 || t.length > 120) return false;
+  if (/[\r\n<>{}]/.test(t)) return false;
+  return true;
+};
+
+async function wikimediaCommonsApi(searchParamsObj) {
+  const u = new URL('https://commons.wikimedia.org/w/api.php');
+  for (const [k, v] of Object.entries(searchParamsObj)) {
+    u.searchParams.set(k, String(v));
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const response = await fetch(u.toString(), {
+    signal: controller.signal,
+    headers: {
+      'User-Agent': WIKIMEDIA_USER_AGENT,
+      Accept: 'application/json',
+    },
+  });
+  clearTimeout(timeoutId);
+  if (!response.ok) {
+    throw new Error(`Commons API HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function scoreCommonsFileTitle(fileTitle, sourceName) {
+  const t = fileTitle.toLowerCase();
+  let score = 0;
+  if (/logo/i.test(t)) score += 28;
+  if (t.includes('.svg')) score += 14;
+  else if (/\.png/i.test(t)) score += 9;
+  else if (/\.webp/i.test(t)) score += 7;
+  // Deprioritize unrelated Commons files
+  if (
+    /flag of|map of|coat of arms|emblem of|seal of|locator map|icon-|favicon|button|arrow/i.test(
+      t
+    )
+  ) {
+    score -= 45;
+  }
+  const words = sourceName
+    .toLowerCase()
+    .split(/[^a-z0-9àâäéèêëïîôùûüçœæ]+/i)
+    .filter((w) => w.length > 2 && w !== 'the' && w !== 'les' && w !== 'des');
+  for (const w of words) {
+    if (t.includes(w)) score += 7;
+  }
+  return score;
+}
+
+async function commonsDirectFileUrl(fileTitle) {
+  const data = await wikimediaCommonsApi({
+    action: 'query',
+    titles: fileTitle,
+    prop: 'imageinfo',
+    iiprop: 'url',
+    format: 'json',
+  });
+  const pages = data.query?.pages;
+  if (!pages) return '';
+  const page = Object.values(pages)[0];
+  if (!page || page.missing) return '';
+  const url = page.imageinfo?.[0]?.url;
+  if (typeof url === 'string' && url.startsWith('https://upload.wikimedia.org/')) {
+    return url;
+  }
+  return '';
+}
+
+app.get('/api/wikimedia/logo', apiLimiter, async (req, res) => {
+  const source = req.query.source;
+  if (!source || typeof source !== 'string') {
+    return res.status(400).json({ error: 'Missing source parameter', url: null });
+  }
+  const trimmed = source.trim();
+  if (!validateSourceNameForWikimedia(trimmed)) {
+    return res.status(400).json({ error: 'Invalid source name', url: null });
+  }
+
+  try {
+    const data = await wikimediaCommonsApi({
+      action: 'query',
+      list: 'search',
+      srsearch: `${trimmed} logo`,
+      srnamespace: 6,
+      srlimit: 20,
+      format: 'json',
+    });
+
+    const hits = data.query?.search || [];
+    let bestTitle = '';
+    let bestScore = -Infinity;
+
+    for (const hit of hits) {
+      const title = hit.title;
+      if (!title || !title.startsWith('File:')) continue;
+      const sc = scoreCommonsFileTitle(title, trimmed);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestTitle = title;
+      }
+    }
+
+    const MIN_SCORE = 20;
+    if (!bestTitle || bestScore < MIN_SCORE) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.json({ url: null });
+    }
+
+    const url = await commonsDirectFileUrl(bestTitle);
+    if (!url) {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.json({ url: null });
+    }
+
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    return res.json({ url });
+  } catch (error) {
+    console.error(`[Wikimedia] Logo lookup failed for "${trimmed}":`, error.message);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.status(500).json({ error: error.message || 'Commons lookup failed', url: null });
   }
 });
 

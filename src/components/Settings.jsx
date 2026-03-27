@@ -11,6 +11,7 @@ import { loadSettingsPreferences, saveSettingsPreferences } from '../utils/setti
 import { clearCachedNews } from '../utils/storageUtils'
 import { validateRssFeed } from '../utils/rssValidator'
 import { useToastContext } from '../contexts/ToastContext'
+import { TabBar } from './TabBar'
 import {
   loadTabs,
   saveTabs,
@@ -27,9 +28,6 @@ export const Settings = ({ uiLanguage, onClose }) => {
   const t = translations[uiLanguage]
   const [tabs, setTabs] = useState([])
   const [activeTabId, setActiveTabIdState] = useState(null)
-  const [editingTabName, setEditingTabName] = useState(null)
-  const [editingTabNameValue, setEditingTabNameValue] = useState('')
-  const [draggedTabIndex, setDraggedTabIndex] = useState(null)
   const [config, setConfig] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -473,6 +471,24 @@ export const Settings = ({ uiLanguage, onClose }) => {
     setFeedTitle('')
   }
 
+  const handleTabRenameForSettings = (tabId, newName) => {
+    const updatedTabs = updateTabName(tabs, tabId, newName)
+    setTabs(updatedTabs)
+    saveTabs(updatedTabs)
+    if (activeTabId === tabId) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('tab', encodeURIComponent(newName))
+      window.history.replaceState({}, '', url.toString())
+    }
+    success('Tab name updated')
+  }
+
+  const handleReorderTabs = (fromIndex, toIndex) => {
+    const newTabs = reorderTabs(tabs, fromIndex, toIndex)
+    setTabs(newTabs)
+    saveTabs(newTabs)
+  }
+
   // Tab management functions
   const handleCreateTab = () => {
     const newTab = createNewTab(tabs)
@@ -532,54 +548,6 @@ export const Settings = ({ uiLanguage, onClose }) => {
     }
   }
 
-  const handleStartEditTabName = (tab) => {
-    setEditingTabName(tab.id)
-    setEditingTabNameValue(tab.name)
-  }
-
-  const handleSaveTabName = (tabId) => {
-    if (editingTabNameValue.trim()) {
-      const updatedTabs = updateTabName(tabs, tabId, editingTabNameValue.trim())
-      setTabs(updatedTabs)
-      saveTabs(updatedTabs)
-      
-      // Update URL query parameter if this is the active tab
-      if (activeTabId === tabId) {
-        const url = new URL(window.location.href)
-        url.searchParams.set('tab', encodeURIComponent(editingTabNameValue.trim()))
-        window.history.replaceState({}, '', url.toString())
-      }
-      
-      success('Tab name updated')
-    }
-    setEditingTabName(null)
-    setEditingTabNameValue('')
-  }
-
-  const handleCancelEditTabName = () => {
-    setEditingTabName(null)
-    setEditingTabNameValue('')
-  }
-
-  // Drag and drop handlers
-  const handleDragStart = (index) => {
-    setDraggedTabIndex(index)
-  }
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault()
-    if (draggedTabIndex === null || draggedTabIndex === index) return
-    
-    const newTabs = reorderTabs(tabs, draggedTabIndex, index)
-    setTabs(newTabs)
-    saveTabs(newTabs)
-    setDraggedTabIndex(index)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedTabIndex(null)
-  }
-
   if (!config) {
     return <div className="settings-loading">{t.loading}</div>
   }
@@ -587,178 +555,56 @@ export const Settings = ({ uiLanguage, onClose }) => {
   const allSelected = searchResults.length > 0 && selectedAvailableSources.size === searchResults.length
   const allActiveSelected = config.sources.length > 0 && selectedActiveSources.size === config.sources.length
 
-  return (
-    <div className="settings-page">
-      {/* Tab Management Section - Only show when multiple tabs exist */}
-      {tabs.length > 1 && (
-        <div className="settings-tabs-section">
-          <div className="tabs-header" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div className="cache-notice" style={{
-              padding: '10px 14px',
-              backgroundColor: '#f0f7ff',
-              border: '1px solid #b3d9ff',
-              borderRadius: '4px',
-              fontSize: '13px',
-              color: '#0066cc',
-              flex: '1'
-            }}>
-              <strong>ℹ️ {t.note}</strong> {t.cacheNotice}
-            </div>
-            <button className="create-tab-btn" onClick={handleCreateTab}>
-              + {t.createTab}
-            </button>
-            <div className="toast-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label style={{ fontSize: '13px', color: '#495057', cursor: 'pointer', userSelect: 'none' }}>
-                {t.showToastMessages || 'Show fetch messages'}
-              </label>
-              <div 
-                className="toggle-switch"
-                onClick={() => {
-                  const newValue = !showToastMessages
-                  setShowToastMessages(newValue)
-                  saveSettingsPreferences({ showToastMessages: newValue })
-                }}
-                style={{
-                  position: 'relative',
-                  width: '44px',
-                  height: '24px',
-                  backgroundColor: showToastMessages ? '#667eea' : '#ccc',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{
-                  position: 'absolute',
-                  top: '2px',
-                  left: showToastMessages ? '22px' : '2px',
-                  width: '20px',
-                  height: '20px',
-                  backgroundColor: 'white',
-                  borderRadius: '50%',
-                  transition: 'left 0.2s',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                }} />
-              </div>
-            </div>
-          </div>
-          <div className="tabs-list">
-            {tabs.map((tab, index) => (
-              <div
-                key={tab.id}
-                className={`tab-item ${activeTabId === tab.id ? 'active' : ''}`}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                onClick={() => handleSwitchTab(tab.id)}
-              >
-                {editingTabName === tab.id ? (
-                  <input
-                    type="text"
-                    className="tab-name-input"
-                    value={editingTabNameValue}
-                    onChange={(e) => setEditingTabNameValue(e.target.value)}
-                    onBlur={() => handleSaveTabName(tab.id)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveTabName(tab.id)
-                      } else if (e.key === 'Escape') {
-                        handleCancelEditTabName()
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    autoFocus
-                  />
-                ) : (
-                  <>
-                    <span
-                      className="tab-name"
-                      onDoubleClick={(e) => {
-                        e.stopPropagation()
-                        handleStartEditTabName(tab)
-                      }}
-                      title={t.editTabName}
-                    >
-                      {tab.name}
-                    </span>
-                    <button
-                      className="delete-tab-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteTab(tab.id)
-                      }}
-                      title={t.deleteTab}
-                    >
-                        ×
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Create Tab Button - Show when only one tab exists */}
-      {tabs.length === 1 && (
-        <div className="settings-tabs-section">
-          <div className="tabs-header" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div className="cache-notice" style={{
-              padding: '10px 14px',
-              backgroundColor: '#f0f7ff',
-              border: '1px solid #b3d9ff',
-              borderRadius: '4px',
-              fontSize: '13px',
-              color: '#0066cc',
-              flex: '1'
-            }}>
-              <strong>ℹ️ {t.note}</strong> {t.cacheNotice}
-            </div>
-            <button className="create-tab-btn" onClick={handleCreateTab}>
-              + {t.createTab}
-            </button>
-            <div className="toast-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label style={{ fontSize: '13px', color: '#495057', cursor: 'pointer', userSelect: 'none' }}>
-                {t.showToastMessages || 'Show fetch messages'}
-              </label>
-              <div 
-                className="toggle-switch"
-                onClick={() => {
-                  const newValue = !showToastMessages
-                  setShowToastMessages(newValue)
-                  saveSettingsPreferences({ showToastMessages: newValue })
-                }}
-                style={{
-                  position: 'relative',
-                  width: '44px',
-                  height: '24px',
-                  backgroundColor: showToastMessages ? '#667eea' : '#ccc',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{
-                  position: 'absolute',
-                  top: '2px',
-                  left: showToastMessages ? '22px' : '2px',
-                  width: '20px',
-                  height: '20px',
-                  backgroundColor: 'white',
-                  borderRadius: '50%',
-                  transition: 'left 0.2s',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+  const toggleShowToastMessages = () => {
+    const newValue = !showToastMessages
+    setShowToastMessages(newValue)
+    saveSettingsPreferences({ showToastMessages: newValue })
+  }
 
-      <div className="settings-layout">
+  return (
+    <>
+      <TabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onTabClick={handleSwitchTab}
+        onTabRename={handleTabRenameForSettings}
+        alwaysShow
+        allowDelete
+        onTabDelete={handleDeleteTab}
+        deleteTabTitle={t.deleteTab}
+        allowReorder
+        onReorder={handleReorderTabs}
+        showCreateButton
+        onCreateTab={handleCreateTab}
+        createTabLabel={t.createTab}
+        tabsListAriaLabel={t.tabsListAria}
+      />
+      <div className="settings-page">
+        <div className="settings-tabs-section">
+          <div className="settings-tabs-meta-row">
+            <div className="settings-cache-notice" role="note">
+              <strong>ℹ️ {t.note}</strong> {t.cacheNotice}
+            </div>
+            <div className="toast-toggle-container">
+              <label className="settings-toast-toggle-label" htmlFor="settings-fetch-toasts-switch">
+                {t.showToastMessages || 'Show fetch messages'}
+              </label>
+              <button
+                type="button"
+                id="settings-fetch-toasts-switch"
+                className={`settings-fetch-toast-switch ${showToastMessages ? 'is-on' : ''}`}
+                onClick={toggleShowToastMessages}
+                role="switch"
+                aria-checked={showToastMessages}
+                aria-label={t.showToastMessages || 'Show fetch messages'}
+              >
+                <span className="settings-fetch-toast-switch-knob" aria-hidden />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-layout">
         {/* Left Sidebar - Country Filters */}
         <aside className="settings-sidebar">
           <div className="sidebar-section">
@@ -776,7 +622,7 @@ export const Settings = ({ uiLanguage, onClose }) => {
               <input
                 type="text"
                 className="country-search-input"
-                placeholder="Search countries..."
+                placeholder={t.searchCountriesPlaceholder}
                 value={countrySearchQuery}
                 onChange={(e) => setCountrySearchQuery(e.target.value)}
               />
@@ -784,7 +630,7 @@ export const Settings = ({ uiLanguage, onClose }) => {
                 <button
                   className="country-search-clear"
                   onClick={() => setCountrySearchQuery('')}
-                  title="Clear search"
+                  title={t.countrySearchClear}
                 >
                   ×
                 </button>
@@ -968,12 +814,6 @@ export const Settings = ({ uiLanguage, onClose }) => {
               {searchResults.length > 0 && (
                 <div className="search-results-header">
                   <span>{t.showingResults} {searchResults.length} {t.results}</span>
-                  <button 
-                    className="select-all-btn"
-                    onClick={toggleSelectAll}
-                  >
-                    {allSelected ? t.deselectAll : t.selectAll}
-                  </button>
                 </div>
               )}
             </div>
@@ -985,14 +825,18 @@ export const Settings = ({ uiLanguage, onClose }) => {
             <div className="sources-column">
               <div className="column-header">
                 <h3>{t.availableSources}</h3>
-                {selectedAvailableSources.size > 0 && (
-                  <button 
-                    className="add-selected-btn"
-                    onClick={handleAddSelected}
-                  >
-                    {t.addSelected} ({selectedAvailableSources.size})
-                  </button>
-                )}
+                <div className="header-buttons">
+                  {searchResults.length > 0 && (
+                    <button type="button" className="select-all-btn" onClick={toggleSelectAll}>
+                      {allSelected ? t.deselectAll : t.selectAll}
+                    </button>
+                  )}
+                  {selectedAvailableSources.size > 0 && (
+                    <button type="button" className="add-selected-btn" onClick={handleAddSelected}>
+                      {t.addSelected} ({selectedAvailableSources.size})
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="sources-list-container">
                 {searchResults.length === 0 ? (
@@ -1152,5 +996,6 @@ export const Settings = ({ uiLanguage, onClose }) => {
         </div>
       </div>
     </div>
+    </>
   )
 }

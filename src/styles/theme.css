@@ -1,0 +1,77 @@
+/* Theme tokens — imported before App.css */
+:root,
+html[data-theme='light'] {
+  color-scheme: light;
+  --af-gradient-start: #f8fafc;
+  --af-gradient-mid: #e2e8f0;
+  --af-gradient-end: #f1f5f9;
+  --af-surface: #ffffff;
+  --af-surface-glass: rgba(255, 255, 255, 0.95);
+  --af-surface-muted: rgba(248, 250, 252, 0.85);
+  --af-surface-pill: rgba(248, 250, 252, 0.8);
+  --af-text: #0f172a;
+  --af-text-secondary: #475569;
+  --af-text-muted: #64748b;
+  --af-text-soft: #94a3b8;
+  --af-border: rgba(226, 232, 240, 0.8);
+  --af-border-strong: #e2e8f0;
+  --af-accent: #667eea;
+  --af-accent-2: #764ba2;
+  --af-shadow: rgba(0, 0, 0, 0.08);
+  --af-shadow-lg: rgba(0, 0, 0, 0.15);
+  --af-card-border: #f0f0f0;
+  --af-meta-bg: rgba(241, 245, 249, 0.6);
+  --af-desc-fade: linear-gradient(to right, transparent, #ffffff 45%, #ffffff 100%);
+  --af-input-bg: rgba(255, 255, 255, 0.9);
+  --af-github: #64748b;
+  --af-new-bg-start: #fff9e6;
+  --af-new-bg-end: #ffe6cc;
+  --af-lang-en-bg1: #dbeafe;
+  --af-lang-en-bg2: #bfdbfe;
+  --af-lang-en-text: #1e40af;
+  --af-lang-fr-bg1: #fef3c7;
+  --af-lang-fr-bg2: #fde68a;
+  --af-lang-fr-text: #92400e;
+  --af-danger: #dc3545;
+  --af-success: #28a745;
+  --af-warning: #ffc107;
+  --af-info: #17a2b8;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --af-gradient-start: #0f172a;
+  --af-gradient-mid: #1e293b;
+  --af-gradient-end: #0f172a;
+  --af-surface: #1e293b;
+  --af-surface-glass: rgba(30, 41, 59, 0.92);
+  --af-surface-muted: rgba(51, 65, 85, 0.55);
+  --af-surface-pill: rgba(51, 65, 85, 0.65);
+  --af-text: #f1f5f9;
+  --af-text-secondary: #cbd5e1;
+  --af-text-muted: #94a3b8;
+  --af-text-soft: #64748b;
+  --af-border: rgba(71, 85, 105, 0.75);
+  --af-border-strong: #475569;
+  --af-accent: #818cf8;
+  --af-accent-2: #a78bfa;
+  --af-shadow: rgba(0, 0, 0, 0.4);
+  --af-shadow-lg: rgba(0, 0, 0, 0.55);
+  --af-card-border: rgba(51, 65, 85, 0.95);
+  --af-meta-bg: rgba(51, 65, 85, 0.5);
+  --af-desc-fade: linear-gradient(to right, transparent, #1e293b 40%, #1e293b 100%);
+  --af-input-bg: rgba(15, 23, 42, 0.85);
+  --af-github: #94a3b8;
+  --af-new-bg-start: #422006;
+  --af-new-bg-end: #713f12;
+  --af-lang-en-bg1: #1e3a5f;
+  --af-lang-en-bg2: #1e40af;
+  --af-lang-en-text: #bfdbfe;
+  --af-lang-fr-bg1: #713f12;
+  --af-lang-fr-bg2: #92400e;
+  --af-lang-fr-text: #fde68a;
+  --af-danger: #f87171;
+  --af-success: #4ade80;
+  --af-warning: #fbbf24;
+  --af-info: #22d3ee;
+}

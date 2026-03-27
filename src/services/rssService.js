@@ -1,3 +1,14 @@
+import { extractChannelSiteUrlFromXmlDoc, resolveSiteLogoFromMarketingPages } from '../utils/siteLogoResolver'
+import { resolveLogoViaWikimediaCommons } from '../utils/wikimediaLogoResolver'
+import {
+  loadFeedLogoEntry,
+  saveFeedLogoEntry,
+  shouldRunFeedLogoNetworkProbe,
+  buildFaviconUrlCandidates,
+} from '../utils/feedLogoCache'
+import { verifyRemoteImageUrl } from '../utils/assetUrlCheck'
+import { getPermanentFeedLogoUrl } from '../utils/feedLogoPermanent'
+
 // Backend proxy is used instead of CORS proxies
 
 // Decode HTML entities in text
@@ -359,8 +370,150 @@ const extractThumbnail = (item, description) => {
   return ''
 }
 
+// Channel / feed logo (RSS 2.0 <channel><image><url>, Atom <logo> / <icon>)
+const extractFeedImageFromDoc = (xmlDoc) => {
+  const normalizeFeedImageUrl = (raw) => {
+    if (!raw) return ''
+    let u = String(raw).trim()
+    if (!u) return ''
+    if (u.startsWith('//')) u = `https:${u}`
+    if (!/^https?:\/\//i.test(u) || u.length < 10) return ''
+    return u
+  }
+
+  const channel = xmlDoc.querySelector('channel')
+  if (channel) {
+    for (const child of channel.children) {
+      if (child.localName !== 'image') continue
+      for (const sub of child.children) {
+        if (sub.localName === 'url') {
+          const u = normalizeFeedImageUrl(sub.textContent)
+          if (u) return u
+        }
+      }
+    }
+  }
+
+  const feed = xmlDoc.querySelector('feed')
+  if (feed) {
+    for (const child of feed.children) {
+      if (child.localName === 'logo') {
+        const u = normalizeFeedImageUrl(child.textContent)
+        if (u) return u
+      }
+      if (child.localName === 'icon') {
+        const u = normalizeFeedImageUrl(child.getAttribute('src') || child.textContent)
+        if (u) return u
+      }
+    }
+  }
+
+  return ''
+}
+
+/** Card teaser length (plain text). Full body stays in descriptionFull / content for expand. */
+const MAX_RSS_DESCRIPTION_PREVIEW = 320
+
+/** Short teaser for cards; full plain text is kept separately for "more…". */
+const truncateRssDescriptionPreview = (plain) => {
+  if (!plain || plain.length <= MAX_RSS_DESCRIPTION_PREVIEW) return plain
+  const truncated = plain.substring(0, MAX_RSS_DESCRIPTION_PREVIEW)
+  const lastSentence = truncated.lastIndexOf('. ')
+  const lastParagraph = truncated.lastIndexOf('</p>')
+  const cutPoint = Math.max(lastSentence, lastParagraph > 0 ? lastParagraph + 4 : 0)
+  let out
+  if (cutPoint > MAX_RSS_DESCRIPTION_PREVIEW * 0.6) {
+    out = plain.substring(0, cutPoint).trim()
+  } else {
+    const lastSpace = truncated.lastIndexOf(' ')
+    if (lastSpace > MAX_RSS_DESCRIPTION_PREVIEW * 0.7) {
+      out = truncated.substring(0, lastSpace).trim()
+    } else {
+      out = truncated.trim()
+    }
+  }
+  if (!out.endsWith('...') && !out.endsWith('.')) {
+    out += '...'
+  }
+  return out
+}
+
+/** Postmedia / partner feeds: content:encoded is often a short truncate with “Read More” + leaked CDATA. */
+const stripFeedExcerptBoilerplate = (plain, rawHtml = '') => {
+  let t = (plain || '').trim()
+  if (!t) return t
+  if (/truncated_content|utm_campaign=truncated/i.test(rawHtml)) {
+    t = t.replace(/\s*Read More\s*$/i, '').trim()
+  }
+  t = t.replace(/\s*\]\]\s*>\s*$/g, '').replace(/\s*Read More\s*$/i, '').trim()
+  return t
+}
+
+const longerPlainFragment = (a, b) => {
+  const A = (a || '').trim()
+  const B = (b || '').trim()
+  return B.length > A.length ? B : A
+}
+
+/** Card “more…” body: combine channel description + content:encoded when they differ (avoid picking only the stub). */
+const mergeRssDescriptionAndContent = (descPlain, encPlain) => {
+  const d = (descPlain || '').trim()
+  const e = (encPlain || '').trim()
+  if (!d) return e
+  if (!e) return d
+  const minOverlap = 24
+  if (e.length >= minOverlap && d.includes(e)) return d
+  if (d.length >= minOverlap && e.includes(d)) return e
+  const longer = d.length >= e.length ? d : e
+  const shorter = d.length >= e.length ? e : d
+  return `${longer}\n\n${shorter}`
+}
+
+/**
+ * Resolve feed-level logo when RSS has no channel image: homepage HTML, Wikimedia, favicon.ico.
+ * Uses localStorage + 3h probe window to avoid repeated requests to the same sites.
+ * @returns {Promise<{ url: string, tier: string }>}
+ */
+const resolveFallbackFeedLogo = async (source, channelSiteUrl) => {
+  const feedUrl = source.url
+  const entry = loadFeedLogoEntry(feedUrl)
+
+  if (entry && !shouldRunFeedLogoNetworkProbe(entry)) {
+    return {
+      url: entry.logoUrl ? String(entry.logoUrl) : '',
+      tier: entry.tier || 'cached',
+    }
+  }
+
+  let url = ''
+  let tier = 'none'
+
+  url = await resolveSiteLogoFromMarketingPages(feedUrl, channelSiteUrl)
+  if (url) tier = 'homepage'
+
+  if (!url && source.name) {
+    url = await resolveLogoViaWikimediaCommons(source.name)
+    if (url) tier = 'wikimedia'
+  }
+
+  if (!url) {
+    const candidates = buildFaviconUrlCandidates(feedUrl, channelSiteUrl)
+    for (const fav of candidates) {
+      const ok = await verifyRemoteImageUrl(fav)
+      if (ok) {
+        url = fav
+        tier = 'favicon'
+        break
+      }
+    }
+  }
+
+  saveFeedLogoEntry(feedUrl, { logoUrl: url || null, tier })
+  return { url, tier }
+}
+
 // Parse RSS item into news article object
-const parseRssItem = (item, source) => {
+const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => {
   // Get title - try multiple methods
   // Some feeds (like UOL) don't have title elements, use description as fallback
   const titleElement = item.querySelector('title')
@@ -381,145 +534,121 @@ const parseRssItem = (item, source) => {
   
   const link = item.querySelector('link')?.textContent || ''
   const pubDate = item.querySelector('pubDate')?.textContent || ''
-  
-  // Get description - handle both textContent (plain text) and innerHTML (HTML content)
-  // Also handle CDATA sections which textContent handles automatically
+
+  // Full plain text from <description> (never truncated here) + raw HTML for thumbnail discovery
   const descriptionElement = item.querySelector('description')
-  let description = ''
+  let descriptionPlainFull = ''
+  let descriptionRawHtmlForThumb = ''
+
   if (descriptionElement) {
-    // Try textContent first (handles CDATA automatically)
     let descText = descriptionElement.textContent || ''
     let descInnerHTML = descriptionElement.innerHTML || ''
-    
-    // If textContent is empty but innerHTML exists, use innerHTML
+
     if (!descText && descInnerHTML) {
-      // Check if innerHTML contains CDATA markers - strip them
       if (descInnerHTML.includes('<![CDATA[')) {
-        descText = descInnerHTML.replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1')
+        descText = descInnerHTML.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
       } else {
         descText = descInnerHTML
       }
     }
-    
-    // Check if description contains HTML
+
+    if (descInnerHTML.includes('<![CDATA[')) {
+      descriptionRawHtmlForThumb = descInnerHTML.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    } else {
+      descriptionRawHtmlForThumb = descInnerHTML
+    }
+
     if (descInnerHTML && descInnerHTML !== descText && descInnerHTML.includes('<') && !descInnerHTML.includes('<![CDATA[')) {
-      description = stripHtmlTags(descInnerHTML)
+      descriptionPlainFull = stripHtmlTags(descInnerHTML)
     } else if (descText) {
-      description = decodeHtmlEntities(descText)
+      descriptionPlainFull = decodeHtmlEntities(descText)
     }
-    
-    // Final fallback - try innerText
-    if (!description && descriptionElement.innerText) {
-      description = decodeHtmlEntities(descriptionElement.innerText)
+
+    if (!descriptionPlainFull && descriptionElement.innerText) {
+      descriptionPlainFull = decodeHtmlEntities(descriptionElement.innerText)
     }
-    
-    // Last resort - try to get text from child nodes
-    if (!description && descriptionElement.childNodes.length > 0) {
+
+    if (!descriptionPlainFull && descriptionElement.childNodes.length > 0) {
       const textNodes = Array.from(descriptionElement.childNodes)
-        .filter(node => node.nodeType === Node.TEXT_NODE || node.nodeType === Node.CDATA_SECTION_NODE)
-        .map(node => node.textContent || node.nodeValue || '')
+        .filter((node) => node.nodeType === Node.TEXT_NODE || node.nodeType === Node.CDATA_SECTION_NODE)
+        .map((node) => node.textContent || node.nodeValue || '')
         .join('')
       if (textNodes) {
-        description = decodeHtmlEntities(textNodes.trim())
+        descriptionPlainFull = decodeHtmlEntities(textNodes.trim())
       }
     }
-    
-    description = description.trim()
-    
-    // Remove embedded content (videos, iframes, etc.) that can make descriptions too long
-    // This helps with feeds like Engadget that include full article content
-    description = description
-      .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '') // Remove iframes (YouTube, etc.)
-      .replace(/<embed[^>]*>.*?<\/embed>/gi, '') // Remove embed tags
-      .replace(/<object[^>]*>.*?<\/object>/gi, '') // Remove object tags
-      .replace(/<video[^>]*>.*?<\/video>/gi, '') // Remove video tags
-      .replace(/<audio[^>]*>.*?<\/audio>/gi, '') // Remove audio tags
-      .replace(/<script[^>]*>.*?<\/script>/gi, '') // Remove script tags
-      .replace(/<style[^>]*>.*?<\/style>/gi, '') // Remove style tags
-      .replace(/<core-commerce[^>]*>.*?<\/core-commerce>/gi, '') // Remove custom elements like Engadget's core-commerce
+
+    descriptionPlainFull = descriptionPlainFull.trim()
+    descriptionPlainFull = descriptionPlainFull
+      .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+      .replace(/<embed[^>]*>.*?<\/embed>/gi, '')
+      .replace(/<object[^>]*>.*?<\/object>/gi, '')
+      .replace(/<video[^>]*>.*?<\/video>/gi, '')
+      .replace(/<audio[^>]*>.*?<\/audio>/gi, '')
+      .replace(/<script[^>]*>.*?<\/script>/gi, '')
+      .replace(/<style[^>]*>.*?<\/style>/gi, '')
+      .replace(/<core-commerce[^>]*>.*?<\/core-commerce>/gi, '')
       .trim()
   }
-  
-  // Limit description length to keep articles compact
-  // For feeds with full article content, truncate to a reasonable preview length
-  const MAX_DESCRIPTION_LENGTH = 500
-  if (description.length > MAX_DESCRIPTION_LENGTH) {
-    // Try to truncate at a sentence boundary (period followed by space)
-    const truncated = description.substring(0, MAX_DESCRIPTION_LENGTH)
-    const lastSentence = truncated.lastIndexOf('. ')
-    const lastParagraph = truncated.lastIndexOf('</p>')
-    const cutPoint = Math.max(lastSentence, lastParagraph > 0 ? lastParagraph + 4 : 0)
-    
-    if (cutPoint > MAX_DESCRIPTION_LENGTH * 0.6) {
-      // Use sentence/paragraph boundary if it's reasonable
-      description = description.substring(0, cutPoint).trim()
-    } else {
-      // Otherwise truncate at word boundary
-      const lastSpace = truncated.lastIndexOf(' ')
-      if (lastSpace > MAX_DESCRIPTION_LENGTH * 0.7) {
-        description = truncated.substring(0, lastSpace).trim()
-      } else {
-        description = truncated.trim()
-      }
-    }
-    
-    // Add ellipsis if we truncated
-    if (!description.endsWith('...') && !description.endsWith('.')) {
-      description += '...'
-    }
-  }
-  
-  // If no title but we have description, use description as title (UOL feed pattern)
-  if (!title && description) {
-    title = description
-    // For UOL, also try to get content:encoded as description
-    const contentElement = item.querySelector('content\\:encoded') || item.querySelector('encoded')
-    if (contentElement) {
-      const contentText = contentElement.textContent || ''
-      const contentInnerHTML = contentElement.innerHTML || ''
-      if (contentInnerHTML && contentInnerHTML.includes('<')) {
-        description = stripHtmlTags(contentInnerHTML)
-      } else if (contentText) {
-        description = decodeHtmlEntities(contentText)
-      }
-      description = description.trim()
-    } else {
-      description = '' // Don't duplicate in description if no content
-    }
-  }
-  
+
+  let thumbnail = extractThumbnail(item, descriptionRawHtmlForThumb)
+
   const guid = item.querySelector('guid')?.textContent || ''
-  const author = decodeHtmlEntities(item.querySelector('author')?.textContent || 
-               item.querySelector('dc\\:creator')?.textContent ||
-               item.querySelector('creator')?.textContent || '')
-  
-  // Get content - handle both textContent and innerHTML
+  const author = decodeHtmlEntities(
+    item.querySelector('author')?.textContent ||
+      item.querySelector('dc\\:creator')?.textContent ||
+      item.querySelector('creator')?.textContent ||
+      ''
+  )
+
   const contentElement = item.querySelector('content\\:encoded') || item.querySelector('encoded')
   let content = ''
+  let contentRawHtml = ''
   if (contentElement) {
     const contentText = contentElement.textContent || ''
     const contentInnerHTML = contentElement.innerHTML || ''
+    contentRawHtml = contentInnerHTML
     if (contentInnerHTML !== contentText && contentInnerHTML.includes('<')) {
       content = stripHtmlTags(contentInnerHTML)
     } else {
       content = decodeHtmlEntities(contentText)
     }
+    content = stripFeedExcerptBoilerplate(content.trim(), contentRawHtml)
   }
-  
-  // Limit content size to prevent memory issues (max 50KB per field)
-    const MAX_CONTENT_SIZE = 50 * 1024 // 50KB
-    if (content.length > MAX_CONTENT_SIZE) {
-      console.warn(`[${source.name}] Content too long (${content.length} chars), truncating to ${MAX_CONTENT_SIZE}`)
-      content = content.substring(0, MAX_CONTENT_SIZE) + '...'
-    }
+
+  const MAX_CONTENT_SIZE = 50 * 1024 // 50KB
   if (content.length > MAX_CONTENT_SIZE) {
     console.warn(`[${source.name}] Content too long (${content.length} chars), truncating to ${MAX_CONTENT_SIZE}`)
     content = content.substring(0, MAX_CONTENT_SIZE) + '...'
   }
-  
+
+  if (!descriptionPlainFull && content) {
+    descriptionPlainFull = content
+  }
+
+  // Teaser: many feeds put the main lede in content:encoded and a different line in <description> (e.g. Postmedia).
+  const teaserPlain = longerPlainFragment(descriptionPlainFull, content)
+  let description = truncateRssDescriptionPreview(teaserPlain)
+
+  // No title: use teaser as title; prefer content:encoded for full body + short teaser
+  if (!title && description) {
+    title = description
+    if (content) {
+      if (content.length >= descriptionPlainFull.length) {
+        descriptionPlainFull = content
+      }
+      description = truncateRssDescriptionPreview(
+        longerPlainFragment(descriptionPlainFull, content)
+      )
+    } else {
+      description = ''
+    }
+  }
+
   const categories = extractCategories(item, source)
-  let thumbnail = extractThumbnail(item, description)
-  
+
+  const descriptionExpandFull = mergeRssDescriptionAndContent(descriptionPlainFull, content)
+
   // Clean up thumbnail - remove empty strings, whitespace, and invalid URLs
   if (thumbnail) {
     thumbnail = thumbnail.trim()
@@ -532,6 +661,14 @@ const parseRssItem = (item, source) => {
     }
   } else {
     thumbnail = ''
+  }
+
+  let feedLogo = ''
+  if (feedImageUrl) {
+    const t = feedImageUrl.trim()
+    if (t && !t.startsWith('data:') && t.length >= 10 && /^https?:\/\//i.test(t)) {
+      feedLogo = t
+    }
   }
   
   // Debug logging for thumbnails (only in development)
@@ -591,11 +728,14 @@ const parseRssItem = (item, source) => {
     link,
     pubDate,
     description,
+    descriptionFull: descriptionExpandFull,
     guid,
     author,
     categories,
     content,
     thumbnail,
+    feedLogo,
+    feedLogoTier: feedLogo ? feedLogoTier : '',
     source: source.name, // Outlet name
     language: normalizedLanguage, // Normalized language code
     region: source.region || '', // City/region
@@ -760,9 +900,26 @@ export const fetchRssFeed = async (source, maxRetries = 2) => {
       }
       
       const items = xmlDoc.querySelectorAll('item')
-      
+      const channelSiteUrl = extractChannelSiteUrlFromXmlDoc(xmlDoc)
+      const rssChannelImage = extractFeedImageFromDoc(xmlDoc)
+      const pinnedFeedLogo = getPermanentFeedLogoUrl(source.url)
+      let feedImageUrl = ''
+      let feedLogoTier = 'none'
+      // Pinned URLs win over RSS <channel><image> (e.g. Gazette’s image points at a dead host).
+      if (pinnedFeedLogo) {
+        feedImageUrl = pinnedFeedLogo
+        feedLogoTier = 'pinned'
+      } else if (rssChannelImage) {
+        feedImageUrl = rssChannelImage
+        feedLogoTier = 'rss'
+      } else {
+        const resolved = await resolveFallbackFeedLogo(source, channelSiteUrl)
+        feedImageUrl = resolved.url || ''
+        feedLogoTier = resolved.tier || 'none'
+      }
+
       items.forEach(item => {
-        const parsedItem = parseRssItem(item, source)
+        const parsedItem = parseRssItem(item, source, feedImageUrl, feedLogoTier)
         if (parsedItem) {
           sourceNews.push(parsedItem)
         }
