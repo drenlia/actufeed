@@ -14,7 +14,7 @@ This guide explains all features and options available in ACTUFEED.
 
 ### Subheader Controls
 
-The subheader contains filtering and control options. Click the chevron button (▲/▼) on the right to show or hide these controls.
+The subheader contains filtering and control options. In the header, click the **filter icon** (three horizontal bars) to show or hide it: **accent color** when the subheader is visible, **muted gray** when it is hidden.
 
 #### VIEW Section
 - **All News**: Show all articles regardless of language
@@ -46,9 +46,9 @@ The subheader contains filtering and control options. Click the chevron button (
 
 Each article card displays:
 - **Thumbnail Image**: Article image if available
-- **Title**: Click to open the article in a new tab
+- **Title**: Opens the full article on that news source’s website in a new tab
 - **Source**: News outlet name
-- **Description**: Article preview (truncated for long content)
+- **Description**: Article preview; when **more…** is shown, click it to expand the full text when the feed provides it
 - **Publication Date**: When the article was published
 - **Language Badge**: FR or EN indicator
 - **Popularity Rating**: Score based on social shares and engagement
@@ -56,11 +56,10 @@ Each article card displays:
 
 **New Articles**: Articles that haven't been seen before are highlighted with a yellow background.
 
-**Toast Messages**: 
-- Appear when articles are fetched (if enabled in Settings)
-- Show success/failure status for each source
-- Drag to the right to dismiss manually
-- Auto-dismiss after a few seconds
+**Fetch status alerts** (optional): 
+- Small banners that can appear after articles are fetched (enable **Show fetch messages** in Settings)
+- They show success or failure per source
+- Drag a banner to the **right** to dismiss it; they also fade on their own after a few seconds
 
 ## Settings Page
 
@@ -77,10 +76,10 @@ When you have multiple tabs:
 
 **Note**: News articles are locally cached. When you add or remove sources, you may need to refresh the page to see updated articles.
 
-### Toast Messages Toggle
+### Fetch messages toggle
 
-- **Show fetch messages**: Toggle switch to enable/disable toast notifications when sources are fetched
-- Setting is saved automatically and persists across sessions
+- **Show fetch messages**: Turns the optional status banners on or off after sources are fetched
+- The choice is saved automatically for next time
 
 ### Country Filter Sidebar
 
@@ -125,24 +124,24 @@ The validation shows:
 
 ### Backup and Restore
 
-The application allows you to export your complete configuration and restore it later. This is useful for:
-- Backing up your settings before making major changes
-- Transferring your configuration to another device or browser
-- Recovering your setup if you lose your browser data
-- Sharing your configuration with others
+**Export** downloads a single backup file to your computer (usually your Downloads folder—your browser decides). **Import** reads that file back in. Typical reasons:
+- Keep a copy before big changes
+- Move your setup to another device or browser
+- Recover if browser data is lost
+- Share the same layout with someone else
 
 #### Exporting Your Configuration
 
 1. **Go to Settings**: Click the Settings button in the top right
 2. **Scroll to Bottom**: Navigate to the "Import/Export" section at the bottom of the Settings page
-3. **Click "Export Configuration"**: This downloads a backup file named `newsfeed-backup-YYYY-MM-DD.json`
+3. **Click "Export Configuration"**: Your browser saves a file such as `newsfeed-backup-YYYY-MM-DD.json` on disk
 
 **What Gets Exported:**
 - All your custom tabs and their names
 - All RSS feed sources configured for each tab
 - Your active tab selection
 - Category, language, date, and search filters for each tab
-- Your settings preferences (selected countries, toast messages setting, subheader collapsed state)
+- Your settings preferences (selected countries, fetch-messages toggle, subheader collapsed state)
 
 **Note**: Cached news articles are NOT exported (they will be re-fetched automatically when you restore).
 
@@ -178,7 +177,7 @@ The application allows you to export your complete configuration and restore it 
 
 5. **Auto-Refresh**: Enable auto-refresh to keep your feed updated automatically, or disable it to save bandwidth
 
-6. **Toast Messages**: Disable toast messages if you find them distracting, or enable them to monitor feed status
+6. **Fetch alerts**: Turn off **Show fetch messages** if banners annoy you, or leave them on to see whether each source loaded OK
 
 7. **Cache Awareness**: Remember that articles are cached. After adding or removing sources, refresh the page to see changes
 

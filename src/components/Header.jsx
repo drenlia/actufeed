@@ -9,13 +9,14 @@ export const Header = ({
   showArticleCount = true,
   isSettingsPage = false,
   onTitleClick,
+  onHelpClick,
   colorMode = 'light',
   onColorModeToggle,
   filtersCollapsed,
   onToggleFilters,
-  hasExpandableDescriptions = false,
-  onExpandAllDescriptions,
-  onShrinkAllDescriptions,
+  showDescriptionsBulkToggle = false,
+  descriptionsBulkExpanded = false,
+  onToggleDescriptionsBulk,
 }) => {
   const t = translations[uiLanguage]
 
@@ -51,38 +52,46 @@ export const Header = ({
             {t.title}
           </button>
         </div>
+        <div className="header-center">
+          {onHelpClick && (
+            <button
+              type="button"
+              className="header-help-btn"
+              onClick={onHelpClick}
+              aria-label={t.helpModalTitle}
+              title={`${t.helpModalTitle} · F1`}
+            >
+              <svg
+                className="header-help-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <circle
+                  className="header-help-icon-ring"
+                  cx="12"
+                  cy="12"
+                  r="9.5"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                />
+                <path
+                  className="header-help-icon-mark"
+                  stroke="currentColor"
+                  strokeWidth="1.65"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+                />
+                <circle className="header-help-icon-dot" cx="12" cy="17" r="0.9" fill="currentColor" />
+              </svg>
+            </button>
+          )}
+        </div>
         <div className="header-right">
           {showArticleCount && articleCount !== undefined && (
             <div className="header-news-meta">
-              {hasExpandableDescriptions &&
-                onExpandAllDescriptions &&
-                onShrinkAllDescriptions && (
-                  <div
-                    className="header-desc-bulk"
-                    role="group"
-                    aria-label={t.expandShrinkDescriptionsAria}
-                  >
-                    <button
-                      type="button"
-                      className="header-desc-bulk-btn"
-                      onClick={onExpandAllDescriptions}
-                      title={t.expandAllDescriptions}
-                    >
-                      {t.expandAllDescriptions}
-                    </button>
-                    <span className="header-desc-bulk-sep" aria-hidden>
-                      ·
-                    </span>
-                    <button
-                      type="button"
-                      className="header-desc-bulk-btn"
-                      onClick={onShrinkAllDescriptions}
-                      title={t.shrinkAllDescriptions}
-                    >
-                      {t.shrinkAllDescriptions}
-                    </button>
-                  </div>
-                )}
               <div className="news-counter">
                 <span className="counter-text">
                   {t.showing} <strong>{articleCount}</strong>{' '}
@@ -97,25 +106,64 @@ export const Header = ({
               </div>
             </div>
           )}
+          {showDescriptionsBulkToggle && onToggleDescriptionsBulk && (
+            <button
+              type="button"
+              className={`header-desc-icon-btn${descriptionsBulkExpanded ? ' header-desc-icon-btn--expanded' : ''}`}
+              onClick={onToggleDescriptionsBulk}
+              title={
+                descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions
+              }
+              aria-label={
+                descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions
+              }
+              aria-pressed={descriptionsBulkExpanded}
+            >
+              <svg className="header-desc-bulk-icon" viewBox="0 0 24 24" aria-hidden="true">
+                {descriptionsBulkExpanded ? (
+                  <path
+                    fill="currentColor"
+                    d="M7.41 18.41L6 17l6-6 6 6-1.41 1.41L12 13.83l-4.59 4.58zm0-6L6 11l6-6 6 6-1.41 1.41L12 7.83l-4.59 4.58z"
+                  />
+                ) : (
+                  <path
+                    fill="currentColor"
+                    d="M16.59 5.59L18 7l-6 6-6-6 1.41-1.41L12 10.17l4.59-4.58zm0 6L18 13l-6 6-6-6 1.41-1.41L12 16.17l4.59-4.58z"
+                  />
+                )}
+              </svg>
+            </button>
+          )}
           {onToggleFilters && (
             <button
               type="button"
-              className="header-filters-toggle-btn"
+              className={`header-filters-toggle-btn ${
+                filtersCollapsed
+                  ? 'header-filters-toggle-btn--off'
+                  : 'header-filters-toggle-btn--on'
+              }`}
               onClick={onToggleFilters}
               title={filtersCollapsed ? t.showFilters : t.hideFilters}
               aria-label={filtersCollapsed ? t.showFilters : t.hideFilters}
               aria-expanded={!filtersCollapsed}
             >
-              {filtersCollapsed ? t.showFilters : t.hideFilters}
+              <svg className="header-filters-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M4 6h16v2H4V6zm3 5h10v2H7v-2zm3.5 5h5v2h-5v-2z"
+                />
+              </svg>
             </button>
           )}
           {onSettingsClick && (
-            <button 
+            <button
+              type="button"
               className={`header-settings-btn ${isSettingsPage ? 'active' : ''}`}
               onClick={onSettingsClick}
               title={t.settings}
+              aria-label={t.settings}
             >
-              ⚙️ {t.settings}
+              ⚙️
             </button>
           )}
           {onColorModeToggle && (

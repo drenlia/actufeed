@@ -11,6 +11,7 @@ import { NewsList } from './components/NewsList'
 import { Settings } from './components/Settings'
 import { TabNavigation } from './components/TabNavigation'
 import { SplashScreen } from './components/SplashScreen'
+import { HelpModal } from './components/HelpModal'
 import { ToastProvider } from './contexts/ToastContext'
 import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, saveTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
 import { loadSettingsPreferences, saveSettingsPreferences } from './utils/settingsStorage'
@@ -35,10 +36,24 @@ function AppContent() {
   const [showSplash, setShowSplash] = useState(true)
   const [colorMode, setColorMode] = useState(() => loadSettingsPreferences().theme)
   const [descExpandAllSignal, setDescExpandAllSignal] = useState({ nonce: 0, expanded: true })
+  const [descBulkExpanded, setDescBulkExpanded] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorMode
   }, [colorMode])
+
+  useEffect(() => {
+    if (showSplash) return undefined
+    const onKey = (e) => {
+      if (e.key === 'F1') {
+        e.preventDefault()
+        setShowHelp(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showSplash])
 
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -319,6 +334,22 @@ function AppContent() {
     [sortedNews]
   )
 
+  useEffect(() => {
+    setDescBulkExpanded(false)
+  }, [activeTabId])
+
+  useEffect(() => {
+    if (expandableDescCount < 2) setDescBulkExpanded(false)
+  }, [expandableDescCount])
+
+  const toggleDescriptionsBulk = useCallback(() => {
+    setDescBulkExpanded((prev) => {
+      const next = !prev
+      setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: next }))
+      return next
+    })
+  }, [])
+
   // Get available categories (only those with matching articles)
   const availableCategories = getAvailableCategories(news, combinedCategories, filters)
 
@@ -367,6 +398,7 @@ function AppContent() {
           showArticleCount={false}
           isSettingsPage={true}
           onTitleClick={() => setShowSettings(false)}
+          onHelpClick={() => setShowHelp(true)}
           colorMode={colorMode}
           onColorModeToggle={toggleColorMode}
         />
@@ -377,6 +409,7 @@ function AppContent() {
             setShowSettings(false)
           }}
         />
+        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} uiLanguage={uiLanguage} />
       </div>
     )
   }
@@ -401,13 +434,10 @@ function AppContent() {
             setSubheaderCollapsed(newState)
             saveSettingsPreferences({ subheaderCollapsed: newState })
           }}
-          hasExpandableDescriptions={expandableDescCount > 0}
-          onExpandAllDescriptions={() =>
-            setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: true }))
-          }
-          onShrinkAllDescriptions={() =>
-            setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: false }))
-          }
+          showDescriptionsBulkToggle={expandableDescCount >= 2}
+          descriptionsBulkExpanded={descBulkExpanded}
+          onToggleDescriptionsBulk={toggleDescriptionsBulk}
+          onHelpClick={() => setShowHelp(true)}
         />
         {tabs.length > 1 && (
           <TabNavigation
@@ -451,6 +481,7 @@ function AppContent() {
             expandAllSignal={descExpandAllSignal}
           />
         </main>
+        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} uiLanguage={uiLanguage} />
       </div>
   )
 }
