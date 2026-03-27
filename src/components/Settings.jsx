@@ -605,19 +605,13 @@ export const Settings = ({ uiLanguage, onClose }) => {
         </div>
 
         <div className="settings-layout">
-        {/* Left Sidebar - Country Filters */}
+        {/* Country filters — grid column; on phone: narrow ISO column beside sources */}
         <aside className="settings-sidebar">
           <div className="sidebar-section">
-            <h3>{t.filterByCountry}</h3>
-            {selectedCountries.size > 0 && (
-              <button 
-                className="clear-country-filters-btn"
-                onClick={clearCountryFilters}
-              >
-                {t.clearFilters}
-              </button>
-            )}
-            {/* Country Search Field */}
+            <h3 className="settings-country-heading">
+              <span className="settings-country-heading__full">{t.filterByCountry}</span>
+              <span className="settings-country-heading__short">{t.filterByCountryShort}</span>
+            </h3>
             <div className="country-search-container">
               <input
                 type="text"
@@ -628,6 +622,7 @@ export const Settings = ({ uiLanguage, onClose }) => {
               />
               {countrySearchQuery && (
                 <button
+                  type="button"
                   className="country-search-clear"
                   onClick={() => setCountrySearchQuery('')}
                   title={t.countrySearchClear}
@@ -649,22 +644,31 @@ export const Settings = ({ uiLanguage, onClose }) => {
                   return (
                     <button
                       key={country.code}
+                      type="button"
                       className={`country-pill-vertical ${isSelected ? 'selected' : ''}`}
                       onClick={() => toggleCountryFilter(country.code)}
                       title={`${country.name} (${country.count} sources)`}
                     >
+                      <span className="country-code">{country.code.toUpperCase()}</span>
                       <span className="country-name">{country.name}</span>
                       <span className="country-count">({country.count})</span>
                     </button>
                   )
                 })}
             </div>
+            {selectedCountries.size > 0 && (
+              <button
+                type="button"
+                className="clear-country-filters-btn clear-country-filters-btn--after-pills"
+                onClick={clearCountryFilters}
+              >
+                {t.clearFilters}
+              </button>
+            )}
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <div className="settings-main">
-          {/* Manual RSS Feed Input */}
+        <div className="settings-manual-panel settings-glass-panel">
           <div className="settings-section">
             <h2>{t.addManualFeed}</h2>
             <div className="manual-feed-container">
@@ -799,7 +803,9 @@ export const Settings = ({ uiLanguage, onClose }) => {
               )}
             </div>
           </div>
+        </div>
 
+        <div className="settings-sources-body settings-main">
           {/* Search Bar */}
           <div className="settings-section">
             <h2>{t.searchSources}</h2>
@@ -994,8 +1000,8 @@ export const Settings = ({ uiLanguage, onClose }) => {
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
     </>
   )
 }

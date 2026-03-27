@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { translations } from '../constants/translations'
 
 export const CategoryDropdown = ({
@@ -29,18 +29,26 @@ export const CategoryDropdown = ({
     onClearCategories()
   }
   const t = translations[uiLanguage]
+  const rootRef = useRef(null)
+  const menuId = useId()
+  const searchInputId = useId()
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  const summaryLabel =
+    selectedCategories.size === 0
+      ? t.allCategories
+      : selectedCategories.size === 1
+        ? t.categoriesSelectedOne
+        : t.categoriesSelectedOther.replace('{n}', String(selectedCategories.size))
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      const dropdown = document.querySelector('.category-dropdown')
-      if (dropdown && !dropdown.contains(event.target)) {
+      if (rootRef.current && !rootRef.current.contains(event.target)) {
         setIsOpen(false)
-        setSearchQuery('') // Clear search when closing
+        setSearchQuery('')
       }
     }
-    // Use mousedown to catch clicks before they propagate
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -57,49 +65,77 @@ export const CategoryDropdown = ({
 
 
   return (
-    <div className="control-group category-filter-group">
+    <div className="category-filter-group" ref={rootRef}>
       <div className="category-dropdown">
-        <button 
+        <button
+          type="button"
           className="category-dropdown-toggle"
           onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-haspopup="true"
+          aria-controls={menuId}
+          aria-label={`${t.filterByCategory}: ${summaryLabel}`}
         >
-          {selectedCategories.size === 0 
-            ? t.allCategories 
-            : `${selectedCategories.size} ${selectedCategories.size === 1 ? 'category' : 'categories'} selected`}
-          <span className="dropdown-arrow">▼</span>
-        </button>
-        <div className={`category-dropdown-content ${isOpen ? 'show' : ''}`}>
-          {/* Search input */}
-          <div className="category-search-wrapper">
-            <input
-              type="text"
-              className="category-search-input"
-              placeholder={t.searchCategories || 'Search categories...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                e.stopPropagation()
-                if (e.key === 'Escape') {
-                  setIsOpen(false)
-                  setSearchQuery('')
-                }
-              }}
+          <span className="category-dropdown-toggle__value">{summaryLabel}</span>
+          <svg
+            className={`category-dropdown-toggle__chevron${isOpen ? ' is-open' : ''}`}
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 9l6 6 6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-            {searchQuery && (
-              <button
-                className="category-search-clear"
+          </svg>
+        </button>
+        <div
+          id={menuId}
+          className={`category-dropdown-content ${isOpen ? 'show' : ''}`}
+          role="region"
+          aria-label={t.filterByCategory}
+        >
+          <div className="category-search-wrapper">
+            <div className="category-search-row">
+              <input
+                id={searchInputId}
+                type="search"
+                className="category-search-input"
+                placeholder={t.searchCategories || 'Search categories...'}
+                aria-label={t.searchCategories}
+                autoComplete="off"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
                   e.stopPropagation()
-                  setSearchQuery('')
+                  if (e.key === 'Escape') {
+                    setIsOpen(false)
+                    setSearchQuery('')
+                  }
                 }}
-                title="Clear search"
-              >
-                ×
-              </button>
-            )}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="category-search-clear"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSearchQuery('')
+                  }}
+                  title={t.categorySearchClear}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
           <div className="category-dropdown-items-container">
             <div className="category-dropdown-item">

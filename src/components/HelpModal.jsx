@@ -34,13 +34,13 @@ function highlightText(text, query, keyPrefix) {
   return out.length > 0 ? out : text
 }
 
-export const HelpModal = ({ open, onClose, uiLanguage }) => {
+export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) => {
   const t = translations[uiLanguage]
   const [searchQuery, setSearchQuery] = useState('')
   const bodyRef = useRef(null)
   const closeBtnRef = useRef(null)
 
-  const feedRows = t.helpFeedTable || []
+  const feedRows = settingsOnly ? [] : t.helpFeedTable || []
   const settingsRows = t.helpSettingsTable || []
 
   const rowMatches = (row, needle) => {
@@ -122,7 +122,7 @@ export const HelpModal = ({ open, onClose, uiLanguage }) => {
       >
         <div className="help-modal__top">
           <h2 id="help-modal-title" className="help-modal__title">
-            {t.helpModalTitle}
+            {modalTitle}
           </h2>
           <button
             ref={closeBtnRef}
@@ -147,30 +147,32 @@ export const HelpModal = ({ open, onClose, uiLanguage }) => {
         </div>
         {noMatches && <p className="help-modal__no-match">{t.helpModalNoMatches}</p>}
         <div ref={bodyRef} className="help-modal__body">
-          <section className="help-modal__section">
-            <h3 id="help-modal-feed-heading" className="help-modal__section-title">
-              {t.helpSectionFeed}
-            </h3>
-            <div className="help-modal__table-scroll">
-              <table
-                className="help-modal__table"
-                aria-labelledby="help-modal-feed-heading"
-              >
-                <tbody>
-                  {feedRows.map((row, i) => (
-                    <tr key={`f-${i}`}>
-                      <th scope="row" className="help-modal__td-group">
-                        {highlightText(row.group, searchQuery, `fg-${i}`)}
-                      </th>
-                      <td className="help-modal__td-desc">
-                        {highlightText(row.text, searchQuery, `fd-${i}`)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          {!settingsOnly && (
+            <section className="help-modal__section">
+              <h3 id="help-modal-feed-heading" className="help-modal__section-title">
+                {t.helpSectionFeed}
+              </h3>
+              <div className="help-modal__table-scroll">
+                <table
+                  className="help-modal__table"
+                  aria-labelledby="help-modal-feed-heading"
+                >
+                  <tbody>
+                    {feedRows.map((row, i) => (
+                      <tr key={`f-${i}`}>
+                        <th scope="row" className="help-modal__td-group">
+                          {highlightText(row.group, searchQuery, `fg-${i}`)}
+                        </th>
+                        <td className="help-modal__td-desc">
+                          {highlightText(row.text, searchQuery, `fd-${i}`)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
           <section className="help-modal__section">
             <h3 id="help-modal-settings-heading" className="help-modal__section-title">
               {t.helpSectionSettings}

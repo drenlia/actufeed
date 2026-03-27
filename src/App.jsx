@@ -409,7 +409,12 @@ function AppContent() {
             setShowSettings(false)
           }}
         />
-        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} uiLanguage={uiLanguage} />
+        <HelpModal
+          open={showHelp}
+          onClose={() => setShowHelp(false)}
+          uiLanguage={uiLanguage}
+          settingsOnly
+        />
       </div>
     )
   }

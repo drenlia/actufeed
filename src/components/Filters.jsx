@@ -1,5 +1,7 @@
 import { translations } from '../constants/translations'
 import { CategoryDropdown } from './CategoryDropdown'
+import { HighlyRatedToggle } from './HighlyRatedToggle'
+import { RefreshIconButton } from './RefreshIconButton'
 
 export const Filters = ({
   uiLanguage,
@@ -71,13 +73,7 @@ export const Filters = ({
       </div>
       
       <div className="control-group">
-        <button 
-          className={`filter-btn ${showHighlyRated ? 'active' : ''}`}
-          onClick={onHighlyRatedToggle}
-          title={t.highlyRated}
-        >
-          ⭐ {t.highlyRated}
-        </button>
+        <HighlyRatedToggle active={showHighlyRated} onToggle={onHighlyRatedToggle} label={t.highlyRated} />
       </div>
       
       <div className="control-group search-group">
@@ -102,9 +98,7 @@ export const Filters = ({
       </div>
       
       <div className="control-group">
-        <button onClick={onRefresh} disabled={loading}>
-          {t.refresh}
-        </button>
+        <RefreshIconButton onClick={onRefresh} disabled={loading} loading={loading} label={t.refresh} />
         <button 
           onClick={onClearAllFilters}
           className="clear-filters-btn"
