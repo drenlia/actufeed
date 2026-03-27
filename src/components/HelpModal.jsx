@@ -101,6 +101,7 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
   if (!open) return null
 
   const q = searchQuery.trim()
+  const modalTitle = settingsOnly ? t.helpModalTitleSettings : t.helpModalTitle
   const noMatches =
     q &&
     !feedRows.some((row) => rowMatches(row, q)) &&
