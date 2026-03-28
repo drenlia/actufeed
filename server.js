@@ -374,6 +374,23 @@ async function fetchWithRetry(feedUrl, retries = 2) {
   throw lastError || new Error('Failed after all retries');
 }
 
+/** Unwrap undici/node `fetch` errors — `error.message` is often only "fetch failed". */
+function describeFetchFailure(error) {
+  if (!error || typeof error !== 'object') return String(error);
+  const parts = [error.message || String(error)];
+  let c = error.cause;
+  for (let i = 0; i < 6 && c; i++) {
+    if (c instanceof Error) {
+      parts.push(c.message);
+      c = c.cause;
+    } else {
+      parts.push(String(c));
+      break;
+    }
+  }
+  return parts.filter(Boolean).join(' → ');
+}
+
 /** Fetch start of HTML document for logo discovery (bounded size, SSRF-safe URL only). */
 const MAX_HTML_LOGO_SNIPPET_BYTES = 450 * 1024;
 
@@ -708,7 +725,10 @@ app.get('/api/proxy/html', apiLimiter, async (req, res) => {
     res.send(Buffer.from(html, 'utf8'));
   } catch (error) {
     const statusCode = error.name === 'AbortError' ? 504 : 500;
-    console.error(`[HTML Proxy] Error fetching ${pageUrl}: ${error.message}`);
+    const detail = describeFetchFailure(error);
+    console.warn(
+      `[HTML Proxy] No homepage HTML for logo discovery (non-fatal; favicon/other fallbacks apply) — ${pageUrl} — ${detail}`
+    );
     if (statusCode === 504) {
       return res.status(504).json({ error: 'Request timeout' });
     }

@@ -49,7 +49,7 @@ export const saveCategories = (cats) => {
 }
 
 // Bump when article shape changes (e.g. descriptionFull for expand). Invalidates old caches.
-export const NEWS_CACHE_SCHEMA_VERSION = 5
+export const NEWS_CACHE_SCHEMA_VERSION = 6
 
 // Load cached news from localStorage
 // Now supports tab-aware caching with tabId parameter

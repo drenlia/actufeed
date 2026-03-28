@@ -73,65 +73,60 @@ export const SubHeader = ({
     <div className="sub-header">
       <div className="sub-header__toolbar controls-container">
         <div className="sub-header__chunk">
-          <div
-            ref={segmentedRef}
-            className="filter-segmented"
-            role="radiogroup"
-            aria-label={t.subheaderShowAria}
-          >
-            <span
-              className="filter-segmented__thumb"
-              aria-hidden
-              style={{
-                transform: `translate3d(${thumb.x}px, ${thumb.y}px, 0)`,
-                width: thumb.w ? `${thumb.w}px` : 0,
-                height: thumb.h ? `${thumb.h}px` : 0,
-                opacity: thumb.w ? 1 : 0,
-              }}
-            />
-            <button
-              ref={(el) => {
-                btnRefs.current[0] = el
-              }}
-              type="button"
-              role="radio"
-              aria-checked={newsFilter === 'all'}
-              className={`filter-segmented__btn${newsFilter === 'all' ? ' is-active' : ''}`}
-              onClick={() => onNewsFilterChange('all')}
-            >
-              {t.filterSegmentAll}
-            </button>
-            <button
-              ref={(el) => {
-                btnRefs.current[1] = el
-              }}
-              type="button"
-              role="radio"
-              aria-checked={newsFilter === 'fr'}
-              className={`filter-segmented__btn${newsFilter === 'fr' ? ' is-active' : ''}`}
-              onClick={() => onNewsFilterChange('fr')}
-            >
-              {t.filterSegmentFrench}
-            </button>
-            <button
-              ref={(el) => {
-                btnRefs.current[2] = el
-              }}
-              type="button"
-              role="radio"
-              aria-checked={newsFilter === 'en'}
-              className={`filter-segmented__btn${newsFilter === 'en' ? ' is-active' : ''}`}
-              onClick={() => onNewsFilterChange('en')}
-            >
-              {t.filterSegmentEnglish}
-            </button>
-          </div>
-        </div>
-
-        <span className="sub-header__divider" aria-hidden="true" />
-
-        <div className="sub-header__chunk">
           <div className="sub-header__chunk-controls">
+            <div
+              ref={segmentedRef}
+              className="filter-segmented"
+              role="radiogroup"
+              aria-label={t.subheaderShowAria}
+            >
+              <span
+                className="filter-segmented__thumb"
+                aria-hidden
+                style={{
+                  transform: `translate3d(${thumb.x}px, ${thumb.y}px, 0)`,
+                  width: thumb.w ? `${thumb.w}px` : 0,
+                  height: thumb.h ? `${thumb.h}px` : 0,
+                  opacity: thumb.w ? 1 : 0,
+                }}
+              />
+              <button
+                ref={(el) => {
+                  btnRefs.current[0] = el
+                }}
+                type="button"
+                role="radio"
+                aria-checked={newsFilter === 'all'}
+                className={`filter-segmented__btn${newsFilter === 'all' ? ' is-active' : ''}`}
+                onClick={() => onNewsFilterChange('all')}
+              >
+                {t.filterSegmentAll}
+              </button>
+              <button
+                ref={(el) => {
+                  btnRefs.current[1] = el
+                }}
+                type="button"
+                role="radio"
+                aria-checked={newsFilter === 'fr'}
+                className={`filter-segmented__btn${newsFilter === 'fr' ? ' is-active' : ''}`}
+                onClick={() => onNewsFilterChange('fr')}
+              >
+                {t.filterSegmentFrench}
+              </button>
+              <button
+                ref={(el) => {
+                  btnRefs.current[2] = el
+                }}
+                type="button"
+                role="radio"
+                aria-checked={newsFilter === 'en'}
+                className={`filter-segmented__btn${newsFilter === 'en' ? ' is-active' : ''}`}
+                onClick={() => onNewsFilterChange('en')}
+              >
+                {t.filterSegmentEnglish}
+              </button>
+            </div>
             <CategoryDropdown
               uiLanguage={uiLanguage}
               selectedCategories={selectedCategories}
@@ -141,13 +136,6 @@ export const SubHeader = ({
             />
             <SortBySegmented sortBy={sortBy} onSortChange={onSortChange} uiLanguage={uiLanguage} />
             <HighlyRatedToggle active={showHighlyRated} onToggle={onHighlyRatedToggle} label={t.highlyRated} />
-          </div>
-        </div>
-
-        <span className="sub-header__divider" aria-hidden="true" />
-
-        <div className="sub-header__chunk">
-          <div className="sub-header__chunk-controls">
             <RefreshIconButton
               onClick={onRefresh}
               disabled={loading}

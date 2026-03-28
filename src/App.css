@@ -6,7 +6,261 @@
   color: var(--af-text);
 }
 
-/* Sticky Site Header */
+/*
+ * Top chrome: feed or settings — sticky shell for header (+ filters on feed).
+ * With inline tabs, compact brand + tabs + toolbar share one row (desktop ≥641px).
+ */
+.feed-chrome,
+.settings-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: 10px;
+  background: var(--af-surface-glass);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* Single soft edge — avoid inset line that reads as a row divider */
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--af-shadow) 75%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--af-border) 45%, transparent);
+}
+
+.feed-chrome .site-header,
+.settings-chrome .site-header {
+  position: relative;
+  z-index: auto;
+  padding-top: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-bottom: none;
+}
+
+/* Feed (≥641px): compact brand + tabs + meta + toolbar — one row, same visual height as tab pills */
+@media (min-width: 641px) {
+  .feed-chrome .site-header .header-content--with-inline-tabs,
+  .settings-chrome .site-header .header-content--with-inline-tabs {
+    --feed-header-pill-height: 36px;
+    align-items: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-brand-block,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-brand-block {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: min(42vw, 200px);
+    padding-right: 12px;
+    margin-right: 2px;
+    border-right: 1px solid color-mix(in srgb, var(--af-border) 65%, transparent);
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-brand-row,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-brand-row {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .github-link,
+  .settings-chrome .site-header .header-content--with-inline-tabs .github-link {
+    flex-shrink: 0;
+    padding: 4px;
+    border-radius: 8px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .github-icon,
+  .settings-chrome .site-header .header-content--with-inline-tabs .github-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .site-title,
+  .settings-chrome .site-header .header-content--with-inline-tabs .site-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.15;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .site-title-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .site-title-btn {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .feed-chrome .header-feed-tabs,
+  .settings-chrome .header-feed-tabs {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .feed-chrome .header-feed-tabs .tab-navigation,
+  .settings-chrome .header-feed-tabs .tab-navigation {
+    width: 100%;
+    min-width: 0;
+    padding-top: 0;
+  }
+
+  .feed-chrome .header-feed-tabs .tab-nav-container,
+  .settings-chrome .header-feed-tabs .tab-nav-container {
+    margin: 0;
+    padding: 0 10px 0 0;
+    gap: 6px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-feed-tabs .tab-nav-item.tab-nav-item--segment,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-feed-tabs .tab-nav-item.tab-nav-item--segment {
+    min-height: var(--feed-header-pill-height);
+    padding: 0 16px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82em;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-feed-tabs .tab-nav-item-group:hover,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-feed-tabs .tab-nav-item-group:hover {
+    transform: none;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-feed-tabs .tab-nav-item:hover,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-feed-tabs .tab-nav-item:hover {
+    transform: none;
+  }
+
+  .feed-chrome .header-feed-tabs .tab-nav-item-group,
+  .settings-chrome .header-feed-tabs .tab-nav-item-group {
+    border-radius: 10px 10px 0 0;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-news-meta,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-news-meta {
+    gap: 8px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .news-counter,
+  .settings-chrome .site-header .header-content--with-inline-tabs .news-counter {
+    min-height: var(--feed-header-pill-height);
+    padding: 0 14px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.78rem;
+    border-radius: 10px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .counter-text strong,
+  .settings-chrome .site-header .header-content--with-inline-tabs .counter-text strong {
+    font-size: 1.05em;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-desktop-actions,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-desktop-actions {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-util-toolbar,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-util-toolbar {
+    gap: 8px;
+    align-items: center;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-settings-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-settings-btn,
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-filters-toggle-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-filters-toggle-btn,
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-desc-icon-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-desc-icon-btn {
+    width: var(--feed-header-pill-height);
+    min-width: var(--feed-header-pill-height);
+    height: var(--feed-header-pill-height);
+    min-height: var(--feed-header-pill-height);
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-theme-toggle-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-theme-toggle-btn {
+    height: var(--feed-header-pill-height);
+    min-height: var(--feed-header-pill-height);
+    padding: 0 10px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95em;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-lang-toggle-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-lang-toggle-btn {
+    height: var(--feed-header-pill-height);
+    min-height: var(--feed-header-pill-height);
+    min-width: 48px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    font-size: 0.72rem;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-util-slot .header-help-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-util-slot .header-help-btn {
+    width: var(--feed-header-pill-height);
+    height: var(--feed-header-pill-height);
+    border-radius: 10px;
+    border: 1.5px solid var(--af-border);
+    background: var(--af-surface-muted);
+    box-shadow: 0 2px 8px var(--af-shadow);
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-filters-icon,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-filters-icon,
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-desc-bulk-icon,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-desc-bulk-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-help-icon,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-help-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .header-settings-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-settings-btn {
+    font-size: 1rem;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .tab-nav-add-btn,
+  .settings-chrome .site-header .header-content--with-inline-tabs .tab-nav-add-btn {
+    align-self: center;
+    min-height: var(--feed-header-pill-height);
+    padding: 0 14px;
+    margin-bottom: 0;
+    margin-left: 6px;
+    border-radius: 10px 10px 0 0;
+    font-size: 0.75rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .feed-chrome .site-header .header-content--with-inline-tabs .tab-nav-add-btn:hover,
+  .settings-chrome .site-header .header-content--with-inline-tabs .tab-nav-add-btn:hover {
+    transform: none;
+  }
+}
+
+/* Sticky site header when not inside feed chrome (e.g. Settings) */
 .site-header {
   position: sticky;
   top: 0;
@@ -22,18 +276,18 @@
 .header-content {
   margin: 0 50px;
   padding: 15px 0;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-left {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  justify-self: start;
   min-width: 0;
+}
+
+.header-brand-block {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .header-brand-row {
@@ -49,6 +303,10 @@
   text-align: left;
 }
 
+.header-article-count-mobile-wrap {
+  display: none;
+}
+
 .header-article-count-mobile {
   display: none;
   font-size: 0.8rem;
@@ -61,6 +319,10 @@
 .header-article-count-mobile strong {
   color: var(--af-accent);
   font-weight: 700;
+}
+
+.header-article-count-mobile__word--short {
+  display: none;
 }
 
 .header-help-btn {
@@ -146,26 +408,93 @@
   border-radius: 4px;
 }
 
-.header-right {
+.header-desktop-actions {
   display: flex;
-  gap: 15px;
   align-items: center;
-  justify-self: end;
-  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 15px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
-.header-util-row {
+.header-util-toolbar {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 15px;
   flex-shrink: 0;
+}
+
+.header-mobile-tools-launcher {
+  display: none;
+}
+
+.header-mobile-tools-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  background: color-mix(in srgb, #000 38%, transparent);
+}
+
+.header-mobile-tools-sheet {
+  position: fixed;
+  z-index: 241;
+  max-width: min(420px, calc(100vw - 24px));
+  padding: 10px 12px 8px;
+  background: var(--af-surface);
+  border: 1px solid var(--af-border);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px var(--af-shadow-lg);
+}
+
+.header-mobile-tools-sheet__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.header-util-toolbar--sheet {
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.header-mobile-tools-sheet__pin {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--af-accent) 35%, var(--af-border));
+  background: color-mix(in srgb, var(--af-accent) 8%, var(--af-surface-muted));
+  color: var(--af-accent);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.header-mobile-tools-sheet__pin:hover {
+  background: color-mix(in srgb, var(--af-accent) 14%, var(--af-surface-muted));
+}
+
+.header-mobile-tools-launcher__icon {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .header-util-slot {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.header-util-slot:empty {
+  display: none;
 }
 
 .header-settings-btn {
@@ -478,16 +807,31 @@
   border-radius: 3px;
 }
 
-/* Tab Navigation */
+/*
+ * Tab strip: default sticky (legacy / non-chrome). Inside .feed-chrome / .settings-chrome header row: static.
+ */
 .tab-navigation {
   position: sticky;
-  top: var(--header-sticky-stack-height, 70px);
+  top: calc(env(safe-area-inset-top, 0px) + 96px);
   z-index: 95;
   background: var(--af-surface-glass);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--af-border);
   box-shadow: 0 2px 12px var(--af-shadow);
+}
+
+.feed-chrome .tab-navigation,
+.settings-chrome .tab-navigation {
+  position: static;
+  top: auto;
+  z-index: auto;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: none;
+  box-shadow: none;
+  padding-top: 2px;
 }
 
 .tab-nav-container {
@@ -674,20 +1018,15 @@
   transform: translateY(-2px);
 }
 
-/* Sticky Sub Header — single compact toolbar */
+/* Sub header — filter toolbar (sticky only via .feed-chrome on feed) */
 .sub-header {
-  position: sticky;
-  top: var(--header-sticky-stack-height, 70px);
-  z-index: 90;
+  position: relative;
+  z-index: auto;
   margin: 0 50px;
   padding: 0;
   background: transparent;
   border: none;
   box-shadow: none;
-}
-
-.tab-navigation + .sub-header {
-  top: calc(var(--header-sticky-stack-height, 70px) + var(--tab-nav-sticky-height, 40px));
 }
 
 .sub-header__toolbar {
@@ -696,20 +1035,35 @@
   align-items: center;
   gap: 10px 14px;
   padding: 10px 16px;
-  background: color-mix(in srgb, var(--af-surface) 88%, var(--af-surface-muted));
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid var(--af-border);
+  margin-top: 0;
+  background: color-mix(in srgb, var(--af-surface) 82%, var(--af-surface-muted));
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--af-border) 85%, transparent);
   border-radius: 12px;
   box-shadow:
-    0 1px 0 color-mix(in srgb, var(--af-text) 6%, transparent) inset,
-    0 8px 24px var(--af-shadow);
+    0 1px 0 color-mix(in srgb, var(--af-text) 5%, transparent) inset;
+}
+
+.feed-chrome .sub-header__toolbar {
+  border-radius: 0;
+  border: none;
+  margin-top: 0;
+  padding-top: 12px;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 @media (min-width: 641px) {
   .sub-header {
     margin-top: 0;
     margin-bottom: 10px;
+  }
+
+  .feed-chrome .sub-header {
+    margin-bottom: 0;
   }
 
   .sub-header__toolbar {
@@ -1181,25 +1535,6 @@
   font-weight: 600;
   color: var(--af-text-secondary);
   margin-right: 5px;
-}
-
-.sort-by-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.sort-by-field__label {
-  flex-shrink: 0;
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--af-text-soft);
-  line-height: 1;
-  padding-top: 1px;
 }
 
 .sort-segmented {
@@ -2201,29 +2536,29 @@
   margin-bottom: 0;
 }
 
-/* Expanded body + “less…” as one inline run (same idea as collapsed “more…”) */
+/* Expanded body: real paragraphs (plain text is converted to <p> in NewsItem) */
 .news-description-expanded-flow {
   line-height: 1.75;
 }
 
 .news-body-expandable.is-expanded .news-description-expanded-flow .news-description-inner {
-  display: inline;
+  display: block;
+  width: 100%;
   overflow: visible;
 }
 
 .news-body-expandable.is-expanded .news-description-expanded-flow .news-description-inner p {
-  display: inline;
-  margin: 0;
+  display: block;
+  margin: 0 0 0.85em 0;
 }
 
-.news-body-expandable.is-expanded .news-description-expanded-flow .news-description-inner p + p::before {
-  content: ' ';
+.news-body-expandable.is-expanded .news-description-expanded-flow .news-description-inner p:last-of-type {
+  margin-bottom: 0;
 }
 
-.news-more-toggle--inline {
-  display: inline;
-  margin-left: 0.35em;
-  vertical-align: baseline;
+.news-more-toggle--after-expanded {
+  display: inline-block;
+  margin-top: 0.65em;
   font-size: inherit;
 }
 
@@ -2319,6 +2654,36 @@
   padding: 40px 50px;
   padding-bottom: calc(40px + env(safe-area-inset-bottom, 0));
   color: var(--af-text);
+}
+
+.settings-compact-header-card {
+  margin-bottom: 20px;
+  max-width: 520px;
+}
+
+.settings-compact-header-card.settings-glass-panel {
+  padding: 22px 26px;
+}
+
+.settings-compact-header-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.settings-compact-header-card__label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.settings-compact-header-toggle__hint {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  color: var(--af-text-muted);
+  line-height: 1.35;
 }
 
 .settings-layout {
@@ -3601,7 +3966,11 @@
     font-size: 1.5em;
   }
 
-  .header-right {
+  .header-desktop-actions {
+    gap: 8px;
+  }
+
+  .header-util-toolbar {
     gap: 8px;
   }
 
@@ -3672,14 +4041,14 @@
 
 /* Phones only — tablets (≥641px) keep desktop-style article layout */
 @media (max-width: 640px) {
-  /*
-   * Mobile site header is two grid rows (brand+prefs, count+feed) plus safe-area.
-   * Sticky offsets must clear the full header or the filter bar sits under it.
-   */
-  .app {
-    /* Tight to real header height so the filter bar sits flush when sticky (no air gap). */
-    --header-sticky-stack-height: calc(env(safe-area-inset-top, 0px) + 122px);
-    --tab-nav-sticky-height: 52px;
+  .feed-chrome,
+  .settings-chrome {
+    padding-bottom: 8px;
+  }
+
+  /* Settings tab strip below standalone header — taller mobile header */
+  .tab-navigation {
+    top: calc(env(safe-area-inset-top, 0px) + 118px);
   }
 
   /* Settings: hide cache note + fetch toasts; compact country ISO strip beside sources */
@@ -3689,6 +4058,15 @@
 
   .settings-page {
     padding: 18px 12px calc(24px + env(safe-area-inset-bottom, 0));
+  }
+
+  .settings-compact-header-card {
+    margin-bottom: 12px;
+    max-width: none;
+  }
+
+  .settings-compact-header-card.settings-glass-panel {
+    padding: 16px 14px;
   }
 
   .settings-layout {
@@ -3794,40 +4172,205 @@
     display: none;
   }
 
-  .header-article-count-mobile {
-    display: inline;
-  }
-
-  /* Mobile header: row1 = GitHub+title | prefs; row2 = article count | feed icons */
+  /* Mobile header: row1 brand (left) | article count (right); row2 = one scrollable toolbar row */
   .site-header .header-content {
     margin: 0 16px;
     padding: 10px 0;
     padding-left: max(16px, env(safe-area-inset-left, 0));
     padding-right: max(16px, env(safe-area-inset-right, 0));
-    grid-template-columns: 1fr auto;
+    display: grid;
+    /* Second track must not use minmax(0, …): min 0 lets the count column collapse and clip “articles”. */
+    grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-rows: auto auto;
     grid-template-areas:
-      'hdr-brand hdr-prefs'
-      'hdr-count hdr-feed';
+      'hdr-brand hdr-count'
+      'hdr-tools hdr-tools';
     align-items: center;
-    column-gap: 10px;
+    column-gap: 12px;
+    row-gap: 10px;
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
+  /*
+   * Compact row: brand | count | ⋮.
+   * — Middle track is `auto` sized to content (not minmax(0, …)) so it doesn’t collapse.
+   * — Explicit column-gap so the count never sits under the ⋮ (shadow / overlap).
+   * — Count wrapper must not use width:100% here or the middle column can grow and
+   *   paint through the launcher column (see mobile compact header overlap).
+   */
+  .site-header.site-header--mobile-compact-tools .header-content {
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    grid-template-rows: auto;
+    grid-template-areas: 'hdr-brand hdr-count hdr-fab';
+    row-gap: 0;
+    column-gap: 16px;
+    align-items: center;
+  }
+
+  .site-header.site-header--mobile-compact-tools .header-util-toolbar {
+    display: none !important;
+  }
+
+  .site-header.site-header--mobile-compact-tools .header-mobile-tools-launcher {
+    display: flex;
+    grid-area: hdr-fab;
+    align-self: center;
+    justify-self: end;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1.5px solid var(--af-border);
+    background: var(--af-surface);
+    color: var(--af-text-secondary);
+    box-shadow: 0 2px 12px var(--af-shadow);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .site-header .header-content:has(.header-feed-tabs) {
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      'hdr-brand hdr-count'
+      'hdr-tabs hdr-tabs'
+      'hdr-tools hdr-tools';
+  }
+
+  .site-header.site-header--mobile-compact-tools .header-content:has(.header-feed-tabs) {
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      'hdr-brand hdr-count hdr-fab'
+      'hdr-tabs hdr-tabs hdr-tabs'
+      'hdr-tools hdr-tools hdr-tools';
+  }
+
+  /*
+   * Settings (mobile): no article count — row1 brand | icon toolbar (or brand | ⋮ when compact);
+   * row2 full-width tabs. Matches feed structure without an empty count cell.
+   */
+  .settings-chrome .site-header .header-content--with-inline-tabs {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'hdr-brand hdr-toolbar-rail'
+      'hdr-tabs hdr-tabs';
     row-gap: 10px;
   }
 
-  .site-header .header-left,
-  .site-header .header-right {
-    display: contents;
+  .settings-chrome .site-header .header-content--with-inline-tabs .header-util-toolbar {
+    grid-area: hdr-toolbar-rail;
+    justify-self: end;
+    width: max-content;
+    max-width: 100%;
   }
 
-  .site-header .header-brand-row {
+  .settings-chrome .site-header.site-header--mobile-compact-tools .header-content--with-inline-tabs {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'hdr-brand hdr-fab'
+      'hdr-tabs hdr-tabs';
+  }
+
+  .settings-chrome .site-header.site-header--mobile-compact-tools .header-content--with-inline-tabs .header-mobile-tools-launcher {
+    grid-area: hdr-fab;
+  }
+
+  .settings-chrome .site-header.site-header--mobile-compact-tools .header-content--with-inline-tabs .header-util-toolbar {
+    display: none !important;
+  }
+
+  .site-header .header-feed-tabs {
+    grid-area: hdr-tabs;
+    min-width: 0;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .feed-chrome .header-feed-tabs .tab-navigation,
+  .settings-chrome .header-feed-tabs .tab-navigation {
+    padding-top: 0;
+  }
+
+  .feed-chrome .header-feed-tabs .tab-nav-container,
+  .settings-chrome .header-feed-tabs .tab-nav-container {
+    margin: 0;
+    padding: 0 0 4px;
+    gap: 6px;
+  }
+
+  .site-header .header-brand-block {
     grid-area: hdr-brand;
     justify-self: start;
     align-self: center;
+    min-width: 0;
+    max-width: 100%;
+    flex: none;
+  }
+
+  .site-header .header-desktop-actions {
+    display: contents;
+  }
+
+  .site-header .header-util-toolbar {
+    grid-area: hdr-tools;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    gap: 8px;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+  }
+
+  .site-header .header-util-toolbar .header-util-slot {
+    flex-shrink: 0;
+  }
+
+  .site-header .header-brand-row {
     display: flex;
     align-items: center;
     gap: 10px;
     min-width: 0;
     max-width: 100%;
+  }
+
+  /*
+   * Article count (non-compact mobile): never min-width:0 — that lets the grid shrink the cell and
+   * clip “articles” (e.g. “113 a”). No container-type here — inline-size containment clipped text in Safari.
+   * Width max-content + justify-self:end; second grid track is max-content so the column fits the label.
+   */
+  .header-article-count-mobile-wrap {
+    display: block;
+    grid-area: hdr-count;
+    align-self: center;
+    justify-self: end;
+    width: max-content;
+    min-width: min-content;
+    max-width: none;
+    font-size: 0.78rem;
+    overflow: visible;
+    text-align: right;
+  }
+
+  /* Compact ⋮ row: intrinsic-width count + no inline-size containment (avoids overlap with launcher). */
+  .site-header.site-header--mobile-compact-tools .header-article-count-mobile-wrap {
+    width: max-content;
+    max-width: none;
+    min-width: min-content;
+    justify-self: end;
+    container-type: normal;
+    container-name: none;
   }
 
   .site-header .github-link {
@@ -3838,46 +4381,32 @@
     box-sizing: border-box;
   }
 
-  .site-header .header-util-row--prefs {
-    grid-area: hdr-prefs;
-    justify-self: end;
-    align-self: center;
-  }
-
   .site-header .header-article-count-mobile {
-    grid-area: hdr-count;
-    justify-self: stretch;
-    align-self: center;
     display: block;
-    width: 100%;
-    text-align: center;
-    font-size: 0.78rem;
+    width: max-content;
+    max-width: none;
+    margin-left: auto;
+    text-align: right;
+    font-size: inherit;
     line-height: 1.25;
-  }
-
-  .site-header .header-util-row--feed {
-    grid-area: hdr-feed;
-    justify-self: end;
-    align-self: center;
+    white-space: nowrap;
   }
 
   .site-header .site-title {
     font-size: 1.35em;
   }
 
+  /* Leave room for the article count: long titles ellipsis instead of squeezing hdr-count to zero. */
+  .site-header .site-title-btn {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .site-header .github-icon {
     width: 24px;
     height: 24px;
-  }
-
-  .site-header .header-util-row {
-    display: grid;
-    grid-template-columns: repeat(3, var(--header-mobile-util-px, 40px));
-    column-gap: 8px;
-    row-gap: 0;
-    width: max-content;
-    justify-items: stretch;
-    align-items: stretch;
   }
 
   .site-header .header-util-slot {
@@ -3938,6 +4467,64 @@
   }
 
   .site-header .header-lang-toggle-btn {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Portaled mobile action sheet: match header chip sizing (not under .site-header) */
+  .header-mobile-tools-sheet .header-util-slot {
+    width: var(--header-mobile-util-px, 40px);
+    height: var(--header-mobile-util-px, 40px);
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  .header-mobile-tools-sheet .header-util-slot > button {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+  }
+
+  .header-mobile-tools-sheet .header-filters-icon,
+  .header-mobile-tools-sheet .header-desc-bulk-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .header-mobile-tools-sheet .header-help-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .header-mobile-tools-sheet .header-util-slot .header-help-btn {
+    border: 1.5px solid var(--af-border);
+    background: var(--af-surface-muted);
+    color: var(--af-text-muted);
+    box-shadow: 0 2px 8px var(--af-shadow);
+  }
+
+  .header-mobile-tools-sheet .header-settings-btn {
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .header-mobile-tools-sheet .header-theme-toggle-btn {
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .header-mobile-tools-sheet .header-lang-toggle-btn {
     font-size: 11px;
     font-weight: 700;
     line-height: 1;
@@ -4109,5 +4696,16 @@
   .sub-header__chunk--grow .search-input-wrapper {
     max-width: none;
     width: 100%;
+  }
+}
+
+/* Article count: prefer “art.” only on very narrow widths (no @container — avoids WebKit clip). */
+@media (max-width: 360px) {
+  .header-article-count-mobile-wrap .header-article-count-mobile__word--full {
+    display: none;
+  }
+
+  .header-article-count-mobile-wrap .header-article-count-mobile__word--short {
+    display: inline;
   }
 }

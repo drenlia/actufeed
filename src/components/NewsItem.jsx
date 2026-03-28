@@ -1,6 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { formatDate } from '../utils/dateUtils'
-import { sanitizeRssHtml } from '../utils/sanitizeHtml'
+import {
+  sanitizeRssHtml,
+  plainTextToArticleHtml,
+  looksLikeRssMarkup,
+  htmlToPlainOneLine,
+} from '../utils/sanitizeHtml'
 import { translations } from '../constants/translations'
 import { itemNeedsDescriptionExpand } from '../utils/newsDescriptionExpand'
 
@@ -58,7 +63,13 @@ export const NewsItem = ({
     [item.descriptionFull, item.content, item.description]
   )
 
-  const sanitizedFull = useMemo(() => sanitizeDescriptionHtml(fullText), [fullText])
+  const sanitizedFull = useMemo(() => {
+    if (!fullText) return ''
+    if (looksLikeRssMarkup(fullText)) {
+      return sanitizeDescriptionHtml(fullText)
+    }
+    return sanitizeDescriptionHtml(plainTextToArticleHtml(fullText))
+  }, [fullText])
 
   const previewText = (item.description || '').trim()
   const previewComparable = previewText.replace(/\.{2,}\s*$/, '').trim()
@@ -69,7 +80,13 @@ export const NewsItem = ({
 
   /** Collapsed cards must use the short RSS teaser only — full HTML breaks -webkit-line-clamp (many <p> blocks). */
   const sanitizedCollapsedPreview = useMemo(() => {
-    const raw = (item.description || '').trim().replace(/\s+/g, ' ')
+    let raw = (item.description || '').trim()
+    if (!raw) return ''
+    if (looksLikeRssMarkup(raw)) {
+      raw = htmlToPlainOneLine(raw)
+    } else {
+      raw = raw.replace(/\s+/g, ' ')
+    }
     return sanitizeDescriptionHtml(raw)
   }, [item.description])
 
@@ -160,7 +177,7 @@ export const NewsItem = ({
                         />
                         <button
                           type="button"
-                          className="news-more-toggle news-more-toggle--inline"
+                          className="news-more-toggle news-more-toggle--after-expanded"
                           onClick={() => setExpanded(false)}
                           aria-expanded
                         >
@@ -201,7 +218,7 @@ export const NewsItem = ({
                         />
                         <button
                           type="button"
-                          className="news-more-toggle news-more-toggle--inline"
+                          className="news-more-toggle news-more-toggle--after-expanded"
                           onClick={() => setExpanded(false)}
                           aria-expanded
                         >

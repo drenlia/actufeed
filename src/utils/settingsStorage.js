@@ -20,6 +20,8 @@ export const loadSettingsPreferences = () => {
         subheaderCollapsed:
           typeof parsed.subheaderCollapsed === 'boolean' ? parsed.subheaderCollapsed : DEFAULT_SUBHEADER_COLLAPSED,
         showToastMessages: parsed.showToastMessages !== undefined ? parsed.showToastMessages : false,
+        mobileHeaderCompactToolbar:
+          typeof parsed.mobileHeaderCompactToolbar === 'boolean' ? parsed.mobileHeaderCompactToolbar : true,
         theme,
       }
     }
@@ -36,6 +38,7 @@ export const loadSettingsPreferences = () => {
     selectedCountries: new Set(),
     subheaderCollapsed: DEFAULT_SUBHEADER_COLLAPSED,
     showToastMessages: false, // Default to hiding toast messages
+    mobileHeaderCompactToolbar: true,
     theme,
   }
 }
@@ -53,6 +56,10 @@ export const saveSettingsPreferences = (preferences) => {
         preferences.subheaderCollapsed !== undefined ? preferences.subheaderCollapsed : stored.subheaderCollapsed,
       showToastMessages:
         preferences.showToastMessages !== undefined ? preferences.showToastMessages : stored.showToastMessages,
+      mobileHeaderCompactToolbar:
+        preferences.mobileHeaderCompactToolbar !== undefined
+          ? preferences.mobileHeaderCompactToolbar
+          : stored.mobileHeaderCompactToolbar,
       theme: preferences.theme !== undefined ? preferences.theme : stored.theme,
     }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toStore))

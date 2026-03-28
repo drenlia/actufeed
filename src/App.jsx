@@ -38,6 +38,9 @@ function AppContent() {
   const [descExpandAllSignal, setDescExpandAllSignal] = useState({ nonce: 0, expanded: true })
   const [descBulkExpanded, setDescBulkExpanded] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [mobileHeaderCompactToolbar, setMobileHeaderCompactToolbar] = useState(
+    () => loadSettingsPreferences().mobileHeaderCompactToolbar
+  )
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorMode
@@ -74,6 +77,7 @@ function AppContent() {
     setSubheaderCollapsed(preferences.subheaderCollapsed)
     setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : false)
     setColorMode(preferences.theme)
+    setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
     
     const loadedTabs = loadTabs()
     setTabs(loadedTabs)
@@ -151,6 +155,7 @@ function AppContent() {
       // Reload preferences (including showToastMessages)
       const preferences = loadSettingsPreferences()
       setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : true)
+      setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
       
       // Read active tab from URL (Settings updates URL when switching tabs)
       const urlParams = new URLSearchParams(window.location.search)
@@ -336,6 +341,7 @@ function AppContent() {
 
   useEffect(() => {
     setDescBulkExpanded(false)
+    setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: false }))
   }, [activeTabId])
 
   useEffect(() => {
@@ -391,22 +397,21 @@ function AppContent() {
   if (showSettings) {
     return (
       <div className="app">
-        <Header
-          uiLanguage={uiLanguage}
-          onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
-          onSettingsClick={() => setShowSettings(false)}
-          showArticleCount={false}
-          isSettingsPage={true}
-          onTitleClick={() => setShowSettings(false)}
-          onHelpClick={() => setShowHelp(true)}
-          colorMode={colorMode}
-          onColorModeToggle={toggleColorMode}
-        />
         <Settings
           uiLanguage={uiLanguage}
           onClose={() => {
             // Simply close Settings - the useEffect will handle reading the tab from URL
             setShowSettings(false)
+          }}
+          colorMode={colorMode}
+          onColorModeToggle={toggleColorMode}
+          onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
+          onExitSettings={() => setShowSettings(false)}
+          onHelpClick={() => setShowHelp(true)}
+          mobileCompactToolbar={mobileHeaderCompactToolbar}
+          onMobileCompactToolbarChange={(next) => {
+            setMobileHeaderCompactToolbar(next)
+            saveSettingsPreferences({ mobileHeaderCompactToolbar: next })
           }}
         />
         <HelpModal
@@ -422,57 +427,66 @@ function AppContent() {
   // Main News Feed page
   return (
     <div className="app">
-        <Header
-          uiLanguage={uiLanguage}
-          onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
-          articleCount={sortedNews.length}
-          totalCount={news.length}
-          onSettingsClick={() => setShowSettings(true)}
-          showArticleCount={true}
-          isSettingsPage={false}
-          onTitleClick={scrollToTop}
-          colorMode={colorMode}
-          onColorModeToggle={toggleColorMode}
-          filtersCollapsed={subheaderCollapsed}
-          onToggleFilters={() => {
-            const newState = !subheaderCollapsed
-            setSubheaderCollapsed(newState)
-            saveSettingsPreferences({ subheaderCollapsed: newState })
-          }}
-          showDescriptionsBulkToggle={expandableDescCount >= 2}
-          descriptionsBulkExpanded={descBulkExpanded}
-          onToggleDescriptionsBulk={toggleDescriptionsBulk}
-          onHelpClick={() => setShowHelp(true)}
-        />
-        {tabs.length > 1 && (
-          <TabNavigation
-            tabs={tabs}
-            activeTabId={activeTabId}
-            onTabClick={handleTabChange}
-            onTabRename={handleTabRename}
+        <div className="feed-chrome">
+          <Header
+            uiLanguage={uiLanguage}
+            onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
+            articleCount={sortedNews.length}
+            totalCount={news.length}
+            onSettingsClick={() => setShowSettings(true)}
+            showArticleCount={true}
+            isSettingsPage={false}
+            onTitleClick={scrollToTop}
+            colorMode={colorMode}
+            onColorModeToggle={toggleColorMode}
+            filtersCollapsed={subheaderCollapsed}
+            onToggleFilters={() => {
+              const newState = !subheaderCollapsed
+              setSubheaderCollapsed(newState)
+              saveSettingsPreferences({ subheaderCollapsed: newState })
+            }}
+            showDescriptionsBulkToggle={expandableDescCount >= 2}
+            descriptionsBulkExpanded={descBulkExpanded}
+            onToggleDescriptionsBulk={toggleDescriptionsBulk}
+            onHelpClick={() => setShowHelp(true)}
+            mobileCompactToolbar={mobileHeaderCompactToolbar}
+            onMobileCompactToolbarChange={(next) => {
+              setMobileHeaderCompactToolbar(next)
+              saveSettingsPreferences({ mobileHeaderCompactToolbar: next })
+            }}
+            headerTabsSlot={
+              tabs.length > 1 ? (
+                <TabNavigation
+                  tabs={tabs}
+                  activeTabId={activeTabId}
+                  onTabClick={handleTabChange}
+                  onTabRename={handleTabRename}
+                />
+              ) : null
+            }
           />
-        )}
-        <SubHeader
-          uiLanguage={uiLanguage}
-          newsFilter={newsFilter}
-          onNewsFilterChange={setNewsFilter}
-          selectedCategories={selectedCategories}
-          availableCategories={availableCategories}
-          onToggleCategory={toggleCategory}
-          onClearCategories={clearCategories}
-          onClearAllFilters={clearAllFilters}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          showHighlyRated={showHighlyRated}
-          onHighlyRatedToggle={() => setShowHighlyRated(!showHighlyRated)}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onRefresh={refreshNews}
-          loading={loading}
-          autoRefresh={autoRefresh}
-          onAutoRefreshChange={setAutoRefresh}
-          collapsed={subheaderCollapsed}
-        />
+          <SubHeader
+            uiLanguage={uiLanguage}
+            newsFilter={newsFilter}
+            onNewsFilterChange={setNewsFilter}
+            selectedCategories={selectedCategories}
+            availableCategories={availableCategories}
+            onToggleCategory={toggleCategory}
+            onClearCategories={clearCategories}
+            onClearAllFilters={clearAllFilters}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            showHighlyRated={showHighlyRated}
+            onHighlyRatedToggle={() => setShowHighlyRated(!showHighlyRated)}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onRefresh={refreshNews}
+            loading={loading}
+            autoRefresh={autoRefresh}
+            onAutoRefreshChange={setAutoRefresh}
+            collapsed={subheaderCollapsed}
+          />
+        </div>
 
         <main className="main">
           <NewsList

@@ -11,6 +11,8 @@ import { loadSettingsPreferences, saveSettingsPreferences } from '../utils/setti
 import { clearCachedNews } from '../utils/storageUtils'
 import { validateRssFeed } from '../utils/rssValidator'
 import { useToastContext } from '../contexts/ToastContext'
+import { PHONE_LAYOUT_MEDIA, useMatchMedia } from '../hooks/useMatchMedia'
+import { Header } from './Header'
 import { TabBar } from './TabBar'
 import {
   loadTabs,
@@ -24,8 +26,19 @@ import {
   setActiveTabId
 } from '../utils/tabsStorage'
 
-export const Settings = ({ uiLanguage, onClose }) => {
+export const Settings = ({
+  uiLanguage,
+  onClose,
+  colorMode,
+  onColorModeToggle,
+  onLanguageToggle,
+  onExitSettings,
+  onHelpClick,
+  mobileCompactToolbar = false,
+  onMobileCompactToolbarChange,
+}) => {
   const t = translations[uiLanguage]
+  const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
   const [tabs, setTabs] = useState([])
   const [activeTabId, setActiveTabIdState] = useState(null)
   const [config, setConfig] = useState(null)
@@ -561,24 +574,47 @@ export const Settings = ({ uiLanguage, onClose }) => {
     saveSettingsPreferences({ showToastMessages: newValue })
   }
 
+  const toggleMobileHeaderCompactToolbar = () => {
+    onMobileCompactToolbarChange?.(!mobileCompactToolbar)
+  }
+
   return (
     <>
-      <TabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        onTabClick={handleSwitchTab}
-        onTabRename={handleTabRenameForSettings}
-        alwaysShow
-        allowDelete
-        onTabDelete={handleDeleteTab}
-        deleteTabTitle={t.deleteTab}
-        allowReorder
-        onReorder={handleReorderTabs}
-        showCreateButton
-        onCreateTab={handleCreateTab}
-        createTabLabel={t.createTab}
-        tabsListAriaLabel={t.tabsListAria}
-      />
+      <div className="settings-chrome">
+        <Header
+          uiLanguage={uiLanguage}
+          onLanguageToggle={onLanguageToggle}
+          onSettingsClick={onExitSettings}
+          showArticleCount={false}
+          isSettingsPage
+          onTitleClick={onExitSettings}
+          onHelpClick={onHelpClick}
+          colorMode={colorMode}
+          onColorModeToggle={onColorModeToggle}
+          mobileCompactToolbar={mobileCompactToolbar}
+          onMobileCompactToolbarChange={onMobileCompactToolbarChange}
+          headerTabsSlot={
+            tabs.length > 0 ? (
+              <TabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onTabClick={handleSwitchTab}
+                onTabRename={handleTabRenameForSettings}
+                alwaysShow
+                allowDelete
+                onTabDelete={handleDeleteTab}
+                deleteTabTitle={t.deleteTab}
+                allowReorder
+                onReorder={handleReorderTabs}
+                showCreateButton
+                onCreateTab={handleCreateTab}
+                createTabLabel={t.createTab}
+                tabsListAriaLabel={t.tabsListAria}
+              />
+            ) : null
+          }
+        />
+      </div>
       <div className="settings-page">
         <div className="settings-tabs-section">
           <div className="settings-tabs-meta-row">
@@ -603,6 +639,31 @@ export const Settings = ({ uiLanguage, onClose }) => {
             </div>
           </div>
         </div>
+
+        {isPhoneLayout ? (
+          <div className="settings-compact-header-card settings-glass-panel">
+            <div className="settings-compact-header-card__row">
+              <label
+                className="settings-toast-toggle-label settings-compact-header-card__label"
+                htmlFor="settings-compact-header-switch"
+              >
+                {t.mobileCompactHeaderSetting}
+              </label>
+              <button
+                type="button"
+                id="settings-compact-header-switch"
+                className={`settings-fetch-toast-switch ${mobileCompactToolbar ? 'is-on' : ''}`}
+                onClick={toggleMobileHeaderCompactToolbar}
+                role="switch"
+                aria-checked={mobileCompactToolbar}
+                aria-label={t.mobileCompactHeaderSetting}
+              >
+                <span className="settings-fetch-toast-switch-knob" aria-hidden />
+              </button>
+            </div>
+            <p className="settings-compact-header-toggle__hint">{t.mobileCompactHeaderSettingHint}</p>
+          </div>
+        ) : null}
 
         <div className="settings-layout">
         {/* Country filters — grid column; on phone: narrow ISO column beside sources */}

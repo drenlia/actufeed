@@ -22,40 +22,30 @@ const decodeHtmlEntities = (text) => {
   return textarea.value
 }
 
-// Strip HTML tags from text and decode entities
+// Strip HTML tags from text and decode entities (keep paragraph breaks from </p>, <br>, block ends)
 const stripHtmlTags = (html) => {
   if (!html) return ''
-  
-  // First decode HTML entities
+
   let text = decodeHtmlEntities(html)
-  
-  // Remove style tags and style attributes before parsing to prevent browser
-  // from trying to load external resources (CSS background images, SVG sprites, etc.)
-  // This prevents CORS errors when parsing HTML
+
   text = text
-    .replace(/<style[^>]*>.*?<\/style>/gi, '') // Remove style tags
-    .replace(/\s+style\s*=\s*["'][^"']*["']/gi, '') // Remove style attributes with quotes
-    .replace(/\s+style\s*=\s*[^>\s]+/gi, '') // Remove style attributes without quotes
-    .replace(/<link[^>]*rel\s*=\s*["']stylesheet["'][^>]*>/gi, '') // Remove stylesheet links
-    .replace(/<link[^>]*type\s*=\s*["']text\/css["'][^>]*>/gi, '') // Remove CSS links
-    .replace(/\s+class\s*=\s*["'][^"']*["']/gi, '') // Remove ALL class attributes (prevent sprite/icon references)
-  
-  // Use DOMParser instead of innerHTML to avoid triggering resource loading
-  // DOMParser doesn't trigger resource loading like innerHTML does
-  let plainText = ''
-  try {
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(text, 'text/html')
-    plainText = doc.body.textContent || doc.body.innerText || ''
-  } catch (e) {
-    // If DOMParser fails, fall back to regex-based text extraction
-    plainText = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
-  }
-  
-  // Clean up extra whitespace
-  plainText = plainText.replace(/\s+/g, ' ').trim()
-  
-  return plainText
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/\s+style\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/\s+style\s*=\s*[^>\s]+/gi, '')
+    .replace(/<link[^>]*rel\s*=\s*["']stylesheet["'][^>]*>/gi, '')
+    .replace(/<link[^>]*type\s*=\s*["']text\/css["'][^>]*>/gi, '')
+    .replace(/\s+class\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/<\/p\s*>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:div|h[1-6]|li|tr|blockquote|article|section|header|footer)\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[ \t\f\v\u00a0]+/g, ' ')
+    .replace(/ *\n+ */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return text
 }
 
 // Extract categories from RSS item
@@ -466,6 +456,12 @@ const mergeRssDescriptionAndContent = (descPlain, encPlain) => {
   if (d.length >= minOverlap && e.includes(d)) return e
   const longer = d.length >= e.length ? d : e
   const shorter = d.length >= e.length ? e : d
+  const norm = (s) => s.replace(/\s+/g, ' ').trim()
+  const longN = norm(longer)
+  const shortN = norm(shorter)
+  if (shorter.length >= minOverlap && shortN.length >= minOverlap && longN.endsWith(shortN)) {
+    return longer
+  }
   return `${longer}\n\n${shorter}`
 }
 

@@ -1,4 +1,8 @@
+import { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { translations } from '../constants/translations'
+
+const utilSlot = (child) => <div className="header-util-slot">{child}</div>
 
 export const Header = ({
   uiLanguage,
@@ -17,21 +21,232 @@ export const Header = ({
   showDescriptionsBulkToggle = false,
   descriptionsBulkExpanded = false,
   onToggleDescriptionsBulk,
+  mobileCompactToolbar = false,
+  onMobileCompactToolbarChange,
+  headerTabsSlot = null,
 }) => {
   const t = translations[uiLanguage]
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  const launcherRef = useRef(null)
+  const sheetRef = useRef(null)
 
-  // GitHub repository URL
+  const useCompactMobileToolbar = Boolean(mobileCompactToolbar && onMobileCompactToolbarChange)
+
   const githubUrl = 'https://github.com/drenlia/actufeed'
 
-  const showFeedUtilRow =
-    (showDescriptionsBulkToggle && onToggleDescriptionsBulk) ||
-    onToggleFilters ||
-    onHelpClick
+  const expandBtn =
+    showDescriptionsBulkToggle && onToggleDescriptionsBulk ? (
+      <button
+        type="button"
+        className={`header-desc-icon-btn${descriptionsBulkExpanded ? ' header-desc-icon-btn--expanded' : ''}`}
+        onClick={onToggleDescriptionsBulk}
+        title={descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions}
+        aria-label={descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions}
+        aria-pressed={descriptionsBulkExpanded}
+      >
+        <svg className="header-desc-bulk-icon" viewBox="0 0 24 24" aria-hidden="true">
+          {descriptionsBulkExpanded ? (
+            <path
+              fill="currentColor"
+              d="M7.41 18.41L6 17l6-6 6 6-1.41 1.41L12 13.83l-4.59 4.58zm0-6L6 11l6-6 6 6-1.41 1.41L12 7.83l-4.59 4.58z"
+            />
+          ) : (
+            <path
+              fill="currentColor"
+              d="M16.59 5.59L18 7l-6 6-6-6 1.41-1.41L12 10.17l4.59-4.58zm0 6L18 13l-6 6-6-6 1.41-1.41L12 16.17l4.59-4.58z"
+            />
+          )}
+        </svg>
+      </button>
+    ) : null
+
+  const filtersBtn = onToggleFilters ? (
+    <button
+      type="button"
+      className={`header-filters-toggle-btn ${
+        filtersCollapsed ? 'header-filters-toggle-btn--off' : 'header-filters-toggle-btn--on'
+      }`}
+      onClick={onToggleFilters}
+      title={filtersCollapsed ? t.showFilters : t.hideFilters}
+      aria-label={filtersCollapsed ? t.showFilters : t.hideFilters}
+      aria-expanded={!filtersCollapsed}
+    >
+      <svg className="header-filters-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+      </svg>
+    </button>
+  ) : null
+
+  const themeBtn = onColorModeToggle ? (
+    <button
+      type="button"
+      className="header-theme-toggle-btn"
+      onClick={onColorModeToggle}
+      title={colorMode === 'dark' ? t.themeSwitchToLight : t.themeSwitchToDark}
+    >
+      {colorMode === 'dark' ? '☀️' : '🌙'}
+    </button>
+  ) : null
+
+  const langBtn = (
+    <button
+      type="button"
+      className="header-lang-toggle-btn"
+      onClick={onLanguageToggle}
+      title={uiLanguage === 'fr' ? 'Switch to English' : 'Passer au français'}
+    >
+      {uiLanguage === 'fr' ? 'EN' : 'FR'}
+    </button>
+  )
+
+  const helpBtn = onHelpClick ? (
+    <button
+      type="button"
+      className="header-help-btn"
+      onClick={onHelpClick}
+      aria-label={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
+      title={`${isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle} · F1`}
+    >
+      <svg
+        className="header-help-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <circle
+          className="header-help-icon-ring"
+          cx="12"
+          cy="12"
+          r="9.5"
+          stroke="currentColor"
+          strokeWidth="1.1"
+        />
+        <path
+          className="header-help-icon-mark"
+          stroke="currentColor"
+          strokeWidth="1.65"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+        />
+        <circle className="header-help-icon-dot" cx="12" cy="17" r="0.9" fill="currentColor" />
+      </svg>
+    </button>
+  ) : null
+
+  const settingsBtn = onSettingsClick ? (
+    <button
+      type="button"
+      className={`header-settings-btn ${isSettingsPage ? 'active' : ''}`}
+      onClick={onSettingsClick}
+      title={t.settings}
+      aria-label={t.settings}
+    >
+      ⚙️
+    </button>
+  ) : null
+
+  const toolbarSlots = (
+    <>
+      {utilSlot(expandBtn)}
+      {utilSlot(filtersBtn)}
+      {utilSlot(themeBtn)}
+      {utilSlot(langBtn)}
+      {utilSlot(helpBtn)}
+      {utilSlot(settingsBtn)}
+    </>
+  )
+
+  const closeToolsMenu = useCallback(() => setToolsMenuOpen(false), [])
+
+  const pinToolbar = useCallback(() => {
+    onMobileCompactToolbarChange?.(false)
+    setToolsMenuOpen(false)
+  }, [onMobileCompactToolbarChange])
+
+  const updateSheetPosition = useCallback(() => {
+    if (!toolsMenuOpen || !launcherRef.current || !sheetRef.current) return
+    const r = launcherRef.current.getBoundingClientRect()
+    const sheet = sheetRef.current
+    sheet.style.top = `${r.bottom + 8}px`
+    const w = sheet.offsetWidth
+    const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12))
+    sheet.style.left = `${left}px`
+  }, [toolsMenuOpen])
+
+  useLayoutEffect(() => {
+    updateSheetPosition()
+  }, [updateSheetPosition, toolsMenuOpen])
+
+  useEffect(() => {
+    if (!toolsMenuOpen) return undefined
+    const onResize = () => updateSheetPosition()
+    window.addEventListener('resize', onResize)
+    window.addEventListener('scroll', onResize, true)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('scroll', onResize, true)
+    }
+  }, [toolsMenuOpen, updateSheetPosition])
+
+  useEffect(() => {
+    if (!toolsMenuOpen) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeToolsMenu()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [toolsMenuOpen, closeToolsMenu])
+
+  useEffect(() => {
+    if (!useCompactMobileToolbar) setToolsMenuOpen(false)
+  }, [useCompactMobileToolbar])
+
+  const mobileSheet =
+    useCompactMobileToolbar && toolsMenuOpen
+      ? createPortal(
+          <>
+            <div className="header-mobile-tools-backdrop" role="presentation" onClick={closeToolsMenu} />
+            <div
+              ref={sheetRef}
+              className="header-mobile-tools-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label={t.headerMobileToolsMenu}
+              onClick={(e) => {
+                if (e.target.closest('.header-mobile-tools-sheet__pin')) return
+                if (e.target.closest('button')) {
+                  window.setTimeout(closeToolsMenu, 0)
+                }
+              }}
+            >
+              <div className="header-mobile-tools-sheet__scroll">
+                <div className="header-util-toolbar header-util-toolbar--sheet">{toolbarSlots}</div>
+              </div>
+              <button type="button" className="header-mobile-tools-sheet__pin" onClick={pinToolbar}>
+                {t.headerMobilePinToolbar}
+              </button>
+            </div>
+          </>,
+          document.body
+        )
+      : null
+
+  const headerClass =
+    `site-header${useCompactMobileToolbar ? ' site-header--mobile-compact-tools' : ''}`.trim()
+
+  const headerContentClass = [
+    'header-content',
+    headerTabsSlot ? 'header-content--with-inline-tabs' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <header className="site-header">
-      <div className="header-content">
-        <div className="header-left">
+    <header className={headerClass}>
+      <div className={headerContentClass}>
+        <div className="header-brand-block">
           <div className="header-brand-row">
             <a
               href={githubUrl}
@@ -58,14 +273,52 @@ export const Header = ({
               {t.title}
             </button>
           </div>
-          {showArticleCount && articleCount !== undefined && (
-            <span className="header-article-count-mobile" aria-live="polite">
-              <strong>{articleCount}</strong>{' '}
-              {articleCount === 1 ? t.articleCount : t.articlesCount}
-            </span>
-          )}
         </div>
-        <div className="header-right">
+
+        {showArticleCount && articleCount !== undefined && (
+          <div className="header-article-count-mobile-wrap">
+            <span
+              className="header-article-count-mobile"
+              aria-live="polite"
+              aria-label={`${articleCount} ${articleCount === 1 ? t.articleCount : t.articlesCount}`}
+            >
+              <strong>{articleCount}</strong>{' '}
+              <span className="header-article-count-mobile__word header-article-count-mobile__word--full">
+                {articleCount === 1 ? t.articleCount : t.articlesCount}
+              </span>
+              <span
+                className="header-article-count-mobile__word header-article-count-mobile__word--short"
+                aria-hidden="true"
+              >
+                {articleCount === 1 ? t.articleCountMobileAbbr : t.articlesCountMobileAbbr}
+              </span>
+            </span>
+          </div>
+        )}
+
+        {useCompactMobileToolbar && (
+          <button
+            ref={launcherRef}
+            type="button"
+            className="header-mobile-tools-launcher"
+            onClick={() => setToolsMenuOpen((o) => !o)}
+            aria-expanded={toolsMenuOpen}
+            aria-haspopup="dialog"
+            aria-label={t.headerMobileOpenTools}
+            title={t.headerMobileOpenTools}
+          >
+            <svg className="header-mobile-tools-launcher__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+              />
+            </svg>
+          </button>
+        )}
+
+        {headerTabsSlot ? <div className="header-feed-tabs">{headerTabsSlot}</div> : null}
+
+        <div className="header-desktop-actions">
           {showArticleCount && articleCount !== undefined && (
             <div className="header-news-meta header-news-meta--desktop">
               <div className="news-counter">
@@ -82,138 +335,11 @@ export const Header = ({
               </div>
             </div>
           )}
-          <div className="header-util-row header-util-row--prefs">
-            <div className="header-util-slot">
-              {onSettingsClick ? (
-                <button
-                  type="button"
-                  className={`header-settings-btn ${isSettingsPage ? 'active' : ''}`}
-                  onClick={onSettingsClick}
-                  title={t.settings}
-                  aria-label={t.settings}
-                >
-                  ⚙️
-                </button>
-              ) : null}
-            </div>
-            <div className="header-util-slot">
-              {onColorModeToggle ? (
-                <button
-                  type="button"
-                  className="header-theme-toggle-btn"
-                  onClick={onColorModeToggle}
-                  title={colorMode === 'dark' ? t.themeSwitchToLight : t.themeSwitchToDark}
-                >
-                  {colorMode === 'dark' ? '☀️' : '🌙'}
-                </button>
-              ) : null}
-            </div>
-            <div className="header-util-slot">
-              <button
-                className="header-lang-toggle-btn"
-                onClick={onLanguageToggle}
-                title={uiLanguage === 'fr' ? 'Switch to English' : 'Passer au français'}
-              >
-                {uiLanguage === 'fr' ? 'EN' : 'FR'}
-              </button>
-            </div>
-          </div>
-          {showFeedUtilRow && (
-            <div className="header-util-row header-util-row--feed">
-              <div className="header-util-slot">
-                {showDescriptionsBulkToggle && onToggleDescriptionsBulk ? (
-                  <button
-                    type="button"
-                    className={`header-desc-icon-btn${descriptionsBulkExpanded ? ' header-desc-icon-btn--expanded' : ''}`}
-                    onClick={onToggleDescriptionsBulk}
-                    title={
-                      descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions
-                    }
-                    aria-label={
-                      descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions
-                    }
-                    aria-pressed={descriptionsBulkExpanded}
-                  >
-                    <svg className="header-desc-bulk-icon" viewBox="0 0 24 24" aria-hidden="true">
-                      {descriptionsBulkExpanded ? (
-                        <path
-                          fill="currentColor"
-                          d="M7.41 18.41L6 17l6-6 6 6-1.41 1.41L12 13.83l-4.59 4.58zm0-6L6 11l6-6 6 6-1.41 1.41L12 7.83l-4.59 4.58z"
-                        />
-                      ) : (
-                        <path
-                          fill="currentColor"
-                          d="M16.59 5.59L18 7l-6 6-6-6 1.41-1.41L12 10.17l4.59-4.58zm0 6L18 13l-6 6-6-6 1.41-1.41L12 16.17l4.59-4.58z"
-                        />
-                      )}
-                    </svg>
-                  </button>
-                ) : null}
-              </div>
-              <div className="header-util-slot">
-                {onToggleFilters ? (
-                  <button
-                    type="button"
-                    className={`header-filters-toggle-btn ${
-                      filtersCollapsed
-                        ? 'header-filters-toggle-btn--off'
-                        : 'header-filters-toggle-btn--on'
-                    }`}
-                    onClick={onToggleFilters}
-                    title={filtersCollapsed ? t.showFilters : t.hideFilters}
-                    aria-label={filtersCollapsed ? t.showFilters : t.hideFilters}
-                    aria-expanded={!filtersCollapsed}
-                  >
-                    <svg className="header-filters-icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        fill="currentColor"
-                        d="M4 6h16v2H4V6zm3 5h10v2H7v-2zm3.5 5h5v2h-5v-2z"
-                      />
-                    </svg>
-                  </button>
-                ) : null}
-              </div>
-              <div className="header-util-slot">
-                {onHelpClick ? (
-                  <button
-                    type="button"
-                    className="header-help-btn"
-                    onClick={onHelpClick}
-                    aria-label={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
-                    title={`${isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle} · F1`}
-                  >
-                    <svg
-                      className="header-help-icon"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      aria-hidden="true"
-                    >
-                      <circle
-                        className="header-help-icon-ring"
-                        cx="12"
-                        cy="12"
-                        r="9.5"
-                        stroke="currentColor"
-                        strokeWidth="1.1"
-                      />
-                      <path
-                        className="header-help-icon-mark"
-                        stroke="currentColor"
-                        strokeWidth="1.65"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
-                      />
-                      <circle className="header-help-icon-dot" cx="12" cy="17" r="0.9" fill="currentColor" />
-                    </svg>
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
+
+          <div className="header-util-toolbar">{toolbarSlots}</div>
         </div>
       </div>
+      {mobileSheet}
     </header>
   )
 }

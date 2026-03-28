@@ -104,7 +104,11 @@ export const exportConfig = (config) => {
           : true,
       showToastMessages: settingsPreferences.showToastMessages !== undefined 
         ? settingsPreferences.showToastMessages 
-        : false
+        : false,
+      mobileHeaderCompactToolbar:
+        typeof settingsPreferences.mobileHeaderCompactToolbar === 'boolean'
+          ? settingsPreferences.mobileHeaderCompactToolbar
+          : true,
     }
   }
   
@@ -166,7 +170,11 @@ export const importConfig = (file) => {
                   : true,
               showToastMessages: data.settings.showToastMessages !== undefined 
                 ? data.settings.showToastMessages 
-                : false
+                : false,
+              mobileHeaderCompactToolbar:
+                typeof data.settings.mobileHeaderCompactToolbar === 'boolean'
+                  ? data.settings.mobileHeaderCompactToolbar
+                  : true,
             }
             saveSettingsPreferences(preferences)
           }
