@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react'
 /** Matches CSS `@media (max-width: 640px)` — phone layout in App.css */
 export const PHONE_LAYOUT_MEDIA = '(max-width: 640px)'
 
+/** Matches CSS `@media (min-width: 641px)` — desktop/tablet header row in App.css */
+export const DESKTOP_HEADER_LAYOUT_MEDIA = '(min-width: 641px)'
+
 /**
  * Subscribes to a media query. SSR-safe (false until mounted when `window` is absent).
  */

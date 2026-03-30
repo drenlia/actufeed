@@ -38,8 +38,12 @@ function AppContent() {
   const [descExpandAllSignal, setDescExpandAllSignal] = useState({ nonce: 0, expanded: true })
   const [descBulkExpanded, setDescBulkExpanded] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [helpFocusSectionId, setHelpFocusSectionId] = useState(null)
   const [mobileHeaderCompactToolbar, setMobileHeaderCompactToolbar] = useState(
     () => loadSettingsPreferences().mobileHeaderCompactToolbar
+  )
+  const [feedHeaderWebShrunk, setFeedHeaderWebShrunk] = useState(
+    () => loadSettingsPreferences().feedHeaderWebShrunk
   )
 
   useEffect(() => {
@@ -78,7 +82,8 @@ function AppContent() {
     setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : false)
     setColorMode(preferences.theme)
     setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
-    
+    setFeedHeaderWebShrunk(preferences.feedHeaderWebShrunk)
+
     const loadedTabs = loadTabs()
     setTabs(loadedTabs)
     
@@ -156,7 +161,8 @@ function AppContent() {
       const preferences = loadSettingsPreferences()
       setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : true)
       setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
-      
+      setFeedHeaderWebShrunk(preferences.feedHeaderWebShrunk)
+
       // Read active tab from URL (Settings updates URL when switching tabs)
       const urlParams = new URLSearchParams(window.location.search)
       const tabNameFromUrl = urlParams.get('tab')
@@ -407,7 +413,14 @@ function AppContent() {
           onColorModeToggle={toggleColorMode}
           onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
           onExitSettings={() => setShowSettings(false)}
-          onHelpClick={() => setShowHelp(true)}
+          onHelpClick={() => {
+            setHelpFocusSectionId(null)
+            setShowHelp(true)
+          }}
+          onHelpManualRssClick={() => {
+            setHelpFocusSectionId('help-manual-rss')
+            setShowHelp(true)
+          }}
           mobileCompactToolbar={mobileHeaderCompactToolbar}
           onMobileCompactToolbarChange={(next) => {
             setMobileHeaderCompactToolbar(next)
@@ -416,9 +429,13 @@ function AppContent() {
         />
         <HelpModal
           open={showHelp}
-          onClose={() => setShowHelp(false)}
+          onClose={() => {
+            setShowHelp(false)
+            setHelpFocusSectionId(null)
+          }}
           uiLanguage={uiLanguage}
           settingsOnly
+          focusSectionId={helpFocusSectionId}
         />
       </div>
     )
@@ -448,11 +465,19 @@ function AppContent() {
             showDescriptionsBulkToggle={expandableDescCount >= 2}
             descriptionsBulkExpanded={descBulkExpanded}
             onToggleDescriptionsBulk={toggleDescriptionsBulk}
-            onHelpClick={() => setShowHelp(true)}
+            onHelpClick={() => {
+              setHelpFocusSectionId(null)
+              setShowHelp(true)
+            }}
             mobileCompactToolbar={mobileHeaderCompactToolbar}
             onMobileCompactToolbarChange={(next) => {
               setMobileHeaderCompactToolbar(next)
               saveSettingsPreferences({ mobileHeaderCompactToolbar: next })
+            }}
+            webFeedHeaderShrunk={feedHeaderWebShrunk}
+            onWebFeedHeaderShrunkChange={(next) => {
+              setFeedHeaderWebShrunk(next)
+              saveSettingsPreferences({ feedHeaderWebShrunk: next })
             }}
             headerTabsSlot={
               tabs.length > 1 ? (
@@ -500,7 +525,14 @@ function AppContent() {
             expandAllSignal={descExpandAllSignal}
           />
         </main>
-        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} uiLanguage={uiLanguage} />
+        <HelpModal
+          open={showHelp}
+          onClose={() => {
+            setShowHelp(false)
+            setHelpFocusSectionId(null)
+          }}
+          uiLanguage={uiLanguage}
+        />
       </div>
   )
 }

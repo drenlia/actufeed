@@ -11,7 +11,6 @@ import { loadSettingsPreferences, saveSettingsPreferences } from '../utils/setti
 import { clearCachedNews } from '../utils/storageUtils'
 import { validateRssFeed } from '../utils/rssValidator'
 import { useToastContext } from '../contexts/ToastContext'
-import { PHONE_LAYOUT_MEDIA, useMatchMedia } from '../hooks/useMatchMedia'
 import { Header } from './Header'
 import { TabBar } from './TabBar'
 import {
@@ -34,11 +33,11 @@ export const Settings = ({
   onLanguageToggle,
   onExitSettings,
   onHelpClick,
+  onHelpManualRssClick,
   mobileCompactToolbar = false,
   onMobileCompactToolbarChange,
 }) => {
   const t = translations[uiLanguage]
-  const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
   const [tabs, setTabs] = useState([])
   const [activeTabId, setActiveTabIdState] = useState(null)
   const [config, setConfig] = useState(null)
@@ -574,10 +573,6 @@ export const Settings = ({
     saveSettingsPreferences({ showToastMessages: newValue })
   }
 
-  const toggleMobileHeaderCompactToolbar = () => {
-    onMobileCompactToolbarChange?.(!mobileCompactToolbar)
-  }
-
   return (
     <>
       <div className="settings-chrome">
@@ -623,7 +618,7 @@ export const Settings = ({
             </div>
             <div className="toast-toggle-container">
               <label className="settings-toast-toggle-label" htmlFor="settings-fetch-toasts-switch">
-                {t.showToastMessages || 'Show fetch messages'}
+                {t.showToastMessages || 'Show fetch banners'}
               </label>
               <button
                 type="button"
@@ -632,38 +627,13 @@ export const Settings = ({
                 onClick={toggleShowToastMessages}
                 role="switch"
                 aria-checked={showToastMessages}
-                aria-label={t.showToastMessages || 'Show fetch messages'}
+                aria-label={t.showToastMessages || 'Show fetch banners'}
               >
                 <span className="settings-fetch-toast-switch-knob" aria-hidden />
               </button>
             </div>
           </div>
         </div>
-
-        {isPhoneLayout ? (
-          <div className="settings-compact-header-card settings-glass-panel">
-            <div className="settings-compact-header-card__row">
-              <label
-                className="settings-toast-toggle-label settings-compact-header-card__label"
-                htmlFor="settings-compact-header-switch"
-              >
-                {t.mobileCompactHeaderSetting}
-              </label>
-              <button
-                type="button"
-                id="settings-compact-header-switch"
-                className={`settings-fetch-toast-switch ${mobileCompactToolbar ? 'is-on' : ''}`}
-                onClick={toggleMobileHeaderCompactToolbar}
-                role="switch"
-                aria-checked={mobileCompactToolbar}
-                aria-label={t.mobileCompactHeaderSetting}
-              >
-                <span className="settings-fetch-toast-switch-knob" aria-hidden />
-              </button>
-            </div>
-            <p className="settings-compact-header-toggle__hint">{t.mobileCompactHeaderSettingHint}</p>
-          </div>
-        ) : null}
 
         <div className="settings-layout">
         {/* Country filters — grid column; on phone: narrow ISO column beside sources */}
@@ -731,7 +701,20 @@ export const Settings = ({
 
         <div className="settings-manual-panel settings-glass-panel">
           <div className="settings-section">
-            <h2>{t.addManualFeed}</h2>
+            <div className="settings-manual-feed-heading-row">
+              <h2>{t.addManualFeed}</h2>
+              {onHelpManualRssClick ? (
+                <button
+                  type="button"
+                  className="settings-inline-help-btn"
+                  onClick={onHelpManualRssClick}
+                  aria-label={t.helpManualRssLinkAria}
+                  title={t.helpManualRssLinkAria}
+                >
+                  ?
+                </button>
+              ) : null}
+            </div>
             <div className="manual-feed-container">
               <div className="manual-feed-input-group">
                 <input

@@ -1,4 +1,5 @@
 // Backend proxy server for RSS feeds (avoids CORS issues)
+import 'dotenv/config';
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -13,12 +14,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-// In dev mode, backend runs on 3073 (internal, proxied by Vite)
-// In production, backend runs on 3072 (serves both API and static files)
-const PORT = process.env.NODE_ENV === 'development' 
-  ? (process.env.BACKEND_PORT || 3073)
-  : (process.env.PORT || 3072);
-const VITE_PORT = process.env.VITE_PORT || 3072;
+// Ports: set VITE_PORT / BACKEND_PORT / PORT in .env (see .env.example)
+const VITE_PORT = Number(process.env.VITE_PORT || 3072);
+const BACKEND_PORT = Number(process.env.BACKEND_PORT || 3073);
+// In dev mode, backend runs on BACKEND_PORT (proxied by Vite). In production, serves API + static on PORT.
+const PORT =
+  process.env.NODE_ENV === 'development'
+    ? BACKEND_PORT
+    : Number(process.env.PORT || 3072);
 
 // Middleware
 app.use(express.json());
@@ -60,12 +63,11 @@ app.use(helmet({
 // Get allowed origins from environment variable
 const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'development') {
-    // Development: Allow localhost on common ports
     return [
-      'http://localhost:3072',
-      'http://localhost:3073',
-      'http://127.0.0.1:3072',
-      'http://127.0.0.1:3073',
+      `http://localhost:${VITE_PORT}`,
+      `http://localhost:${BACKEND_PORT}`,
+      `http://127.0.0.1:${VITE_PORT}`,
+      `http://127.0.0.1:${BACKEND_PORT}`,
     ];
   }
   

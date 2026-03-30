@@ -8,15 +8,18 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:all": "concurrently -n vite,api -c blue,green \"npm run dev\" \"npm run server:dev\"",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server.js",
+    "server:dev": "NODE_ENV=development node server.js",
     "start": "node server.js",
     "dev:docker": "concurrently -n vite,proxy -c blue,green \"npm run dev\" \"env NODE_ENV=development node server.js\""
   },
   "dependencies": {
     "dompurify": "^3.3.1",
+    "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",

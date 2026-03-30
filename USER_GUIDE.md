@@ -57,7 +57,7 @@ Each article card displays:
 **New Articles**: Articles that haven't been seen before are highlighted with a yellow background.
 
 **Fetch status alerts** (optional): 
-- Small banners that can appear after articles are fetched (enable **Show fetch messages** in Settings)
+- Small banners that can appear after articles are fetched (enable **Show fetch banners** in Settings)
 - They show success or failure per source
 - Drag a banner to the **right** to dismiss it; they also fade on their own after a few seconds
 
@@ -78,7 +78,7 @@ When you have multiple tabs:
 
 ### Fetch messages toggle
 
-- **Show fetch messages**: Turns the optional status banners on or off after sources are fetched
+- **Show fetch banners**: Turns the optional status banners on or off after sources are fetched
 - The choice is saved automatically for next time
 
 ### Country Filter Sidebar
@@ -177,7 +177,7 @@ The validation shows:
 
 5. **Auto-Refresh**: Enable auto-refresh to keep your feed updated automatically, or disable it to save bandwidth
 
-6. **Fetch alerts**: Turn off **Show fetch messages** if banners annoy you, or leave them on to see whether each source loaded OK
+6. **Fetch alerts**: Turn off **Show fetch banners** if banners annoy you, or leave them on to see whether each source loaded OK
 
 7. **Cache Awareness**: Remember that articles are cached. After adding or removing sources, refresh the page to see changes
 

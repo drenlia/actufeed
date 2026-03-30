@@ -109,6 +109,10 @@ export const exportConfig = (config) => {
         typeof settingsPreferences.mobileHeaderCompactToolbar === 'boolean'
           ? settingsPreferences.mobileHeaderCompactToolbar
           : true,
+      feedHeaderWebShrunk:
+        typeof settingsPreferences.feedHeaderWebShrunk === 'boolean'
+          ? settingsPreferences.feedHeaderWebShrunk
+          : false,
     }
   }
   
@@ -175,6 +179,10 @@ export const importConfig = (file) => {
                 typeof data.settings.mobileHeaderCompactToolbar === 'boolean'
                   ? data.settings.mobileHeaderCompactToolbar
                   : true,
+              feedHeaderWebShrunk:
+                typeof data.settings.feedHeaderWebShrunk === 'boolean'
+                  ? data.settings.feedHeaderWebShrunk
+                  : false,
             }
             saveSettingsPreferences(preferences)
           }

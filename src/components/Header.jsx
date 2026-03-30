@@ -1,6 +1,11 @@
 import { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { translations } from '../constants/translations'
+import {
+  DESKTOP_HEADER_LAYOUT_MEDIA,
+  PHONE_LAYOUT_MEDIA,
+  useMatchMedia,
+} from '../hooks/useMatchMedia'
 
 const utilSlot = (child) => <div className="header-util-slot">{child}</div>
 
@@ -23,9 +28,13 @@ export const Header = ({
   onToggleDescriptionsBulk,
   mobileCompactToolbar = false,
   onMobileCompactToolbarChange,
+  webFeedHeaderShrunk = false,
+  onWebFeedHeaderShrunkChange,
   headerTabsSlot = null,
 }) => {
   const t = translations[uiLanguage]
+  const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
+  const isWideFeedHeaderLayout = useMatchMedia(DESKTOP_HEADER_LAYOUT_MEDIA)
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
   const launcherRef = useRef(null)
   const sheetRef = useRef(null)
@@ -203,8 +212,12 @@ export const Header = ({
     if (!useCompactMobileToolbar) setToolsMenuOpen(false)
   }, [useCompactMobileToolbar])
 
+  useEffect(() => {
+    if (!isSettingsPage) setToolsMenuOpen(false)
+  }, [isSettingsPage])
+
   const mobileSheet =
-    useCompactMobileToolbar && toolsMenuOpen
+    useCompactMobileToolbar && isSettingsPage && toolsMenuOpen
       ? createPortal(
           <>
             <div className="header-mobile-tools-backdrop" role="presentation" onClick={closeToolsMenu} />
@@ -233,8 +246,15 @@ export const Header = ({
         )
       : null
 
-  const headerClass =
-    `site-header${useCompactMobileToolbar ? ' site-header--mobile-compact-tools' : ''}`.trim()
+  const headerClass = [
+    'site-header',
+    useCompactMobileToolbar ? 'site-header--mobile-compact-tools' : '',
+    webFeedHeaderShrunk && !isSettingsPage && isWideFeedHeaderLayout
+      ? 'site-header--feed-web-shrunk'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   const headerContentClass = [
     'header-content',
@@ -243,7 +263,56 @@ export const Header = ({
     .filter(Boolean)
     .join(' ')
 
+  const webFeedToggleIcon = webFeedHeaderShrunk ? (
+    <svg className="header-web-feed-float-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+    </svg>
+  ) : (
+    <svg className="header-web-feed-float-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M7 14l5-5 5 5H7z" />
+    </svg>
+  )
+
+  const webFeedToggleShared = {
+    onClick: () => onWebFeedHeaderShrunkChange?.(!webFeedHeaderShrunk),
+    'aria-pressed': webFeedHeaderShrunk,
+    title: webFeedHeaderShrunk ? t.headerWebExpandFeedHeader : t.headerWebShrinkFeedHeader,
+    'aria-label': webFeedHeaderShrunk ? t.headerWebExpandFeedHeader : t.headerWebShrinkFeedHeader,
+  }
+
+  const webFeedToolbarToggle =
+    isWideFeedHeaderLayout && !isSettingsPage && onWebFeedHeaderShrunkChange && !webFeedHeaderShrunk ? (
+      <button
+        type="button"
+        className="header-web-feed-float-toggle header-web-feed-float-toggle--toolbar"
+        {...webFeedToggleShared}
+      >
+        {webFeedToggleIcon}
+      </button>
+    ) : null
+
+  const webFeedFixedToggle =
+    isWideFeedHeaderLayout && !isSettingsPage && onWebFeedHeaderShrunkChange && webFeedHeaderShrunk ? (
+      <button
+        type="button"
+        className="header-web-feed-float-toggle header-web-feed-float-toggle--fixed"
+        {...webFeedToggleShared}
+      >
+        {webFeedToggleIcon}
+      </button>
+    ) : null
+
+  const showWebShrunkTabsBar =
+    webFeedHeaderShrunk &&
+    !isSettingsPage &&
+    isWideFeedHeaderLayout &&
+    Boolean(headerTabsSlot)
+
+  const feedTabsInHeader =
+    headerTabsSlot && !showWebShrunkTabsBar
+
   return (
+    <>
     <header className={headerClass}>
       <div className={headerContentClass}>
         <div className="header-brand-block">
@@ -296,7 +365,32 @@ export const Header = ({
           </div>
         )}
 
-        {useCompactMobileToolbar && (
+        {isPhoneLayout && !isSettingsPage && onMobileCompactToolbarChange && (
+          <button
+            type="button"
+            className="header-mobile-compact-quick-btn"
+            onClick={() => onMobileCompactToolbarChange(!mobileCompactToolbar)}
+            aria-pressed={mobileCompactToolbar}
+            title={
+              mobileCompactToolbar ? t.headerMobileShowToolbarRowQuick : t.headerMobileHideToolbarRowQuick
+            }
+            aria-label={
+              mobileCompactToolbar ? t.headerMobileShowToolbarRowQuick : t.headerMobileHideToolbarRowQuick
+            }
+          >
+            {mobileCompactToolbar ? (
+              <svg className="header-mobile-compact-quick-btn__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+              </svg>
+            ) : (
+              <svg className="header-mobile-compact-quick-btn__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M7 14l5-5 5 5H7z" />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {useCompactMobileToolbar && isSettingsPage && (
           <button
             ref={launcherRef}
             type="button"
@@ -316,7 +410,7 @@ export const Header = ({
           </button>
         )}
 
-        {headerTabsSlot ? <div className="header-feed-tabs">{headerTabsSlot}</div> : null}
+        {feedTabsInHeader ? <div className="header-feed-tabs">{headerTabsSlot}</div> : null}
 
         <div className="header-desktop-actions">
           {showArticleCount && articleCount !== undefined && (
@@ -336,10 +430,20 @@ export const Header = ({
             </div>
           )}
 
-          <div className="header-util-toolbar">{toolbarSlots}</div>
+          <div className="header-util-toolbar">
+            {toolbarSlots}
+            {utilSlot(webFeedToolbarToggle)}
+          </div>
         </div>
       </div>
       {mobileSheet}
     </header>
+    {showWebShrunkTabsBar ? (
+      <div className="feed-chrome-shrunk-tabs">
+        <div className="header-feed-tabs">{headerTabsSlot}</div>
+      </div>
+    ) : null}
+    {webFeedFixedToggle}
+    </>
   )
 }

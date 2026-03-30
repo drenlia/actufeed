@@ -1,5 +1,14 @@
 # Development Mode with Docker
 
+## Local (no Docker)
+
+1. `cp .env.example .env` and set **`VITE_PORT`** (frontend) and **`BACKEND_PORT`** (API) if you want something other than `3072` / `3073`.
+2. **One terminal:** `npm run dev:all` — starts Vite and the API together via `concurrently` (same as two terminals: `npm run dev` + `npm run server:dev`).
+
+Avoid putting `NODE_ENV=development` in `.env` unless you want every `npm start` / `node server.js` to use dev ports.
+
+## Docker
+
 This setup allows you to run the app in Docker with hot-reload support, so changes to source files are reflected immediately without rebuilding.
 
 ## Quick Start

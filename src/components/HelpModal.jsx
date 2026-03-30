@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { Fragment, useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { translations } from '../constants/translations'
 
 function escapeRegExp(s) {
@@ -34,21 +34,77 @@ function highlightText(text, query, keyPrefix) {
   return out.length > 0 ? out : text
 }
 
-export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) => {
-  const t = translations[uiLanguage]
+const HELP_GROUP_ICON_SPLIT = /(\[\[rss\]\]|\[\[funnel\]\])/
+
+function HelpFunnelInlineIcon() {
+  return (
+    <svg
+      className="help-modal__funnel-inline-icon"
+      viewBox="0 0 24 24"
+      width={20}
+      height={20}
+      aria-hidden="true"
+    >
+      <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+    </svg>
+  )
+}
+
+/**
+ * Renders a help table group cell. Placeholders:
+ * `[[rss]]` → public RSS tile; `[[funnel]]` → same funnel SVG as the header filter button.
+ */
+function renderHelpGroupCell(group, searchQuery, keyPrefix) {
+  if (!HELP_GROUP_ICON_SPLIT.test(group)) {
+    return highlightText(group, searchQuery, keyPrefix)
+  }
+  const parts = group.split(HELP_GROUP_ICON_SPLIT).filter((p) => p.length > 0)
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part === '[[rss]]') {
+          return (
+            <img
+              key={`${keyPrefix}-ic-${i}`}
+              src="/rss-icon.png"
+              alt=""
+              className="help-modal__rss-inline-img"
+              width={20}
+              height={20}
+              decoding="async"
+            />
+          )
+        }
+        if (part === '[[funnel]]') {
+          return <HelpFunnelInlineIcon key={`${keyPrefix}-ic-${i}`} />
+        }
+        return <Fragment key={`${keyPrefix}-tx-${i}`}>{highlightText(part, searchQuery, `${keyPrefix}-${i}`)}</Fragment>
+      })}
+    </>
+  )
+}
+
+export const HelpModal = ({
+  open,
+  onClose,
+  uiLanguage,
+  settingsOnly = false,
+  focusSectionId = null,
+}) => {
+  const [helpDisplayLang, setHelpDisplayLang] = useState(uiLanguage)
+  const t = translations[helpDisplayLang]
   const [searchQuery, setSearchQuery] = useState('')
   const bodyRef = useRef(null)
   const closeBtnRef = useRef(null)
 
   const feedRows = settingsOnly ? [] : t.helpFeedTable || []
   const settingsRows = t.helpSettingsTable || []
+  const manualRssRows = settingsOnly ? t.helpManualRssTable || [] : []
 
   const rowMatches = (row, needle) => {
     if (!needle) return true
     const q = needle.toLowerCase()
-    return (
-      row.group.toLowerCase().includes(q) || row.text.toLowerCase().includes(q)
-    )
+    return row.group.toLowerCase().includes(q) || row.text.toLowerCase().includes(q)
   }
 
   useEffect(() => {
@@ -56,8 +112,18 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
       setSearchQuery('')
       return
     }
+    setHelpDisplayLang(uiLanguage)
     closeBtnRef.current?.focus()
-  }, [open])
+  }, [open, uiLanguage])
+
+  useLayoutEffect(() => {
+    if (!open || !focusSectionId) return
+    const id = focusSectionId
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    }, 150)
+    return () => window.clearTimeout(timer)
+  }, [open, focusSectionId, helpDisplayLang])
 
   useEffect(() => {
     if (!open) return
@@ -87,7 +153,7 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
   useEffect(() => {
     if (!open) return
     scrollToFirstHit()
-  }, [open, searchQuery, uiLanguage, scrollToFirstHit])
+  }, [open, searchQuery, helpDisplayLang, scrollToFirstHit])
 
   useEffect(() => {
     if (!open) return
@@ -105,7 +171,8 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
   const noMatches =
     q &&
     !feedRows.some((row) => rowMatches(row, q)) &&
-    !settingsRows.some((row) => rowMatches(row, q))
+    !settingsRows.some((row) => rowMatches(row, q)) &&
+    !manualRssRows.some((row) => rowMatches(row, q))
 
   return (
     <div
@@ -125,15 +192,49 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
           <h2 id="help-modal-title" className="help-modal__title">
             {modalTitle}
           </h2>
-          <button
-            ref={closeBtnRef}
-            type="button"
-            className="help-modal__close"
-            onClick={onClose}
-            aria-label={t.helpModalClose}
-          >
-            ×
-          </button>
+          <div className="help-modal__top-actions">
+            <div
+              className="help-modal__lang"
+              role="group"
+              aria-label={t.helpModalLangGroupAria}
+            >
+              <button
+                type="button"
+                className={
+                  helpDisplayLang === 'fr'
+                    ? 'help-modal__lang-btn help-modal__lang-btn--active'
+                    : 'help-modal__lang-btn'
+                }
+                onClick={() => setHelpDisplayLang('fr')}
+                aria-pressed={helpDisplayLang === 'fr'}
+                aria-label={t.helpModalLangShowFr}
+              >
+                FR
+              </button>
+              <button
+                type="button"
+                className={
+                  helpDisplayLang === 'en'
+                    ? 'help-modal__lang-btn help-modal__lang-btn--active'
+                    : 'help-modal__lang-btn'
+                }
+                onClick={() => setHelpDisplayLang('en')}
+                aria-pressed={helpDisplayLang === 'en'}
+                aria-label={t.helpModalLangShowEn}
+              >
+                EN
+              </button>
+            </div>
+            <button
+              ref={closeBtnRef}
+              type="button"
+              className="help-modal__close"
+              onClick={onClose}
+              aria-label={t.helpModalClose}
+            >
+              ×
+            </button>
+          </div>
         </div>
         <p className="help-modal__hint">{t.helpModalHint}</p>
         <div className="help-modal__search-wrap">
@@ -162,7 +263,7 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
                     {feedRows.map((row, i) => (
                       <tr key={`f-${i}`}>
                         <th scope="row" className="help-modal__td-group">
-                          {highlightText(row.group, searchQuery, `fg-${i}`)}
+                          {renderHelpGroupCell(row.group, searchQuery, `fg-${i}`)}
                         </th>
                         <td className="help-modal__td-desc">
                           {highlightText(row.text, searchQuery, `fd-${i}`)}
@@ -198,6 +299,40 @@ export const HelpModal = ({ open, onClose, uiLanguage, settingsOnly = false }) =
               </table>
             </div>
           </section>
+          {settingsOnly && manualRssRows.length > 0 && (
+            <section className="help-modal__section" id="help-manual-rss">
+              <h3 className="help-modal__section-title help-modal__section-title--with-rss">
+                <span className="help-modal__rss-icon-wrap">
+                  <img
+                    src="/rss-icon.png"
+                    alt=""
+                    className="help-modal__rss-title-img"
+                    width={24}
+                    height={24}
+                    decoding="async"
+                  />
+                </span>
+                {t.helpSectionManualRss}
+              </h3>
+              <p className="help-modal__rss-lead">{t.helpManualRssLead}</p>
+              <div className="help-modal__table-scroll">
+                <table className="help-modal__table" aria-label={t.helpSectionManualRss}>
+                  <tbody>
+                    {manualRssRows.map((row, i) => (
+                      <tr key={`r-${i}`}>
+                        <th scope="row" className="help-modal__td-group">
+                          {renderHelpGroupCell(row.group, searchQuery, `rg-${i}`)}
+                        </th>
+                        <td className="help-modal__td-desc">
+                          {highlightText(row.text, searchQuery, `rd-${i}`)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>

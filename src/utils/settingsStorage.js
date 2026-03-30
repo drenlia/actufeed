@@ -22,6 +22,8 @@ export const loadSettingsPreferences = () => {
         showToastMessages: parsed.showToastMessages !== undefined ? parsed.showToastMessages : false,
         mobileHeaderCompactToolbar:
           typeof parsed.mobileHeaderCompactToolbar === 'boolean' ? parsed.mobileHeaderCompactToolbar : true,
+        feedHeaderWebShrunk:
+          typeof parsed.feedHeaderWebShrunk === 'boolean' ? parsed.feedHeaderWebShrunk : false,
         theme,
       }
     }
@@ -39,6 +41,7 @@ export const loadSettingsPreferences = () => {
     subheaderCollapsed: DEFAULT_SUBHEADER_COLLAPSED,
     showToastMessages: false, // Default to hiding toast messages
     mobileHeaderCompactToolbar: true,
+    feedHeaderWebShrunk: false,
     theme,
   }
 }
@@ -60,6 +63,10 @@ export const saveSettingsPreferences = (preferences) => {
         preferences.mobileHeaderCompactToolbar !== undefined
           ? preferences.mobileHeaderCompactToolbar
           : stored.mobileHeaderCompactToolbar,
+      feedHeaderWebShrunk:
+        preferences.feedHeaderWebShrunk !== undefined
+          ? preferences.feedHeaderWebShrunk
+          : stored.feedHeaderWebShrunk,
       theme: preferences.theme !== undefined ? preferences.theme : stored.theme,
     }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toStore))
