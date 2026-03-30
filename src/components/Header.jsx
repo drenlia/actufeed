@@ -302,6 +302,27 @@ export const Header = ({
       </button>
     ) : null
 
+  const webFeedFiltersFixedToggle =
+    isWideFeedHeaderLayout &&
+    !isSettingsPage &&
+    webFeedHeaderShrunk &&
+    onToggleFilters ? (
+      <button
+        type="button"
+        className={`header-web-feed-float-filters${
+          filtersCollapsed ? ' header-web-feed-float-filters--off' : ' header-web-feed-float-filters--on'
+        }`}
+        onClick={onToggleFilters}
+        title={filtersCollapsed ? t.showFilters : t.hideFilters}
+        aria-label={filtersCollapsed ? t.showFilters : t.hideFilters}
+        aria-expanded={!filtersCollapsed}
+      >
+        <svg className="header-web-feed-float-filters__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+        </svg>
+      </button>
+    ) : null
+
   const showWebShrunkTabsBar =
     webFeedHeaderShrunk &&
     !isSettingsPage &&
@@ -443,6 +464,7 @@ export const Header = ({
         <div className="header-feed-tabs">{headerTabsSlot}</div>
       </div>
     ) : null}
+    {webFeedFiltersFixedToggle}
     {webFeedFixedToggle}
     </>
   )

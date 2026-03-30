@@ -259,6 +259,13 @@
     transform: none;
   }
 
+  /* Feed (web): hide entire top bar; floating buttons (outside header) — shared metrics */
+  .feed-chrome {
+    --feed-web-float-edge: max(14px, env(safe-area-inset-right, 0px));
+    --feed-web-float-btn: 44px;
+    --feed-web-float-gap: 10px;
+  }
+
   /* Feed (web): hide entire top bar; floating button (outside header) restores it */
   .feed-chrome .site-header.site-header--feed-web-shrunk {
     display: none !important;
@@ -274,7 +281,12 @@
     display: flex;
     align-items: center;
     margin: 0 50px;
-    padding: 6px 56px 6px 0;
+    /* Inner right: clear two stacked FABs (funnel + header); 50px = same horizontal margin as this row */
+    padding: 6px
+      calc(
+        var(--feed-web-float-edge) + (2 * var(--feed-web-float-btn)) + var(--feed-web-float-gap) - 50px + 8px
+      )
+      6px 16px;
     box-sizing: border-box;
     min-width: 0;
     border-bottom: 1px solid color-mix(in srgb, var(--af-border) 40%, transparent);
@@ -384,12 +396,12 @@
     height: 18px;
   }
 
-  /* Fixed FAB when feed header is hidden */
+  /* Fixed FAB when feed header is hidden (rightmost: show / hide header) */
   .feed-chrome .header-web-feed-float-toggle--fixed {
     display: inline-flex;
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 10px);
-    right: max(14px, env(safe-area-inset-right, 0px));
+    right: var(--feed-web-float-edge);
     z-index: 140;
     align-items: center;
     justify-content: center;
@@ -422,6 +434,69 @@
   .feed-chrome .header-web-feed-float-toggle--fixed .header-web-feed-float-toggle__icon {
     width: 24px;
     height: 24px;
+    display: block;
+  }
+
+  /* Floating funnel — web + hidden header only; immediately left of the header FAB */
+  .feed-chrome .header-web-feed-float-filters {
+    display: inline-flex;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(var(--feed-web-float-edge) + var(--feed-web-float-btn) + var(--feed-web-float-gap));
+    left: auto;
+    z-index: 140;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+    box-shadow:
+      0 4px 18px var(--af-shadow-lg),
+      0 1px 0 color-mix(in srgb, var(--af-text) 6%, transparent) inset;
+    transition:
+      border-color 0.2s ease,
+      background 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .feed-chrome .header-web-feed-float-filters--off {
+    border: 1.5px solid color-mix(in srgb, var(--af-border) 90%, transparent);
+    background: color-mix(in srgb, var(--af-surface-glass) 92%, transparent);
+    color: var(--af-text-muted);
+  }
+
+  .feed-chrome .header-web-feed-float-filters--off:hover {
+    color: var(--af-text-secondary);
+    border-color: color-mix(in srgb, var(--af-accent) 28%, var(--af-border));
+    background: color-mix(in srgb, var(--af-surface) 88%, var(--af-surface-glass));
+  }
+
+  .feed-chrome .header-web-feed-float-filters--on {
+    border: 1.5px solid color-mix(in srgb, var(--af-accent) 42%, var(--af-border));
+    background: color-mix(in srgb, var(--af-accent) 14%, var(--af-surface-glass));
+    color: var(--af-accent);
+  }
+
+  .feed-chrome .header-web-feed-float-filters--on:hover {
+    border-color: color-mix(in srgb, var(--af-accent) 55%, var(--af-border));
+    background: color-mix(in srgb, var(--af-accent) 20%, var(--af-surface-glass));
+    color: var(--af-accent);
+  }
+
+  .feed-chrome .header-web-feed-float-filters:focus-visible {
+    outline: 2px solid var(--af-accent);
+    outline-offset: 3px;
+  }
+
+  .feed-chrome .header-web-feed-float-filters__icon {
+    width: 22px;
+    height: 22px;
     display: block;
   }
 }
@@ -1469,7 +1544,8 @@
 .sub-header__chunk--grow .search-input-wrapper {
   flex: 1 1 160px;
   min-width: 0;
-  max-width: 420px;
+  /* ~30% narrower than 420px so “Clear all filters” doesn’t crowd the search field */
+  max-width: 294px;
 }
 
 .sub-header__chunk--grow .search-input-compact {
