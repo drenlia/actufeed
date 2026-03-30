@@ -145,66 +145,59 @@ function AppContent() {
       }
     }
   }, [])
-  
-  // Track previous showSettings value to detect when it changes from true to false
-  const prevShowSettingsRef = useRef(false)
-  
-  // When Settings closes, read the active tab from URL and navigate to it
-  // This ensures the tab selected in Settings is shown on the News Feed page
-  useEffect(() => {
-    if (prevShowSettingsRef.current === true && showSettings === false) {
-      // Settings just closed, reload tabs and read active tab from URL
-      const reloadedTabs = loadTabs()
-      console.log('[App] Settings closed, reloading tabs. Tabs count:', reloadedTabs.length)
-      
-      // Reload preferences (including showToastMessages)
-      const preferences = loadSettingsPreferences()
-      setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : true)
-      setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
-      setFeedHeaderWebShrunk(preferences.feedHeaderWebShrunk)
 
-      // Read active tab from URL (Settings updates URL when switching tabs)
-      const urlParams = new URLSearchParams(window.location.search)
-      const tabNameFromUrl = urlParams.get('tab')
-      let tabIdToUse = null
-      
-      if (tabNameFromUrl) {
-        try {
-          const decodedTabName = decodeURIComponent(tabNameFromUrl)
-          const matchingTab = reloadedTabs.find(t => t.name === decodedTabName)
-          if (matchingTab) {
-            tabIdToUse = matchingTab.id
-            console.log('[App] Using tab from URL (set by Settings):', matchingTab.name, matchingTab.id)
-          }
-        } catch (e) {
-          console.warn('[App] Failed to decode tab name from URL:', e)
+  // Apply localStorage + URL before leaving Settings so the feed's first paint matches saved sources
+  // (avoids useNews mounting with stale App tabs and firing a full fetch for the old list)
+  const syncFeedStateAfterSettingsClose = useCallback(() => {
+    const reloadedTabs = loadTabs()
+
+    const preferences = loadSettingsPreferences()
+    setShowToastMessages(
+      preferences.showToastMessages !== undefined ? preferences.showToastMessages : true
+    )
+    setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
+    setFeedHeaderWebShrunk(preferences.feedHeaderWebShrunk)
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const tabNameFromUrl = urlParams.get('tab')
+    let tabIdToUse = null
+
+    if (tabNameFromUrl) {
+      try {
+        const decodedTabName = decodeURIComponent(tabNameFromUrl)
+        const matchingTab = reloadedTabs.find((t) => t.name === decodedTabName)
+        if (matchingTab) {
+          tabIdToUse = matchingTab.id
         }
-      }
-      
-      // Fallback to localStorage if URL doesn't have a valid tab
-      if (!tabIdToUse) {
-        tabIdToUse = getActiveTabId(reloadedTabs)
-        console.log('[App] Using tab from localStorage:', tabIdToUse)
-      }
-      
-      // Final fallback to first tab
-      if (!tabIdToUse && reloadedTabs.length > 0) {
-        tabIdToUse = reloadedTabs[0]?.id || null
-        console.log('[App] Using first tab as fallback:', tabIdToUse)
-      }
-      
-      // Update tabs and active tab
-      const newTabsArray = reloadedTabs.map(tab => ({ ...tab, sources: [...(tab.sources || [])] }))
-      setTabs(newTabsArray)
-      
-      if (tabIdToUse) {
-        setActiveTabId(tabIdToUse)
-        setActiveTabIdState(tabIdToUse)
+      } catch (e) {
+        console.warn('[App] Failed to decode tab name from URL:', e)
       }
     }
-    prevShowSettingsRef.current = showSettings
-  }, [showSettings])
-  
+
+    if (!tabIdToUse) {
+      tabIdToUse = getActiveTabId(reloadedTabs)
+    }
+    if (!tabIdToUse && reloadedTabs.length > 0) {
+      tabIdToUse = reloadedTabs[0]?.id || null
+    }
+
+    const newTabsArray = reloadedTabs.map((tab) => ({
+      ...tab,
+      sources: [...(tab.sources || [])],
+    }))
+    setTabs(newTabsArray)
+
+    if (tabIdToUse) {
+      setActiveTabId(tabIdToUse)
+      setActiveTabIdState(tabIdToUse)
+    }
+  }, [])
+
+  const handleCloseSettings = useCallback(() => {
+    syncFeedStateAfterSettingsClose()
+    setShowSettings(false)
+  }, [syncFeedStateAfterSettingsClose])
+
   // Helper function to get tab name from tab ID
   const getTabNameFromId = useCallback((tabId) => {
     const tab = tabs.find(t => t.id === tabId)
@@ -405,14 +398,11 @@ function AppContent() {
       <div className="app">
         <Settings
           uiLanguage={uiLanguage}
-          onClose={() => {
-            // Simply close Settings - the useEffect will handle reading the tab from URL
-            setShowSettings(false)
-          }}
+          onClose={handleCloseSettings}
           colorMode={colorMode}
           onColorModeToggle={toggleColorMode}
           onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
-          onExitSettings={() => setShowSettings(false)}
+          onExitSettings={handleCloseSettings}
           onHelpClick={() => {
             setHelpFocusSectionId(null)
             setShowHelp(true)

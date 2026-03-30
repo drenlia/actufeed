@@ -88,9 +88,9 @@ When you have multiple tabs:
 - **Clear Filters**: Button appears when countries are selected to remove all country filters
 - Country pills show the number of available sources in parentheses
 
-### Manual RSS Feed Addition
+### Manual feed addition (RSS or Atom)
 
-1. **Enter Feed URL**: Type or paste an RSS feed URL in the input field
+1. **Enter feed URL**: Paste an RSS 2.0 or Atom URL (many YouTube channels use Atom: `feeds/videos.xml?channel_id=…`)
 2. **Validate Feed**: Click "Validate & Add Feed" to check if the feed is valid
 3. **Edit Feed Title**: After validation, you can edit the feed title before adding
 4. **Add Feed**: Click "Add Selected" to add the validated feed to your active sources
@@ -183,6 +183,6 @@ The validation shows:
 
 8. **Tab Management**: Use descriptive tab names and organize them by dragging to match your workflow
 
-9. **Manual Feeds**: You can add any valid RSS feed manually, even if it's not in the pre-configured list
+9. **Manual feeds**: You can add valid RSS or Atom feeds manually, even if they're not in the pre-configured list
 
 10. **Source URLs**: Click on active sources in Settings to quickly copy their URLs for sharing or backup

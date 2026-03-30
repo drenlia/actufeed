@@ -416,12 +416,8 @@ export const Settings = ({
       } else {
         setFeedTitle('')
       }
-      if (!result.valid) {
-        if (result.incompatibleFeedFormat === 'atom10') {
-          warning(t.atomFeedNotCompatible)
-        } else if (result.errors && result.errors.length > 0) {
-          showError(result.errors[0])
-        }
+      if (!result.valid && result.errors && result.errors.length > 0) {
+        showError(result.errors[0])
       }
     } catch (error) {
       const errorResult = {
@@ -443,11 +439,16 @@ export const Settings = ({
       return
     }
     
-    const feedUrl = manualFeedUrl.trim()
+    const feedUrl = (feedValidationResult.resolvedFeedUrl || manualFeedUrl).trim()
+    const resolved = feedValidationResult.resolvedFeedUrl?.trim()
     const finalTitle = feedTitle.trim() || feedValidationResult.channel.title || 'Untitled Feed'
     
-    // Check if feed already exists
-    if (config.sources.some(s => s.url === feedUrl)) {
+    // Check if feed already exists (compare canonical URL for YouTube)
+    if (
+      config.sources.some(
+        (s) => s.url === feedUrl || (resolved && s.url === resolved)
+      )
+    ) {
       showError('This feed is already in your sources')
       return
     }
@@ -457,9 +458,10 @@ export const Settings = ({
       name: finalTitle,
       url: feedUrl,
       language: feedValidationResult.channel.language || 'en',
-      region: '', // Manual feeds don't have a region by default
-      country: '', // Manual feeds don't have a country by default
-      province: '' // Manual feeds don't have a province by default
+      region: '',
+      country: '',
+      province: '',
+      feedFormat: feedValidationResult.feedFormat === 'atom' ? 'atom' : 'rss2',
     }
     
     if (!activeTabId) {
@@ -702,18 +704,20 @@ export const Settings = ({
         <div className="settings-manual-panel settings-glass-panel">
           <div className="settings-section">
             <div className="settings-manual-feed-heading-row">
-              <h2>{t.addManualFeed}</h2>
-              {onHelpManualRssClick ? (
-                <button
-                  type="button"
-                  className="settings-inline-help-btn"
-                  onClick={onHelpManualRssClick}
-                  aria-label={t.helpManualRssLinkAria}
-                  title={t.helpManualRssLinkAria}
-                >
-                  ?
-                </button>
-              ) : null}
+              <h2 className="settings-manual-feed-title">
+                <span className="settings-manual-feed-title__text">{t.addManualFeed}</span>
+                {onHelpManualRssClick ? (
+                  <button
+                    type="button"
+                    className="settings-manual-feed-title__help"
+                    onClick={onHelpManualRssClick}
+                    aria-label={t.helpManualRssLinkAria}
+                    title={t.helpManualRssLinkAria}
+                  >
+                    ?
+                  </button>
+                ) : null}
+              </h2>
             </div>
             <div className="manual-feed-container">
               <div className="manual-feed-input-group">
@@ -780,6 +784,12 @@ export const Settings = ({
                             <span className="feed-info-value">{feedValidationResult.channel.language || t.detectingLanguage}</span>
                           </div>
                           <div className="feed-info-row">
+                            <span className="feed-info-label">{t.feedFormatKind}:</span>
+                            <span className="feed-info-value">
+                              {feedValidationResult.feedFormat === 'atom' ? t.feedFormatAtom : t.feedFormatRss2}
+                            </span>
+                          </div>
+                          <div className="feed-info-row">
                             <span className="feed-info-label">{t.feedItemCount}:</span>
                             <span className="feed-info-value">{feedValidationResult.channel.itemCount || 0}</span>
                           </div>
@@ -796,17 +806,8 @@ export const Settings = ({
                     <div className="feed-validation-error">
                       <div className="validation-header">
                         <span className="validation-icon">✗</span>
-                        <strong>
-                          {feedValidationResult.incompatibleFeedFormat === 'atom10'
-                            ? t.atomFeedNotCompatible
-                            : t.feedInvalid}
-                        </strong>
+                        <strong>{t.feedInvalid}</strong>
                       </div>
-                      {feedValidationResult.incompatibleFeedFormat === 'atom10' && (
-                        <div className="validation-warnings atom-feed-incompatible">
-                          <p className="atom-feed-incompatible-detail">{t.atomFeedNotCompatibleDetail}</p>
-                        </div>
-                      )}
                       {feedValidationResult.errors && feedValidationResult.errors.length > 0 && (
                         <div className="validation-errors">
                           <strong>{t.feedMissingFields}:</strong>
@@ -851,7 +852,7 @@ export const Settings = ({
 
         <div className="settings-sources-body settings-main">
           {/* Search Bar */}
-          <div className="settings-section">
+          <div className="settings-section settings-search-section">
             <h2>{t.searchSources}</h2>
             <div className="source-search-container">
               <input
@@ -874,7 +875,10 @@ export const Settings = ({
             {/* Available Sources */}
             <div className="sources-column">
               <div className="column-header">
-                <h3>{t.availableSources}</h3>
+                <h3>
+                  <span className="settings-sources-col-heading__full">{t.availableSources}</span>
+                  <span className="settings-sources-col-heading__short">{t.availableSourcesShort}</span>
+                </h3>
                 <div className="header-buttons">
                   {searchResults.length > 0 && (
                     <button type="button" className="select-all-btn" onClick={toggleSelectAll}>
@@ -943,7 +947,11 @@ export const Settings = ({
             {/* Enabled Sources */}
             <div className="sources-column">
               <div className="column-header">
-                <h3>{t.activeSources} ({config.sources.length})</h3>
+                <h3>
+                  <span className="settings-sources-col-heading__full">{t.activeSources}</span>
+                  <span className="settings-sources-col-heading__short">{t.activeSourcesShort}</span>{' '}
+                  ({config.sources.length})
+                </h3>
                 <div className="header-buttons">
                   {config.sources.length > 0 && (
                     <button 

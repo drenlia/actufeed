@@ -66,6 +66,8 @@ export const translations = {
     searchSources: 'Search Sources',
     activeSources: 'Active Sources',
     availableSources: 'Available Sources',
+    activeSourcesShort: 'Active',
+    availableSourcesShort: 'Available',
     enableSource: 'Enable',
     disableSource: 'Disable',
     noResults: 'No sources found',
@@ -80,8 +82,8 @@ export const translations = {
     filterByCountryShort: 'Countries',
     searchCountriesPlaceholder: 'Search countries...',
     countrySearchClear: 'Clear search',
-    addManualFeed: 'Add Manual RSS Feed',
-    manualFeedUrl: 'RSS Feed URL',
+    addManualFeed: 'Add manual feed (RSS/YouTube)',
+    manualFeedUrl: 'Feed URL',
     validateFeed: 'Validate & Add Feed',
     validating: 'Validating...',
     feedValid: 'Feed is valid!',
@@ -94,10 +96,12 @@ export const translations = {
     feedWarnings: 'Warnings',
     feedAdded: 'Feed added successfully',
     feedAddError: 'Error adding feed',
-    atomFeedNotCompatible: 'Atom 1.0 feed (not supported)',
-    atomFeedNotCompatibleDetail:
-      'This URL is an Atom 1.0 feed. Actufeed only supports RSS 2.0 for manually added sources, so articles from this feed will not appear. Use an RSS 2.0 URL (for example a site’s “RSS” link that serves <rss version="2.0">), or a different source.',
-    enterFeedUrl: 'Enter RSS feed URL...',
+    enterFeedUrl: 'RSS or Atom feed URL…',
+    feedFormatKind: 'Format',
+    feedFormatRss2: 'RSS 2.0',
+    feedFormatAtom: 'Atom',
+    syndicationAtomBadge: 'Atom',
+    syndicationAtomBadgeTitle: 'Article from an Atom feed (e.g. many YouTube channel feeds)',
     detectingLanguage: 'Auto-detecting...',
     tabsListAria: 'News feed tabs',
     createTab: 'Create Tab',
@@ -144,9 +148,30 @@ export const translations = {
     helpSectionFeed: 'Feed',
     helpSectionSettings: 'Settings',
     helpSectionManualRss: 'Finding a feed URL',
+    helpSectionYoutube: 'YouTube channels',
+    helpYoutubeLead:
+      'Paste a channel link and validate it like any other manual feed. The app turns it into YouTube’s public Atom feed (same videos as on the channel page).',
+    helpYoutubeTable: [
+      {
+        group: '[[youtube]] HTTPS on youtube.com',
+        text: 'Use https://www.youtube.com/… or https://m.youtube.com/… only. The checker rejects http:// and youtu.be (those are for videos, not channel setup here).',
+      },
+      {
+        group: 'URLs that work',
+        text: 'Channel id: …/channel/UC… — Handle: …/@ChannelName — Custom URL: …/c/Name — Legacy: …/user/Name — Or the feed directly: …/feeds/videos.xml?channel_id=UC…',
+      },
+      {
+        group: 'Validate, then Add',
+        text: 'Click Validate. If the channel loads, you’ll see title and description; Add stores the resolved feeds/videos.xml?channel_id=… URL so updates stay reliable.',
+      },
+      {
+        group: 'Mix with other sites',
+        text: 'The same tab can list YouTube and normal RSS/Atom sources together.',
+      },
+    ],
     helpManualRssLinkAria: 'Help: finding an RSS feed URL',
     helpManualRssLead:
-      'A feed URL is a link that lists a site’s latest articles. You don’t need jargon—copy the address the site offers for “RSS” or “subscribe”.',
+      'A feed URL lists a site’s latest items (RSS or Atom). Copy the address the site offers for “RSS”, “subscribe”, or use a direct Atom URL (e.g. some YouTube channel feeds).',
     helpManualRssTable: [
       { group: 'Start with sites you trust', text: 'Use newspapers, blogs, or magazines you already follow.' },
       {
@@ -155,7 +180,10 @@ export const translations = {
       },
       { group: 'No link visible?', text: 'Try adding /feed/ or /rss to the site’s homepage URL—many blogs use that pattern.' },
       { group: 'Then here in Settings', text: 'Paste into the field above, run Validate, and add the feed to the current tab if it passes.' },
-      { group: 'RSS 2.0', text: 'Manual add works with standard RSS 2.0 feeds—the usual format behind those links.' },
+      {
+        group: 'RSS or Atom',
+        text: 'Manual add supports RSS 2.0 and Atom (e.g. YouTube channel feeds at youtube.com/feeds/videos.xml?channel_id=…). Same tab can mix outlets.',
+      },
     ],
     helpFeedTable: [
       {
@@ -273,6 +301,8 @@ export const translations = {
     searchSources: 'Rechercher des sources',
     activeSources: 'Sources actives',
     availableSources: 'Sources disponibles',
+    activeSourcesShort: 'Actives',
+    availableSourcesShort: 'Disponibles',
     enableSource: 'Activer',
     disableSource: 'Désactiver',
     noResults: 'Aucune source trouvée',
@@ -287,8 +317,8 @@ export const translations = {
     filterByCountryShort: 'Pays',
     searchCountriesPlaceholder: 'Rechercher des pays…',
     countrySearchClear: 'Effacer la recherche',
-    addManualFeed: 'Ajouter un flux RSS manuel',
-    manualFeedUrl: 'URL du flux RSS',
+    addManualFeed: 'Ajouter un flux manuel (RSS / YouTube)',
+    manualFeedUrl: 'URL du flux',
     validateFeed: 'Valider et ajouter le flux',
     validating: 'Validation en cours...',
     feedValid: 'Le flux est valide!',
@@ -301,10 +331,12 @@ export const translations = {
     feedWarnings: 'Avertissements',
     feedAdded: 'Flux ajouté avec succès',
     feedAddError: 'Erreur lors de l\'ajout du flux',
-    atomFeedNotCompatible: 'Flux Atom 1.0 (non pris en charge)',
-    atomFeedNotCompatibleDetail:
-      'Cette URL est un flux Atom 1.0. Actufeed ne prend en charge que le format RSS 2.0 pour les sources ajoutées manuellement : les articles de ce flux ne s’afficheront pas. Utilisez une adresse RSS 2.0 (par exemple le lien « RSS » d’un site qui renvoie <rss version="2.0">), ou une autre source.',
-    enterFeedUrl: 'Entrez l\'URL du flux RSS...',
+    enterFeedUrl: 'URL de flux RSS ou Atom…',
+    feedFormatKind: 'Format',
+    feedFormatRss2: 'RSS 2.0',
+    feedFormatAtom: 'Atom',
+    syndicationAtomBadge: 'Atom',
+    syndicationAtomBadgeTitle: 'Article issu d’un flux Atom (ex. nombre de flux chaîne YouTube)',
     detectingLanguage: 'Détection automatique...',
     tabsListAria: 'Onglets du fil d’actualités',
     createTab: 'Créer un onglet',
@@ -351,9 +383,30 @@ export const translations = {
     helpSectionFeed: 'Fil d’actualités',
     helpSectionSettings: 'Paramètres',
     helpSectionManualRss: 'Trouver l’adresse d’un flux',
+    helpSectionYoutube: 'Chaînes YouTube',
+    helpYoutubeLead:
+      'Collez un lien de chaîne et validez-le comme un flux manuel. L’application le convertit en flux Atom public de YouTube (les mêmes vidéos que sur la page chaîne).',
+    helpYoutubeTable: [
+      {
+        group: '[[youtube]] HTTPS sur youtube.com',
+        text: 'Utilisez https://www.youtube.com/… ou https://m.youtube.com/… seulement. La vérification refuse http:// et youtu.be (réservés aux vidéos, pas à l’ajout de chaîne ici).',
+      },
+      {
+        group: 'Adresses acceptées',
+        text: 'Id chaîne : …/channel/UC… — Nom @ : …/@NomChaîne — URL personnalisée : …/c/Nom — Ancien format : …/user/Nom — Ou le flux direct : …/feeds/videos.xml?channel_id=UC…',
+      },
+      {
+        group: 'Valider, puis Ajouter',
+        text: 'Cliquez sur Valider. Si la chaîne est trouvée, le titre et la description s’affichent ; Ajouter enregistre l’URL résolue feeds/videos.xml?channel_id=… pour des mises à jour fiables.',
+      },
+      {
+        group: 'Mélanger avec d’autres sites',
+        text: 'Le même onglet peut afficher YouTube et des flux RSS/Atom classiques.',
+      },
+    ],
     helpManualRssLinkAria: 'Aide : trouver une adresse de flux RSS',
     helpManualRssLead:
-      'Une adresse de flux est un lien qui liste les derniers articles d’un site. Pas besoin du jargon : copiez l’adresse proposée pour « RSS » ou « s’abonner ».',
+      'Une adresse de flux liste les derniers contenus (RSS ou Atom). Copiez le lien « RSS », « s’abonner », ou une URL Atom directe (ex. certains flux chaîne YouTube).',
     helpManualRssTable: [
       { group: 'Partez de sites que vous suivez', text: 'Journaux, blogs ou magazines auxquels vous faites déjà confiance.' },
       {
@@ -362,7 +415,10 @@ export const translations = {
       },
       { group: 'Pas de lien ?', text: 'Essayez d’ajouter /feed/ ou /rss à l’URL d’accueil du site — beaucoup de blogs utilisent ce schéma.' },
       { group: 'Puis ici dans Paramètres', text: 'Collez dans le champ ci-dessus, lancez Valider, puis ajoutez le flux à l’onglet actif s’il est accepté.' },
-      { group: 'RSS 2.0', text: 'L’ajout manuel fonctionne avec les flux RSS 2.0 standard — le format habituel derrière ces liens.' },
+      {
+        group: 'RSS ou Atom',
+        text: 'L’ajout manuel accepte le RSS 2.0 et l’Atom (ex. flux chaîne YouTube : youtube.com/feeds/videos.xml?channel_id=…). Un même onglet peut mélanger les sources.',
+      },
     ],
     helpFeedTable: [
       {
