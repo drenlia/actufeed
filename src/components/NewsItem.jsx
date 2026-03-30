@@ -119,6 +119,11 @@ export const NewsItem = ({
             ) : null}
             <div className="news-meta">
               <span className={`lang-badge ${item.language}`}>{item.language.toUpperCase()}</span>
+              {item.syndicationFormat === 'atom' && (
+                <span className="news-syndication-badge" title={t.syndicationAtomBadgeTitle}>
+                  {t.syndicationAtomBadge}
+                </span>
+              )}
               <span className="news-source">{item.source}</span>
               <span className="news-date">{formatDateLocalized(item.publishedAt)}</span>
               {(item.popularityScore > 0 || (item.categories && item.categories.length > 0)) && (

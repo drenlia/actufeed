@@ -1,23 +1,82 @@
 // Utility to validate RSS feeds and extract channel metadata
 // Uses backend proxy to avoid CORS issues
 
+const MRSS_NS = 'http://search.yahoo.com/mrss/'
+
+function isYoutubeManualChannelUrl(url) {
+  try {
+    const u = new URL(String(url).trim())
+    if (u.protocol !== 'https:') return false
+    const h = u.hostname.replace(/^www\./i, '').toLowerCase()
+    return h === 'youtube.com' || h === 'm.youtube.com'
+  } catch {
+    return false
+  }
+}
+
 /**
  * Validates an RSS feed URL and extracts channel metadata
  * @param {string} feedUrl - The RSS feed URL to validate
- * @returns {Promise<{valid: boolean, channel?: Object, errors?: Array<string>, warnings?: Array<string>}>}
+ * @returns {Promise<{valid: boolean, channel?: Object, errors?: Array<string>, warnings?: Array<string>, resolvedFeedUrl?: string, feedFormat?: string}>}
  */
 export const validateRssFeed = async (feedUrl) => {
-  const errors = []
   const warnings = []
   
   // Basic URL validation
   try {
     new URL(feedUrl)
-  } catch (e) {
+  } catch {
     return {
       valid: false,
       errors: ['Invalid URL format'],
       warnings: []
+    }
+  }
+
+  if (isYoutubeManualChannelUrl(feedUrl)) {
+    try {
+      const resolveUrl = `/api/youtube/resolve?url=${encodeURIComponent(feedUrl.trim())}`
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 25000)
+      const response = await fetch(resolveUrl, { signal: controller.signal })
+      clearTimeout(timeoutId)
+      let data = {}
+      try {
+        data = await response.json()
+      } catch {
+        data = {}
+      }
+      if (!response.ok || !data.valid) {
+        const errs = data.errors || [data.error || `YouTube check failed (${response.status})`]
+        return {
+          valid: false,
+          errors: Array.isArray(errs) ? errs : [String(errs)],
+          warnings: [],
+        }
+      }
+      const w = data.warnings || []
+      if (Array.isArray(w) && w.length) warnings.push(...w)
+      return {
+        valid: true,
+        feedFormat: data.feedFormat || 'atom',
+        resolvedFeedUrl: data.resolvedFeedUrl,
+        channel: data.channel,
+        errors: [],
+        warnings,
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        return {
+          valid: false,
+          errors: ['YouTube validation timed out. Try again.'],
+          warnings: [],
+        }
+      }
+      return {
+        valid: false,
+        errors: [`YouTube validation error: ${error.message || 'Unknown error'}`],
+        warnings: [],
+      }
     }
   }
   
@@ -32,7 +91,7 @@ export const validateRssFeed = async (feedUrl) => {
     const response = await fetch(proxyUrl, {
       signal: controller.signal,
       headers: {
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+        Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
       }
     })
     
@@ -106,157 +165,184 @@ export const validateRssFeed = async (feedUrl) => {
       }
     }
     
-    // Check if it's RSS or Atom feed
     const rss = xmlDoc.querySelector('rss')
-    const feed = xmlDoc.querySelector('feed') // Atom feed
-    const rdf = xmlDoc.querySelector('RDF') // RDF feed
-    
-    if (!rss && !feed && !rdf) {
+    const atomFeed = xmlDoc.querySelector('feed')
+    const rdf = xmlDoc.querySelector('RDF')
+
+    if (!rss && !atomFeed && !rdf) {
       return {
         valid: false,
         errors: ['Not a valid RSS, Atom, or RDF feed'],
-        warnings: []
-      }
-    }
-    
-    // Extract channel/item information
-    let channel = null
-    let items = []
-    
-    if (rss) {
-      // RSS 2.0 format
-      channel = rss.querySelector('channel')
-      items = channel ? channel.querySelectorAll('item') : []
-    } else if (feed) {
-      // Atom (including Atom 1.0: xmlns http://www.w3.org/2005/Atom) — not supported for manual sources;
-      // the app reader only ingests RSS 2.0-style <item> elements.
-      const channelTitle = feed.querySelector('title')?.textContent?.trim() || ''
-      const entryCount = feed.querySelectorAll('entry').length
-      const selfLinkEl = Array.from(feed.querySelectorAll('link')).find(
-        (l) => (l.getAttribute('rel') || 'alternate') === 'self'
-      )
-      return {
-        valid: false,
-        incompatibleFeedFormat: 'atom10',
-        errors: [],
         warnings: [],
-        channel: {
-          title: channelTitle || 'Atom feed',
-          description: feed.querySelector('subtitle')?.textContent?.trim() || '',
-          link:
-            selfLinkEl?.getAttribute('href') ||
-            feed.querySelector('link[href]')?.getAttribute('href') ||
-            feedUrl,
-          language: feed.getAttribute('xml:lang') || '',
-          itemCount: entryCount,
-        },
       }
-    } else if (rdf) {
-      // RDF format
-      channel = rdf.querySelector('channel')
-      items = rdf.querySelectorAll('item')
     }
-    
+
+    const getAtomEntryLink = (entry) => {
+      const links = [...entry.querySelectorAll('link')]
+      const href =
+        links.find((l) => (l.getAttribute('rel') || 'alternate') === 'alternate')?.getAttribute('href') ||
+        links.find((l) => !l.getAttribute('rel'))?.getAttribute('href') ||
+        entry.querySelector('link[href]')?.getAttribute('href') ||
+        ''
+      return (href || '').trim()
+    }
+
+    const nodeHasBodyText = (node, isAtom) => {
+      if (isAtom) {
+        if (
+          node.querySelector('summary')?.textContent?.trim() ||
+          node.querySelector('content')?.textContent?.trim()
+        ) {
+          return true
+        }
+        const mediaDesc = node.getElementsByTagNameNS(MRSS_NS, 'description')[0]
+        return !!mediaDesc?.textContent?.trim()
+      }
+      return !!(
+        node.querySelector('description')?.textContent ||
+        node.querySelector('summary')?.textContent ||
+        node.querySelector('content')?.textContent
+      )
+    }
+
+    const nodeHasDate = (node, isAtom) => {
+      if (isAtom) {
+        return !!(
+          node.querySelector('published')?.textContent?.trim() ||
+          node.querySelector('updated')?.textContent?.trim()
+        )
+      }
+      return !!(
+        node.querySelector('pubDate')?.textContent ||
+        node.querySelector('published')?.textContent ||
+        node.querySelector('dc\\:date')?.textContent
+      )
+    }
+
+    let channel = null
+    let itemNodes = []
+    let feedFormat = 'rss2'
+    let isAtom = false
+
+    if (rss) {
+      channel = rss.querySelector('channel')
+      itemNodes = channel ? Array.from(channel.querySelectorAll('item')) : []
+    } else if (atomFeed) {
+      channel = atomFeed
+      itemNodes = Array.from(atomFeed.querySelectorAll('entry'))
+      feedFormat = 'atom'
+      isAtom = true
+    } else if (rdf) {
+      channel = rdf.querySelector('channel')
+      itemNodes = channel ? Array.from(channel.querySelectorAll('item')) : []
+    }
+
     if (!channel) {
       return {
         valid: false,
-        errors: ['Feed does not contain a channel element'],
-        warnings: []
+        errors: ['Feed does not contain a channel (RSS/RDF) or feed root (Atom)'],
+        warnings: [],
       }
     }
-    
-    // Validate required fields in channel
-    const channelTitle = channel.querySelector('title')?.textContent || ''
-    const channelDescription = channel.querySelector('description')?.textContent || 
-                              channel.querySelector('subtitle')?.textContent || '' // Atom uses subtitle
-    
-    // Check for items
-    if (items.length === 0) {
-      warnings.push('Feed contains no items/articles')
+
+    const channelTitle = channel.querySelector('title')?.textContent?.trim() || ''
+    const channelDescription =
+      channel.querySelector('description')?.textContent?.trim() ||
+      channel.querySelector('subtitle')?.textContent?.trim() ||
+      ''
+
+    if (itemNodes.length === 0) {
+      warnings.push('Feed contains no items or entries')
     }
-    
-    // Validate required fields in items
-    // Note: category is optional in RSS 2.0 spec, so we don't require it
-    const requiredFields = {
-      title: false,
-      description: false,
-      pubDate: false
-    }
-    
-    const sampleItems = Array.from(items).slice(0, 5) // Check first 5 items
-    
+
+    const requiredFields = { title: false, description: false, pubDate: false }
+    let atomHasEntryLink = !isAtom
+    const sampleItems = itemNodes.slice(0, 5)
+
     if (sampleItems.length > 0) {
-      sampleItems.forEach(item => {
-        if (item.querySelector('title')?.textContent) requiredFields.title = true
-        if (item.querySelector('description')?.textContent || 
-            item.querySelector('summary')?.textContent || 
-            item.querySelector('content')?.textContent) requiredFields.description = true
-        if (item.querySelector('pubDate')?.textContent || 
-            item.querySelector('published')?.textContent ||
-            item.querySelector('dc\\:date')?.textContent) requiredFields.pubDate = true
-        // Categories are optional in RSS 2.0, so we don't check for them
+      sampleItems.forEach((node) => {
+        if (node.querySelector('title')?.textContent?.trim()) requiredFields.title = true
+        if (nodeHasBodyText(node, isAtom)) requiredFields.description = true
+        if (nodeHasDate(node, isAtom)) requiredFields.pubDate = true
+        if (isAtom && getAtomEntryLink(node)) atomHasEntryLink = true
       })
     } else {
-      // No items to validate, but feed structure is valid
-      warnings.push('Feed structure is valid but contains no items to validate')
+      warnings.push('Feed structure is valid but contains no entries to validate')
     }
-    
-    // Build error list for missing required fields
-    // Note: category is optional in RSS 2.0, so we don't require it
+
     const missingFields = []
     if (!requiredFields.title) missingFields.push('title')
-    if (!requiredFields.description) missingFields.push('description')
-    if (!requiredFields.pubDate) missingFields.push('pubDate')
-    
-    // Check if categories exist (optional, but warn if missing)
+    if (!requiredFields.description) missingFields.push(isAtom ? 'summary or content' : 'description')
+    if (!requiredFields.pubDate) missingFields.push(isAtom ? 'published or updated' : 'pubDate')
+    if (isAtom && !atomHasEntryLink) missingFields.push('entry link (href)')
+
     let hasCategories = false
     if (sampleItems.length > 0) {
-      hasCategories = sampleItems.some(item => 
-        item.querySelector('category') || 
-        item.querySelector('dc\\:subject') ||
-        item.querySelector('media\\:category')
+      hasCategories = sampleItems.some(
+        (item) =>
+          item.querySelector('category') ||
+          item.querySelector('dc\\:subject') ||
+          item.querySelector('media\\:category')
       )
     }
-    if (!hasCategories && items.length > 0) {
-      warnings.push('Feed items do not contain category information (optional in RSS 2.0)')
+    if (!hasCategories && itemNodes.length > 0) {
+      warnings.push('Feed entries do not contain category information (optional)')
     }
-    
+
+    let channelWebLink = feedUrl
+    if (isAtom) {
+      const alt = Array.from(channel.querySelectorAll('link')).find(
+        (l) => (l.getAttribute('rel') || '') === 'alternate'
+      )
+      channelWebLink =
+        alt?.getAttribute('href')?.trim() ||
+        channel.querySelector('link[href]')?.getAttribute('href')?.trim() ||
+        feedUrl
+    } else {
+      channelWebLink =
+        channel.querySelector('link')?.textContent?.trim() ||
+        channel.querySelector('link')?.getAttribute?.('href')?.trim() ||
+        feedUrl
+    }
+
+    const channelLanguage =
+      channel.querySelector('language')?.textContent?.trim() ||
+      channel.getAttribute('xml:lang') ||
+      'en'
+
     if (missingFields.length > 0) {
       return {
         valid: false,
         errors: [`Feed items are missing required fields: ${missingFields.join(', ')}`],
-        warnings: warnings,
+        warnings,
         channel: {
           title: channelTitle,
           description: channelDescription,
-          link: channel.querySelector('link')?.textContent || feedUrl,
-          language: channel.querySelector('language')?.textContent || '',
-          itemCount: items.length
-        }
+          link: channelWebLink,
+          language: channelLanguage,
+          itemCount: itemNodes.length,
+        },
       }
     }
-    
-    // Extract channel metadata
+
     const channelData = {
       title: channelTitle || 'Untitled Feed',
       description: channelDescription || '',
-      link: channel.querySelector('link')?.textContent || 
-            channel.querySelector('link')?.getAttribute('href') || 
-            feedUrl,
-      language: channel.querySelector('language')?.textContent || 
-                channel.getAttribute('xml:lang') || 
-                'en',
-      itemCount: items.length,
-      lastBuildDate: channel.querySelector('lastBuildDate')?.textContent || 
-                     channel.querySelector('updated')?.textContent || 
-                     null
+      link: channelWebLink,
+      language: channelLanguage,
+      itemCount: itemNodes.length,
+      lastBuildDate:
+        channel.querySelector('lastBuildDate')?.textContent?.trim() ||
+        channel.querySelector('updated')?.textContent?.trim() ||
+        null,
     }
-    
+
     return {
       valid: true,
+      feedFormat,
       channel: channelData,
       errors: [],
-      warnings: warnings
+      warnings,
     }
     
   } catch (error) {

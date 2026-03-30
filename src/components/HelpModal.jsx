@@ -34,7 +34,26 @@ function highlightText(text, query, keyPrefix) {
   return out.length > 0 ? out : text
 }
 
-const HELP_GROUP_ICON_SPLIT = /(\[\[rss\]\]|\[\[funnel\]\])/
+const HELP_GROUP_ICON_SPLIT = /(\[\[rss\]\]|\[\[funnel\]\]|\[\[youtube\]\])/
+
+/** Official YouTube logo: red rounded tile + white play triangle (brand colors). */
+function HelpYoutubeIcon({ className, width = 24, height = 24 }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      aria-hidden="true"
+    >
+      <path
+        fill="#FF0000"
+        d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z"
+      />
+      <path fill="#fff" d="M9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  )
+}
 
 function HelpFunnelInlineIcon() {
   return (
@@ -52,7 +71,7 @@ function HelpFunnelInlineIcon() {
 
 /**
  * Renders a help table group cell. Placeholders:
- * `[[rss]]` → public RSS tile; `[[funnel]]` → same funnel SVG as the header filter button.
+ * `[[rss]]` → public RSS tile; `[[funnel]]` → header filter funnel; `[[youtube]]` → YouTube logo.
  */
 function renderHelpGroupCell(group, searchQuery, keyPrefix) {
   if (!HELP_GROUP_ICON_SPLIT.test(group)) {
@@ -78,6 +97,16 @@ function renderHelpGroupCell(group, searchQuery, keyPrefix) {
         if (part === '[[funnel]]') {
           return <HelpFunnelInlineIcon key={`${keyPrefix}-ic-${i}`} />
         }
+        if (part === '[[youtube]]') {
+          return (
+            <HelpYoutubeIcon
+              key={`${keyPrefix}-ic-${i}`}
+              className="help-modal__youtube-inline-icon"
+              width={22}
+              height={22}
+            />
+          )
+        }
         return <Fragment key={`${keyPrefix}-tx-${i}`}>{highlightText(part, searchQuery, `${keyPrefix}-${i}`)}</Fragment>
       })}
     </>
@@ -100,6 +129,7 @@ export const HelpModal = ({
   const feedRows = settingsOnly ? [] : t.helpFeedTable || []
   const settingsRows = t.helpSettingsTable || []
   const manualRssRows = settingsOnly ? t.helpManualRssTable || [] : []
+  const youtubeRows = settingsOnly ? t.helpYoutubeTable || [] : []
 
   const rowMatches = (row, needle) => {
     if (!needle) return true
@@ -172,7 +202,8 @@ export const HelpModal = ({
     q &&
     !feedRows.some((row) => rowMatches(row, q)) &&
     !settingsRows.some((row) => rowMatches(row, q)) &&
-    !manualRssRows.some((row) => rowMatches(row, q))
+    !manualRssRows.some((row) => rowMatches(row, q)) &&
+    !youtubeRows.some((row) => rowMatches(row, q))
 
   return (
     <div
@@ -325,6 +356,33 @@ export const HelpModal = ({
                         </th>
                         <td className="help-modal__td-desc">
                           {highlightText(row.text, searchQuery, `rd-${i}`)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+          {settingsOnly && youtubeRows.length > 0 && (
+            <section className="help-modal__section" id="help-youtube">
+              <h3 className="help-modal__section-title help-modal__section-title--with-youtube">
+                <span className="help-modal__youtube-icon-wrap">
+                  <HelpYoutubeIcon className="help-modal__youtube-title-icon" width={28} height={28} />
+                </span>
+                {t.helpSectionYoutube}
+              </h3>
+              <p className="help-modal__rss-lead">{t.helpYoutubeLead}</p>
+              <div className="help-modal__table-scroll">
+                <table className="help-modal__table" aria-label={t.helpSectionYoutube}>
+                  <tbody>
+                    {youtubeRows.map((row, i) => (
+                      <tr key={`yt-${i}`}>
+                        <th scope="row" className="help-modal__td-group">
+                          {renderHelpGroupCell(row.group, searchQuery, `yg-${i}`)}
+                        </th>
+                        <td className="help-modal__td-desc">
+                          {highlightText(row.text, searchQuery, `yd-${i}`)}
                         </td>
                       </tr>
                     ))}

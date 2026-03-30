@@ -180,9 +180,10 @@ const extractCategories = (item, source) => {
     return true
   }
   
-  // Standard RSS category
-  item.querySelectorAll('category').forEach(cat => {
-    const catText = decodeHtmlEntities(cat.textContent?.trim() || '')
+  // RSS <category> text and Atom <category term="…"/>
+  item.querySelectorAll('category').forEach((cat) => {
+    const term = cat.getAttribute?.('term')?.trim()
+    const catText = decodeHtmlEntities(term || cat.textContent?.trim() || '')
     if (catText && isValidCategory(catText)) {
       const normalized = normalizeCategory(catText)
       if (normalized && !categories.includes(normalized)) {
@@ -508,6 +509,156 @@ const resolveFallbackFeedLogo = async (source, channelSiteUrl) => {
   return { url, tier }
 }
 
+const getAtomEntryLink = (entry) => {
+  const links = [...entry.querySelectorAll('link')]
+  const href =
+    links.find((l) => (l.getAttribute('rel') || 'alternate') === 'alternate')?.getAttribute('href') ||
+    links.find((l) => !l.getAttribute('rel'))?.getAttribute('href') ||
+    entry.querySelector('link[href]')?.getAttribute('href') ||
+    ''
+  return (href || '').trim()
+}
+
+const atomElementToPlainAndHtml = (el) => {
+  if (!el) return { plain: '', rawHtml: '' }
+  const type = (el.getAttribute('type') || 'text').toLowerCase()
+  const inner = el.innerHTML || ''
+  const text = el.textContent || ''
+  if (type.includes('html') || type === 'xhtml' || (inner && inner.includes('<'))) {
+    const plain = stripHtmlTags(inner || text)
+    return { plain: plain.trim(), rawHtml: inner }
+  }
+  return { plain: decodeHtmlEntities(text.trim()), rawHtml: '' }
+}
+
+/** Atom 1.0 <entry> → same article shape as {@link parseRssItem} */
+const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss') => {
+  const titleEl = entry.querySelector('title')
+  let title = titleEl?.textContent?.trim() || ''
+  if (titleEl?.innerHTML && !title) {
+    title = stripHtmlTags(titleEl.innerHTML)
+  }
+  title = decodeHtmlEntities(title.trim())
+
+  const link = getAtomEntryLink(entry)
+  const pubDate =
+    entry.querySelector('published')?.textContent?.trim() ||
+    entry.querySelector('updated')?.textContent?.trim() ||
+    ''
+
+  const sum = atomElementToPlainAndHtml(entry.querySelector('summary'))
+  const cont = atomElementToPlainAndHtml(entry.querySelector('content'))
+  let descriptionPlainFull = longerPlainFragment(sum.plain, cont.plain)
+  const mediaDescPlain = decodeHtmlEntities(
+    entry.getElementsByTagNameNS('http://search.yahoo.com/mrss/', 'description')[0]?.textContent?.trim() ||
+      ''
+  )
+  if (mediaDescPlain) {
+    descriptionPlainFull = longerPlainFragment(descriptionPlainFull, mediaDescPlain)
+  }
+  const descriptionRawHtmlForThumb = sum.rawHtml || cont.rawHtml || ''
+  const content = cont.plain.length >= sum.plain.length ? cont.plain : sum.plain
+
+  if (!descriptionPlainFull && content) {
+    descriptionPlainFull = content
+  }
+  if (!descriptionPlainFull && title) {
+    descriptionPlainFull = title
+  }
+
+  let thumbnail = extractThumbnail(entry, descriptionRawHtmlForThumb)
+
+  const guid = entry.querySelector('id')?.textContent?.trim() || ''
+  const author = decodeHtmlEntities(
+    entry.querySelector('author > name')?.textContent?.trim() ||
+      entry.querySelector('author')?.textContent?.trim() ||
+      entry.querySelector('dc\\:creator')?.textContent?.trim() ||
+      ''
+  )
+
+  const teaserPlain = longerPlainFragment(descriptionPlainFull, content)
+  let description = truncateRssDescriptionPreview(teaserPlain)
+
+  if (!title && description) {
+    title = description
+    description = truncateRssDescriptionPreview(longerPlainFragment(descriptionPlainFull, content))
+  }
+
+  const categories = extractCategories(entry, source)
+  const descriptionExpandFull = mergeRssDescriptionAndContent(descriptionPlainFull, content)
+
+  if (thumbnail) {
+    thumbnail = thumbnail.trim()
+    if (
+      thumbnail === '' ||
+      thumbnail.startsWith('data:') ||
+      thumbnail.length < 10 ||
+      !thumbnail.match(/^https?:\/\//i)
+    ) {
+      thumbnail = ''
+    }
+  } else {
+    thumbnail = ''
+  }
+
+  let feedLogo = ''
+  if (feedImageUrl) {
+    const t = feedImageUrl.trim()
+    if (t && !t.startsWith('data:') && t.length >= 10 && /^https?:\/\//i.test(t)) {
+      feedLogo = t
+    }
+  }
+
+  let publishedAt = new Date(pubDate)
+  if (isNaN(publishedAt.getTime())) {
+    return null
+  }
+
+  const now = new Date()
+  const hoursDiff = (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60)
+  if (hoursDiff > 24 || hoursDiff < 0) {
+    return null
+  }
+
+  if (!link) {
+    return null
+  }
+
+  const itemId = guid || `${link}-${title}`
+
+  let normalizedLanguage = source.language || 'en'
+  if (normalizedLanguage.startsWith('fr')) {
+    normalizedLanguage = 'fr'
+  } else if (normalizedLanguage.startsWith('en')) {
+    normalizedLanguage = 'en'
+  } else {
+    normalizedLanguage = 'en'
+  }
+
+  return {
+    id: itemId,
+    title,
+    link,
+    pubDate,
+    description,
+    descriptionFull: descriptionExpandFull,
+    guid,
+    author,
+    categories,
+    content: content || '',
+    thumbnail,
+    feedLogo,
+    feedLogoTier: feedLogo ? feedLogoTier : '',
+    source: source.name,
+    language: normalizedLanguage,
+    region: source.region || '',
+    publishedAt,
+    popularityScore: 0,
+    shareCount: 0,
+    syndicationFormat: 'atom',
+  }
+}
+
 // Parse RSS item into news article object
 const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => {
   // Get title - try multiple methods
@@ -737,13 +888,44 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
     region: source.region || '', // City/region
     publishedAt,
     popularityScore,
-    shareCount: parseInt(shareCount) || 0
+    shareCount: parseInt(shareCount) || 0,
+    syndicationFormat: 'rss2',
   }
+}
+
+/** UUID v4 for RSS batch correlation; avoids crypto.randomUUID (missing in some browsers / HTTP contexts). */
+export function createRssBatchId() {
+  const c = globalThis.crypto
+  if (c && typeof c.randomUUID === 'function') {
+    return c.randomUUID()
+  }
+  const bytes = new Uint8Array(16)
+  if (c && typeof c.getRandomValues === 'function') {
+    c.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256)
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
+/** Notify backend after a full tab refresh so it can log total bytes for that batch (see server batch-complete). */
+export function notifyRssBatchComplete(batchId) {
+  if (!batchId || typeof batchId !== 'string') return
+  const body = JSON.stringify({ batchId })
+  fetch('/api/proxy/batch-complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {})
 }
 
 // Fetch RSS feed from a single source with retry logic for rate limiting
 // Returns { news: [], error: { name, message, status } | null }
-export const fetchRssFeed = async (source, maxRetries = 2) => {
+export const fetchRssFeed = async (source, { maxRetries = 2, batchId = null } = {}) => {
   const sourceNews = []
   
   // Retry logic for rate limiting (429 errors)
@@ -755,15 +937,18 @@ export const fetchRssFeed = async (source, maxRetries = 2) => {
       // Use backend proxy to avoid CORS issues
       // The backend server fetches RSS feeds server-side, avoiding browser CORS restrictions
       try {
-        const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(source.url)}`
+        let proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(source.url)}`
+        if (batchId) {
+          proxyUrl += `&batch=${encodeURIComponent(batchId)}`
+        }
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
         
         response = await fetch(proxyUrl, {
           signal: controller.signal,
           headers: {
-            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
-          }
+            Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+          },
         })
         
         clearTimeout(timeoutId)
@@ -879,29 +1064,28 @@ export const fetchRssFeed = async (source, maxRetries = 2) => {
       
       const parseError = xmlDoc.querySelector('parsererror')
       if (parseError) {
-        // Even if there's a parse error, try to extract items
-        const items = xmlDoc.querySelectorAll('item')
-        if (items.length === 0) {
-          // Only log in dev mode and suppress common parse errors that don't prevent extraction
+        const itemCount = xmlDoc.querySelectorAll('item').length
+        const entryCount = xmlDoc.querySelectorAll('entry').length
+        if (itemCount === 0 && entryCount === 0) {
           if (process.env.NODE_ENV === 'development') {
             const errorText = parseError.textContent || ''
-            // Don't log if we can still extract items (some feeds have minor XML issues)
             if (!errorText.includes('mismatch') && !errorText.includes('invalid')) {
+              // minor noise suppressed
             }
           }
           return { news: sourceNews, error: null }
         }
-        // Continue processing even with parse error if we have items
-        // Many RSS feeds have minor XML issues but still work
       }
-      
-      const items = xmlDoc.querySelectorAll('item')
+
+      const rssRoot = xmlDoc.querySelector('rss')
+      const atomRoot = xmlDoc.querySelector('feed')
+      const useAtom = Boolean(atomRoot && !rssRoot)
+
       const channelSiteUrl = extractChannelSiteUrlFromXmlDoc(xmlDoc)
       const rssChannelImage = extractFeedImageFromDoc(xmlDoc)
       const pinnedFeedLogo = getPermanentFeedLogoUrl(source.url)
       let feedImageUrl = ''
       let feedLogoTier = 'none'
-      // Pinned URLs win over RSS <channel><image> (e.g. Gazette’s image points at a dead host).
       if (pinnedFeedLogo) {
         feedImageUrl = pinnedFeedLogo
         feedLogoTier = 'pinned'
@@ -914,31 +1098,60 @@ export const fetchRssFeed = async (source, maxRetries = 2) => {
         feedLogoTier = resolved.tier || 'none'
       }
 
-      items.forEach(item => {
-        const parsedItem = parseRssItem(item, source, feedImageUrl, feedLogoTier)
-        if (parsedItem) {
-          sourceNews.push(parsedItem)
-        }
-      })
-      
-      if (sourceNews.length === 0 && items.length > 0) {
-        // We parsed items but they were filtered out (likely date filter)
-        console.warn(`[${source.name}] Parsed ${items.length} items but none matched the date filter (last 24 hours)`)
-        // Log the dates of the first few items to help debug
-        const sampleDates = Array.from(items).slice(0, 3).map(item => {
-          const pubDate = item.querySelector('pubDate')?.textContent || 
-                        item.querySelector('published')?.textContent || 
-                        item.querySelector('dc\\:date')?.textContent || 
-                        'No date found'
-          return pubDate
+      if (useAtom) {
+        const entryList = atomRoot.querySelectorAll('entry')
+        entryList.forEach((entry) => {
+          const parsedItem = parseAtomEntry(entry, source, feedImageUrl, feedLogoTier)
+          if (parsedItem) {
+            sourceNews.push(parsedItem)
+          }
         })
-        console.warn(`[${source.name}] Sample article dates:`, sampleDates)
-      } else if (sourceNews.length > 0) {
-      } else if (items.length === 0) {
-        console.warn(`[${source.name}] Feed contains no items`)
+
+        if (sourceNews.length === 0 && entryList.length > 0) {
+          console.warn(
+            `[${source.name}] Parsed ${entryList.length} Atom entries but none matched the date filter (last 24 hours)`
+          )
+          const sampleDates = Array.from(entryList)
+            .slice(0, 3)
+            .map(
+              (entry) =>
+                entry.querySelector('published')?.textContent ||
+                entry.querySelector('updated')?.textContent ||
+                'No date found'
+            )
+          console.warn(`[${source.name}] Sample entry dates:`, sampleDates)
+        } else if (entryList.length === 0) {
+          console.warn(`[${source.name}] Atom feed contains no entries`)
+        }
+      } else {
+        const items = xmlDoc.querySelectorAll('item')
+        items.forEach((item) => {
+          const parsedItem = parseRssItem(item, source, feedImageUrl, feedLogoTier)
+          if (parsedItem) {
+            sourceNews.push(parsedItem)
+          }
+        })
+
+        if (sourceNews.length === 0 && items.length > 0) {
+          console.warn(
+            `[${source.name}] Parsed ${items.length} items but none matched the date filter (last 24 hours)`
+          )
+          const sampleDates = Array.from(items)
+            .slice(0, 3)
+            .map((item) => {
+              const pubDate =
+                item.querySelector('pubDate')?.textContent ||
+                item.querySelector('published')?.textContent ||
+                item.querySelector('dc\\:date')?.textContent ||
+                'No date found'
+              return pubDate
+            })
+          console.warn(`[${source.name}] Sample article dates:`, sampleDates)
+        } else if (items.length === 0) {
+          console.warn(`[${source.name}] Feed contains no items`)
+        }
       }
-      
-      // Success - break out of retry loop
+
       return { news: sourceNews, error: null }
       
     } catch (err) {

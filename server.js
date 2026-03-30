@@ -87,6 +87,35 @@ const getAllowedOrigins = () => {
   return ['*'];
 };
 
+/**
+ * Dev: allow browser Origin when using LAN IP (e.g. http://10.0.0.53:3072) with Vite or API port.
+ * Simple same-origin GETs often omit Origin; POST + JSON (e.g. batch-complete) sends Origin and
+ * would otherwise 403 while /api/proxy/rss GET still works — confusing in dev.
+ */
+function isDevelopmentLanOriginAllowed(origin) {
+  if (process.env.NODE_ENV !== 'development') return false;
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const port = u.port || (u.protocol === 'https:' ? '443' : '80');
+    const devPorts = new Set([String(VITE_PORT), String(BACKEND_PORT)]);
+    if (!devPorts.has(port)) return false;
+    const { hostname } = u;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return false; // already in getAllowedOrigins()
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
+    if (!m) return false;
+    const oct = m.slice(1).map((x) => Number(x));
+    if (oct.some((n) => n > 255)) return false;
+    const [a, b] = oct;
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 app.use('/api', (req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = getAllowedOrigins();
@@ -104,7 +133,11 @@ app.use('/api', (req, res, next) => {
   }
   
   // Cross-origin request - check if allowed
-  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+  if (
+    allowedOrigins.includes('*') ||
+    allowedOrigins.includes(origin) ||
+    isDevelopmentLanOriginAllowed(origin)
+  ) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -128,11 +161,189 @@ const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
-  skip: (req) => req.path === '/api/health', // Skip rate limiting for health checks
+  skip: (req) =>
+    req.path === '/api/health' ||
+    // One tiny POST per refresh; must not consume the same budget as N /api/proxy/rss calls
+    // or a full reload hits 429 here and the handler never runs (no batch-complete log).
+    (req.method === 'POST' && req.path === '/api/proxy/batch-complete'),
 });
 
+/** UUID (RFC 4122) from the news fetch batch; used to correlate many /api/proxy/rss calls. */
+const RSS_BATCH_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidRssBatchId(id) {
+  return typeof id === 'string' && id.length <= 64 && RSS_BATCH_ID_RE.test(id);
+}
+
+function getClientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.trim()) {
+    return fwd.split(',')[0].trim();
+  }
+  if (req.ip) {
+    return req.ip;
+  }
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+/** Response-body size as sent to the client (JSON), for transfer accounting. */
+function jsonUtf8ByteLength(obj) {
+  return Buffer.byteLength(JSON.stringify(obj), 'utf8');
+}
+
+/**
+ * Human-readable byte total: thousands separators + KB / MB / GB (1024-based).
+ * Example: "5,322.41 MB" or "1,024 KB"
+ */
+function formatTransferredHumanReadable(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+  if (bytes < 1024) {
+    return `${bytes.toLocaleString('en-US')} B`;
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return `${kb.toLocaleString('en-US', { maximumFractionDigits: 2 })} KB`;
+  }
+  const mb = kb / 1024;
+  if (mb < 1024) {
+    return `${mb.toLocaleString('en-US', { maximumFractionDigits: 2 })} MB`;
+  }
+  const gb = mb / 1024;
+  return `${gb.toLocaleString('en-US', { maximumFractionDigits: 2 })} GB`;
+}
+
+const rssBatchStats = new Map();
+const RSS_BATCH_STALE_MS = 2 * 60 * 60 * 1000;
+
+function recordRssBatchTransfer(batchId, clientIp, byteCount) {
+  if (!batchId || !byteCount || byteCount < 1) return;
+  let entry = rssBatchStats.get(batchId);
+  if (!entry) {
+    entry = { ip: clientIp, bytes: 0, requests: 0, createdAt: Date.now() };
+    rssBatchStats.set(batchId, entry);
+  }
+  entry.bytes += byteCount;
+  entry.requests += 1;
+}
+
+function pruneStaleRssBatchStats() {
+  const now = Date.now();
+  for (const [id, entry] of rssBatchStats) {
+    if (now - entry.createdAt > RSS_BATCH_STALE_MS) {
+      rssBatchStats.delete(id);
+      console.warn(
+        `[RSS Proxy] Dropped stale batch stats (no batch-complete) batch=${id} client=${entry.ip} had ${entry.requests} req, ${formatTransferredHumanReadable(entry.bytes)}`
+      );
+    }
+  }
+}
+
+setInterval(pruneStaleRssBatchStats, 15 * 60 * 1000).unref?.();
+
+function parseRssBatchQueryParam(req) {
+  const raw = req.query.batch;
+  const s = Array.isArray(raw) ? raw[0] : raw;
+  return typeof s === 'string' && isValidRssBatchId(s) ? s : null;
+}
+
+/** True if buffer likely contains a full RSS/Atom/RDF document (stop streaming early). */
+function bufferLooksLikeCompleteXmlFeed(buf) {
+  if (!buf?.length) return false;
+  let s;
+  try {
+    s = buf.toString('utf8');
+  } catch {
+    return false;
+  }
+  return (
+    /<\/feed\s*>/i.test(s) ||
+    /<\/rss\s*>/i.test(s) ||
+    /<\/rdf:RDF\s*>/i.test(s) ||
+    /<\/RDF\s*>/i.test(s)
+  );
+}
+
+/** Stop validation probe early on HTML error pages (avoid reading MB of markup). */
+function bufferLooksLikeHtmlDocument(buf) {
+  if (!buf || buf.length < 12) return false;
+  const head = buf.toString('utf8', 0, Math.min(buf.length, 14000)).trimStart();
+  return head.startsWith('<!DOCTYPE') || head.startsWith('<html');
+}
+
+/**
+ * Read response body with optional byte cap and/or early stop (e.g. full XML feed).
+ * @returns {Promise<{ buffer: Buffer, contentLengthHdr: string | null, truncated: boolean }>}
+ */
+async function readHttpResponseBodyBounded(response, options = {}) {
+  const maxBytes = options.maxBytes ?? Number.POSITIVE_INFINITY;
+  const stopWhen = typeof options.stopWhen === 'function' ? options.stopWhen : null;
+  const contentLengthHdr = response.headers.get('content-length');
+
+  if (!response.body) {
+    const buf = Buffer.from(await response.arrayBuffer());
+    const lim = Math.min(buf.length, maxBytes);
+    const out = buf.slice(0, lim);
+    return {
+      buffer: out,
+      contentLengthHdr,
+      truncated: lim < buf.length,
+    };
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.length) continue;
+
+      let chunk = Buffer.from(value);
+      const room = maxBytes - total;
+      if (chunk.length > room) {
+        chunk = chunk.slice(0, room);
+        chunks.push(chunk);
+        total += chunk.length;
+        const combined = Buffer.concat(chunks);
+        if (stopWhen?.(combined)) {
+          return { buffer: combined, contentLengthHdr, truncated: false };
+        }
+        return { buffer: combined, contentLengthHdr, truncated: true };
+      }
+
+      chunks.push(chunk);
+      total += chunk.length;
+
+      if (stopWhen) {
+        const combined = Buffer.concat(chunks);
+        if (stopWhen(combined)) {
+          return { buffer: combined, contentLengthHdr, truncated: false };
+        }
+      }
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const buffer = Buffer.concat(chunks);
+  return {
+    buffer,
+    contentLengthHdr,
+    truncated: Number.isFinite(maxBytes) && total >= maxBytes,
+  };
+}
+
 // Helper function to fetch with retries (generic, no feed-specific logic)
-async function fetchWithRetry(feedUrl, retries = 2) {
+async function fetchWithRetry(feedUrl, retries = 2, fetchOptions = {}) {
   const maxAttempts = retries + 1;
   let lastError = null;
   
@@ -181,10 +392,25 @@ async function fetchWithRetry(feedUrl, retries = 2) {
       
       if (response.ok) {
         const contentType = response.headers.get('content-type') || '';
-        // Get response as buffer first to preserve raw bytes
-        const buffer = await response.arrayBuffer();
-        const rawBuffer = Buffer.from(buffer);
-        
+        const readBodyOpts = fetchOptions.minimalCompleteXml
+          ? {
+              maxBytes: fetchOptions.maxFeedReadBytes ?? 2 * 1024 * 1024,
+              stopWhen: (buf) =>
+                bufferLooksLikeCompleteXmlFeed(buf) || bufferLooksLikeHtmlDocument(buf),
+            }
+          : { maxBytes: Number.POSITIVE_INFINITY };
+
+        const { buffer: rawBuffer, contentLengthHdr, truncated } =
+          await readHttpResponseBodyBounded(response, readBodyOpts);
+
+        console.log(
+          `[Feed Fetch] RSS/Atom body ${rawBuffer.length} bytes` +
+            (truncated ? ' (hit byte cap)' : '') +
+            (fetchOptions.minimalCompleteXml ? ' [validation probe]' : '') +
+            (contentLengthHdr ? ` (Content-Length hdr: ${contentLengthHdr})` : ' (no Content-Length / chunked)') +
+            ` ← ${feedUrl}`
+        );
+
         // First, try to detect encoding from Content-Type header
         let detectedEncoding = 'utf8';
         const charsetMatch = contentType.match(/charset=([^;]+)/i);
@@ -310,7 +536,9 @@ async function fetchWithRetry(feedUrl, retries = 2) {
             normalizedText = '<?xml version="1.0" encoding="UTF-8"?>\n' + text;
           }
           
-          console.log(`[RSS Proxy] ✓ Success on attempt ${attemptNumber}/${maxAttempts} for ${feedUrl} (detected encoding: ${detectedEncoding})`);
+          console.log(
+            `[RSS Proxy] ✓ Success on attempt ${attemptNumber}/${maxAttempts} for ${feedUrl} (encoding: ${detectedEncoding}, ${rawBuffer.length} bytes)`
+          );
           return { text: normalizedText, contentType, url: feedUrl };
         } else {
           const error = new Error('Response is not valid RSS/XML feed');
@@ -395,8 +623,15 @@ function describeFetchFailure(error) {
 
 /** Fetch start of HTML document for logo discovery (bounded size, SSRF-safe URL only). */
 const MAX_HTML_LOGO_SNIPPET_BYTES = 450 * 1024;
+/** @handle /c/ pages put `<link rel="canonical" href="…/channel/UC…">` around ~600KB+; logo cap is too small. */
+const MAX_HTML_YOUTUBE_RESOLVE_BYTES = 1024 * 1024;
 
-async function fetchHtmlSnippetForLogo(pageUrl) {
+/**
+ * @param {string} pageUrl
+ * @param {number} [maxBytes]
+ * @param {boolean} [logBytes] Log downloaded size (always on when maxBytes exceeds logo snippet cap)
+ */
+async function fetchHtmlSnippetBounded(pageUrl, maxBytes = MAX_HTML_LOGO_SNIPPET_BYTES, logBytes = false) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -428,15 +663,22 @@ async function fetchHtmlSnippetForLogo(pageUrl) {
     throw new Error(`HTTP ${response.status} ${response.statusText}`);
   }
 
+  const shouldLogHtml = logBytes || maxBytes > MAX_HTML_LOGO_SNIPPET_BYTES;
+
   if (!response.body) {
-    const buf = Buffer.from(await response.arrayBuffer()).slice(0, MAX_HTML_LOGO_SNIPPET_BYTES);
+    const buf = Buffer.from(await response.arrayBuffer()).slice(0, maxBytes);
+    if (shouldLogHtml) {
+      console.log(
+        `[Feed Fetch] HTML body ${buf.length} bytes (read cap ${maxBytes}, no stream) ← ${pageUrl}`
+      );
+    }
     return buf.toString('utf8');
   }
 
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
-  while (total < MAX_HTML_LOGO_SNIPPET_BYTES) {
+  while (total < maxBytes) {
     const { done, value } = await reader.read();
     if (done) break;
     if (value?.length) {
@@ -450,7 +692,95 @@ async function fetchHtmlSnippetForLogo(pageUrl) {
     // ignore
   }
 
-  const buf = Buffer.concat(chunks).slice(0, MAX_HTML_LOGO_SNIPPET_BYTES);
+  const buf = Buffer.concat(chunks).slice(0, maxBytes);
+  if (shouldLogHtml) {
+    console.log(`[Feed Fetch] HTML body ${buf.length} bytes (read cap ${maxBytes}) ← ${pageUrl}`);
+  }
+  return buf.toString('utf8');
+}
+
+async function fetchHtmlSnippetForLogo(pageUrl) {
+  return fetchHtmlSnippetBounded(pageUrl, MAX_HTML_LOGO_SNIPPET_BYTES);
+}
+
+/** Scan stride while streaming; canonical / og:url for @handle often appears around ~600KB. */
+const YOUTUBE_HTML_CHANNEL_ID_CHECK_STRIDE = 40 * 1024;
+
+/** Fetch YouTube browse HTML but stop reading once a channel id can be parsed from the buffer. */
+async function fetchYoutubeBrowseHtmlUntilChannelId(pageUrl) {
+  const maxBytes = MAX_HTML_YOUTUBE_RESOLVE_BYTES;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  ];
+  const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+
+  const response = await fetch(pageUrl, {
+    signal: controller.signal,
+    headers: {
+      'User-Agent': userAgent,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,fr-CA;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      Referer: new URL(pageUrl).origin + '/',
+      'Cache-Control': 'no-cache',
+      DNT: '1',
+      Connection: 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+    },
+    redirect: 'follow',
+  });
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    const buf = Buffer.from(await response.arrayBuffer()).slice(0, maxBytes);
+    console.log(
+      `[Feed Fetch] HTML body ${buf.length} bytes (read cap ${maxBytes}, no stream) ← ${pageUrl}`
+    );
+    return buf.toString('utf8');
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  let lastCheckedAt = 0;
+
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value?.length) {
+        chunks.push(Buffer.from(value));
+        total += value.length;
+      }
+      if (total - lastCheckedAt >= YOUTUBE_HTML_CHANNEL_ID_CHECK_STRIDE || done) {
+        const combined = Buffer.concat(chunks).slice(0, maxBytes);
+        const html = combined.toString('utf8');
+        if (extractYoutubeChannelIdFromHtml(html)) {
+          console.log(
+            `[Feed Fetch] HTML body ${combined.length} bytes (early stop after channel id, cap ${maxBytes}) ← ${pageUrl}`
+          );
+          return html;
+        }
+        lastCheckedAt = total;
+      }
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const buf = Buffer.concat(chunks).slice(0, maxBytes);
+  console.log(`[Feed Fetch] HTML body ${buf.length} bytes (read cap ${maxBytes}) ← ${pageUrl}`);
   return buf.toString('utf8');
 }
 
@@ -623,31 +953,371 @@ const validateFeedUrl = (feedUrl) => {
   return { valid: true };
 };
 
+// --- YouTube: resolve channel page / @handle / ?channel_id → Atom feed URL ---
+
+function isYoutubeHost(hostname) {
+  const h = String(hostname || '')
+    .replace(/^www\./i, '')
+    .toLowerCase();
+  return h === 'youtube.com' || h === 'm.youtube.com';
+}
+
+function normalizeYoutubeBrowseUrl(inputUrl) {
+  let u;
+  try {
+    u = new URL(String(inputUrl).trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  if (!isYoutubeHost(u.hostname)) return null;
+  u.protocol = 'https:';
+  u.hostname = 'www.youtube.com';
+  u.hash = '';
+  return u.toString();
+}
+
+/** UC… channel id from URL without fetching (feed URL, /channel/UC…, or ?channel_id=). */
+function syncExtractYoutubeChannelId(inputUrl) {
+  let u;
+  try {
+    u = new URL(String(inputUrl).trim());
+  } catch {
+    return null;
+  }
+  if (!isYoutubeHost(u.hostname)) return null;
+
+  const path = u.pathname || '/';
+  const feedsPath = path.replace(/\/+$/, '') || '/';
+  if (feedsPath === '/feeds/videos.xml') {
+    const id = u.searchParams.get('channel_id');
+    if (id && /^UC[a-zA-Z0-9_-]{10,}$/i.test(id.trim())) return id.trim();
+    return null;
+  }
+
+  const pm = path.match(/^\/channel\/(UC[a-zA-Z0-9_-]{10,})/i);
+  if (pm) return pm[1];
+
+  const qid = u.searchParams.get('channel_id');
+  if (qid && /^UC[a-zA-Z0-9_-]{10,}$/i.test(qid.trim())) return qid.trim();
+
+  return null;
+}
+
+function youtubePathNeedsBrowseFetch(pathname) {
+  const p = (pathname || '/').replace(/\/+$/, '') || '/';
+  if (p === '/' || p === '') return false;
+  if (p.startsWith('/@')) return true;
+  if (p.startsWith('/c/')) return true;
+  if (p.startsWith('/user/')) return true;
+  return false;
+}
+
+function extractYoutubeChannelIdFromHtml(html) {
+  if (!html || typeof html !== 'string') return null;
+  const UC = 'UC[a-zA-Z0-9_-]{10,}';
+  // Prefer page identity (@handle HTML embeds many unrelated "channelId" strings for recommendations).
+  const canonicalFirst = [
+    new RegExp(
+      `<link[^>]+rel=["']canonical["'][^>]+href=["']https?:\\/\\/www\\.youtube\\.com\\/channel\\/(${UC})`,
+      'i'
+    ),
+    new RegExp(
+      `<link[^>]+href=["']https?:\\/\\/www\\.youtube\\.com\\/channel\\/(${UC})["'][^>]+rel=["']canonical["']`,
+      'i'
+    ),
+    new RegExp(
+      `<meta[^>]+property=["']og:url["'][^>]+content=["']https?:\\/\\/www\\.youtube\\.com\\/channel\\/(${UC})`,
+      'i'
+    ),
+    new RegExp(
+      `<meta[^>]+content=["']https?:\\/\\/www\\.youtube\\.com\\/channel\\/(${UC})["'][^>]+property=["']og:url["']`,
+      'i'
+    ),
+  ];
+  for (const re of canonicalFirst) {
+    const m = html.match(re);
+    if (m?.[1]?.startsWith('UC')) return m[1];
+  }
+
+  const external = html.match(new RegExp(`"externalId":"(${UC})"`, 'i'));
+  if (external?.[1]?.startsWith('UC')) return external[1];
+
+  const browse = html.match(/"browseId":"(UC[a-zA-Z0-9_-]{10,})"/i);
+  if (browse?.[1]) return browse[1];
+
+  const fallback = [
+    new RegExp(`"channelId":"(${UC})"`, 'i'),
+    new RegExp(`\\\\"channelId\\\\":\\\\"(${UC})\\\\"`, 'i'),
+    new RegExp(`href=["']https?:\\/\\/www\\.youtube\\.com\\/channel\\/(${UC})`, 'i'),
+    new RegExp(`\\/channel\\/(${UC})`, 'i'),
+  ];
+  for (const re of fallback) {
+    const m = html.match(re);
+    if (m?.[1]?.startsWith('UC')) return m[1];
+  }
+  return null;
+}
+
+/** Decode entities in meta tag `content` (OG fields are literal attribute text, not DOM text nodes). */
+function decodeHtmlEntitiesPlain(str) {
+  if (!str || typeof str !== 'string') return '';
+  let s = str;
+  s = s.replace(/&#x([0-9a-f]{1,6});/gi, (entity, h) => {
+    const c = parseInt(h, 16);
+    return Number.isFinite(c) && c >= 0 && c < 0x110000 ? String.fromCodePoint(c) : entity;
+  });
+  s = s.replace(/&#(\d{1,7});/g, (entity, d) => {
+    const c = parseInt(d, 10);
+    return Number.isFinite(c) && c >= 0 && c < 0x110000 ? String.fromCodePoint(c) : entity;
+  });
+  s = s.replace(/&nbsp;/gi, '\u00a0');
+  s = s.replace(/&quot;/gi, '"');
+  s = s.replace(/&apos;/gi, "'");
+  s = s.replace(/&lt;/gi, '<');
+  s = s.replace(/&gt;/gi, '>');
+  s = s.replace(/&amp;/gi, '&');
+  return s;
+}
+
+function extractOgFromHtml(html) {
+  const get = (prop) => {
+    const esc = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let m = html.match(
+      new RegExp(`<meta[^>]+property=["']${esc}["'][^>]+content=["']([^"']*)["']`, 'i')
+    );
+    if (m) return m[1];
+    m = html.match(
+      new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${esc}["']`, 'i')
+    );
+    return m ? m[1] : '';
+  };
+  return {
+    title: decodeHtmlEntitiesPlain(get('og:title')),
+    description: decodeHtmlEntitiesPlain(get('og:description')),
+    image: decodeHtmlEntitiesPlain(get('og:image')),
+  };
+}
+
+function parseYoutubeAtomFeedMeta(xml) {
+  const titleM = xml.match(/<feed[^>]*>[\s\S]*?<title(?:\s[^>]*)?>([^<]*)<\/title>/i);
+  const title = titleM ? decodeHtmlEntitiesPlain(titleM[1].trim()) : '';
+  let link = '';
+  const linkRe =
+    /<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["'][^>]*\/?>/i;
+  const lm = xml.match(linkRe) || xml.match(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']alternate["']/i);
+  if (lm) link = lm[1];
+  const entries = (xml.match(/<entry>/gi) || []).length;
+  return { title, link, entryCount: entries };
+}
+
+const YOUTUBE_OEMBED_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+async function tryYoutubeOembedChannelId(pageUrl) {
+  try {
+    const oembed = new URL('https://www.youtube.com/oembed');
+    oembed.searchParams.set('url', pageUrl);
+    oembed.searchParams.set('format', 'json');
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(oembed.toString(), {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': YOUTUBE_OEMBED_UA,
+        Accept: 'application/json',
+      },
+    });
+    clearTimeout(tid);
+    if (!r.ok) {
+      console.log(`[YouTube] oEmbed HTTP ${r.status} for ${pageUrl}`);
+      return null;
+    }
+    const j = await r.json();
+    const authorUrl = j.author_url || '';
+    const m = authorUrl.match(/\/channel\/(UC[a-zA-Z0-9_-]{10,})/i);
+    return m ? m[1] : null;
+  } catch (e) {
+    console.warn('[YouTube] oEmbed failed:', e.message);
+    return null;
+  }
+}
+
+/**
+ * @returns {Promise<{ feedUrl: string | null, channelId: string | null, channelPageUrl: string | null, browseHtml: string | null, error: string | null }>}
+ */
+async function resolveYoutubeInputToFeedUrl(inputUrl) {
+  const shortHost = (() => {
+    try {
+      return new URL(String(inputUrl).trim()).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+  if (shortHost === 'youtu.be') {
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: null,
+      browseHtml: null,
+      error:
+        'youtu.be links point to a single video. Open the channel on youtube.com and paste /channel/UC…, /@handle, or feeds/videos.xml?channel_id=…',
+    };
+  }
+  if (shortHost.includes('music.youtube')) {
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: null,
+      browseHtml: null,
+      error: 'music.youtube.com channel URLs are not supported. Use www.youtube.com channel links.',
+    };
+  }
+
+  const normalizedPage = normalizeYoutubeBrowseUrl(inputUrl);
+  if (!normalizedPage) {
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: null,
+      browseHtml: null,
+      error: 'Invalid or unsupported YouTube URL.',
+    };
+  }
+
+  const pageObj = new URL(normalizedPage);
+  const pathClean = (pageObj.pathname || '/').replace(/\/+$/, '') || '/';
+
+  const syncId = syncExtractYoutubeChannelId(normalizedPage);
+  if (syncId) {
+    const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(syncId)}`;
+    console.log(`[YouTube] resolved via URL (no HTML fetch) channel_id=${syncId}`);
+    return {
+      feedUrl,
+      channelId: syncId,
+      channelPageUrl: `https://www.youtube.com/channel/${syncId}`,
+      browseHtml: null,
+      error: null,
+    };
+  }
+
+  if (pathClean === '/feeds/videos.xml') {
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: null,
+      browseHtml: null,
+      error:
+        'Missing or invalid channel_id. Use: https://www.youtube.com/feeds/videos.xml?channel_id=UC…',
+    };
+  }
+
+  if (!youtubePathNeedsBrowseFetch(pageObj.pathname)) {
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: null,
+      browseHtml: null,
+      error:
+        'Could not find a channel ID in this URL. Try the channel page (/@handle, /channel/UC…, or /c/…), or feeds/videos.xml?channel_id=UC…',
+    };
+  }
+
+  console.log(`[YouTube] fetching browse page (${pageObj.pathname}) → ${normalizedPage}`);
+  let html;
+  try {
+    html = await fetchYoutubeBrowseHtmlUntilChannelId(normalizedPage);
+  } catch (e) {
+    console.warn('[YouTube] browse page fetch failed:', e.message);
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: normalizedPage,
+      browseHtml: null,
+      error: `Could not load YouTube channel page: ${e.message}`,
+    };
+  }
+
+  let channelId = extractYoutubeChannelIdFromHtml(html);
+  if (!channelId) {
+    console.log('[YouTube] channelId not in HTML snippet; trying oEmbed');
+    channelId = await tryYoutubeOembedChannelId(normalizedPage);
+  }
+
+  if (!channelId) {
+    console.warn(
+      `[YouTube] could not extract channel_id (HTML ${html.length} chars) for ${normalizedPage}`
+    );
+    return {
+      feedUrl: null,
+      channelId: null,
+      channelPageUrl: normalizedPage,
+      browseHtml: html,
+      error:
+        'Could not resolve this channel (no channel ID found). The handle may be wrong, or YouTube blocked the request.',
+    };
+  }
+
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+  console.log(`[YouTube] resolved browse URL → channel_id=${channelId} feed OK path`);
+  return {
+    feedUrl,
+    channelId,
+    channelPageUrl: `https://www.youtube.com/channel/${channelId}`,
+    browseHtml: html,
+    error: null,
+  };
+}
+
 // RSS Feed Proxy Endpoint
 // Apply rate limiting to prevent abuse while allowing legitimate parallel fetching
 app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
+  const clientIp = getClientIp(req);
+  const batchId = parseRssBatchQueryParam(req);
   const feedUrl = req.query.url;
-  
+
   if (!feedUrl) {
-    return res.status(400).json({ error: 'Missing url parameter' });
+    const body = { error: 'Missing url parameter' };
+    if (batchId) recordRssBatchTransfer(batchId, clientIp, jsonUtf8ByteLength(body));
+    return res.status(400).json(body);
   }
 
   // SSRF Protection: Validate URL
   const validation = validateFeedUrl(feedUrl);
   if (!validation.valid) {
-    return res.status(400).json({ error: validation.error });
+    const body = { error: validation.error };
+    if (batchId) recordRssBatchTransfer(batchId, clientIp, jsonUtf8ByteLength(body));
+    return res.status(400).json(body);
   }
 
   const feedUrlObj = new URL(feedUrl);
   const resolvedOk = await assertSafeFetchTarget(feedUrlObj);
   if (!resolvedOk.ok) {
-    return res.status(400).json({ error: resolvedOk.error });
+    const body = { error: resolvedOk.error };
+    if (batchId) recordRssBatchTransfer(batchId, clientIp, jsonUtf8ByteLength(body));
+    return res.status(400).json(body);
+  }
+
+  let resolvedFeedUrl = feedUrl;
+  if (isYoutubeHost(feedUrlObj.hostname)) {
+    const yt = await resolveYoutubeInputToFeedUrl(feedUrl);
+    if (yt.feedUrl) {
+      resolvedFeedUrl = yt.feedUrl;
+      const v2 = validateFeedUrl(resolvedFeedUrl);
+      if (!v2.valid) {
+        const body = { error: v2.error };
+        if (batchId) recordRssBatchTransfer(batchId, clientIp, jsonUtf8ByteLength(body));
+        return res.status(400).json(body);
+      }
+      if (resolvedFeedUrl !== feedUrl) {
+        console.log(`[RSS Proxy] Resolved YouTube → ${resolvedFeedUrl}`);
+      }
+    }
   }
 
   try {
-
     // Fetch with retries (generic, no feed-specific logic)
-    const { text, contentType } = await fetchWithRetry(feedUrl);
+    const { text, contentType } = await fetchWithRetry(resolvedFeedUrl);
 
     // Ensure UTF-8 encoding is specified in Content-Type
     // This is critical for proper character encoding (especially for non-ASCII characters like Portuguese)
@@ -659,29 +1329,179 @@ app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
       finalContentType = finalContentType.replace(/charset=[^;]+/i, 'charset=utf-8');
     }
 
+    const bodyBuf = Buffer.from(text, 'utf8');
+    if (batchId) {
+      recordRssBatchTransfer(batchId, clientIp, bodyBuf.length);
+    }
+
     // Return the feed with appropriate content type and UTF-8 encoding
-    // Explicitly set charset to ensure proper encoding
     res.setHeader('Content-Type', finalContentType);
     res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
-    // Send as UTF-8 encoded buffer to ensure proper character encoding
-    res.send(Buffer.from(text, 'utf8'));
-
+    res.send(bodyBuf);
   } catch (error) {
-    const statusCode = error.message.includes('HTTP 403') ? 403 :
-                      error.message.includes('HTTP 404') ? 404 :
-                      error.message.includes('timeout') ? 504 : 500;
-    
-    console.error(`[RSS Proxy] Error fetching feed ${feedUrl}: ${error.message}`);
-    
+    const statusCode = error.message.includes('HTTP 403')
+      ? 403
+      : error.message.includes('HTTP 404')
+        ? 404
+        : error.message.includes('timeout')
+          ? 504
+          : 500;
+
+    console.error(
+      `[RSS Proxy] Error fetching feed ${resolvedFeedUrl}${resolvedFeedUrl !== feedUrl ? ` (from ${feedUrl})` : ''}: ${error.message}`
+    );
+
     if (statusCode === 504) {
-      return res.status(504).json({ error: 'Request timeout' });
+      const body = { error: 'Request timeout' };
+      if (batchId) recordRssBatchTransfer(batchId, clientIp, jsonUtf8ByteLength(body));
+      return res.status(504).json(body);
     }
-    
-    res.status(statusCode).json({ 
+
+    const body = {
       error: `Failed to fetch feed: ${error.message}`,
-      url: feedUrl 
+      url: resolvedFeedUrl !== feedUrl ? resolvedFeedUrl : feedUrl,
+    };
+    if (batchId) recordRssBatchTransfer(batchId, clientIp, jsonUtf8ByteLength(body));
+    res.status(statusCode).json(body);
+  }
+});
+
+// End-of-batch hook: client calls this after a full multi-fetch refresh so we log one summary line.
+app.post('/api/proxy/batch-complete', apiLimiter, (req, res) => {
+  const clientIp = getClientIp(req);
+  const id = req.body?.batchId;
+  if (!isValidRssBatchId(id)) {
+    console.warn(
+      `[RSS Proxy] batch-complete rejected client=${clientIp} reason=invalid_batchId body=${typeof id === 'string' ? id.slice(0, 36) : String(id)}`
+    );
+    return res.status(400).json({ ok: false, error: 'Invalid batchId' });
+  }
+  const entry = rssBatchStats.get(id);
+  rssBatchStats.delete(id);
+  if (!entry) {
+    console.log(
+      `[RSS Proxy] Batch complete client=${clientIp} batch=${id} requests=0 transferred=0 B (no recorded /api/proxy/rss responses for this batch)`
+    );
+    return res.json({ ok: true });
+  }
+  const bytesStr = entry.bytes.toLocaleString('en-US');
+  const human = formatTransferredHumanReadable(entry.bytes);
+  console.log(
+    `[RSS Proxy] Batch complete client=${entry.ip} batch=${id} requests=${entry.requests} transferred=${human} (${bytesStr} bytes)`
+  );
+  res.json({ ok: true });
+});
+
+// YouTube: resolve channel URL → Atom feed + metadata (manual add / validation)
+app.get('/api/youtube/resolve', apiLimiter, async (req, res) => {
+  const inputUrl = req.query.url;
+  if (!inputUrl) {
+    return res.status(400).json({ valid: false, errors: ['Missing url parameter'] });
+  }
+
+  const validation = validateFeedUrl(inputUrl);
+  if (!validation.valid) {
+    return res.status(400).json({ valid: false, errors: [validation.error] });
+  }
+
+  let u;
+  try {
+    u = new URL(inputUrl);
+  } catch {
+    return res.status(400).json({ valid: false, errors: ['Invalid URL format'] });
+  }
+
+  if (u.protocol !== 'https:') {
+    return res.status(400).json({
+      valid: false,
+      errors: ['Only https:// YouTube URLs are supported.'],
     });
   }
+
+  if (!isYoutubeHost(u.hostname)) {
+    return res.status(400).json({
+      valid: false,
+      errors: [
+        'Only youtube.com channel URLs are supported (e.g. https://www.youtube.com/@handle or /channel/UC…).',
+      ],
+    });
+  }
+
+  const resolvedOk = await assertSafeFetchTarget(u);
+  if (!resolvedOk.ok) {
+    return res.status(400).json({ valid: false, errors: [resolvedOk.error] });
+  }
+
+  console.log(`[YouTube Resolve API] input=${inputUrl}`);
+
+  const yt = await resolveYoutubeInputToFeedUrl(inputUrl);
+  if (!yt.feedUrl || yt.error) {
+    console.warn(`[YouTube Resolve API] resolve failed: ${yt.error || 'no feedUrl'}`);
+    return res.status(400).json({
+      valid: false,
+      errors: [yt.error || 'Could not resolve YouTube channel'],
+      channelPageUrl: yt.channelPageUrl || null,
+    });
+  }
+
+  let text;
+  try {
+    const got = await fetchWithRetry(yt.feedUrl, 2, { minimalCompleteXml: true });
+    text = got.text;
+  } catch (e) {
+    console.error(`[YouTube Resolve API] Atom feed fetch failed: ${e.message}`);
+    return res.status(502).json({
+      valid: false,
+      errors: [`Resolved feed URL but could not load it: ${e.message}`],
+      resolvedFeedUrl: yt.feedUrl,
+      channelId: yt.channelId,
+    });
+  }
+
+  let browseHtml = yt.browseHtml;
+  if (!browseHtml && yt.channelPageUrl) {
+    try {
+      browseHtml = await fetchHtmlSnippetBounded(yt.channelPageUrl, MAX_HTML_LOGO_SNIPPET_BYTES, true);
+      console.log(
+        `[YouTube Resolve API] fetched channel page for OG (${browseHtml.length} chars)`
+      );
+    } catch (e) {
+      console.warn('[YouTube Resolve API] optional OG page fetch failed:', e.message);
+    }
+  }
+
+  const meta = parseYoutubeAtomFeedMeta(text);
+  const og = browseHtml ? extractOgFromHtml(browseHtml) : { title: '', description: '', image: '' };
+
+  const channelTitle = meta.title || og.title || 'YouTube channel';
+  const channelDescription = og.description || '';
+  const imageUrl = (og.image || '').trim();
+
+  console.log(
+    `[YouTube Resolve API] OK channel_id=${yt.channelId} entries=${meta.entryCount} title=${JSON.stringify(channelTitle).slice(0, 100)}`
+  );
+
+  const warnings = [];
+  if (meta.entryCount === 0) warnings.push('Feed has no video entries yet');
+
+  res.json({
+    valid: true,
+    resolvedFeedUrl: yt.feedUrl,
+    channelId: yt.channelId,
+    channelPageUrl: yt.channelPageUrl,
+    inputUrl,
+    feedFormat: 'atom',
+    channel: {
+      title: channelTitle,
+      description: channelDescription,
+      link: meta.link || yt.channelPageUrl || yt.feedUrl,
+      language: 'en',
+      itemCount: meta.entryCount,
+      imageUrl,
+    },
+    errors: [],
+    warnings,
+  });
 });
 
 // HTML snippet proxy (homepage / marketing page) — logo discovery only

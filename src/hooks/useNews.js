@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { loadNewsConfig } from '../utils/newsConfigUtils'
-import { fetchRssFeed } from '../services/rssService'
+import { fetchRssFeed, createRssBatchId, notifyRssBatchComplete } from '../services/rssService'
 import { loadCachedNews, saveNewsToCache, loadCachedArticleIds } from '../utils/storageUtils'
 import { calculatePopularityScores } from '../utils/popularityUtils'
 import { useToastContext } from '../contexts/ToastContext'
@@ -13,8 +13,10 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
   const [newItemIds, setNewItemIds] = useState(new Set())
   const previousNewsIdsRef = useRef(new Set())
   
-  // Get toast context (App.jsx now wraps everything in ToastProvider)
+  // Toast API via ref so fetchNewsInternal stays stable when toasts update (avoids re-running fetch effect)
   const toastContext = useToastContext()
+  const toastRef = useRef(toastContext)
+  toastRef.current = toastContext
   
   // Use refs to track current tab sources and tabId to avoid stale closures
   const tabSourcesRef = useRef(tabSources)
@@ -68,7 +70,9 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
       setLoading(true)
       setError(null)
     }
-    
+
+    let rssBatchId = null
+
     try {
       const allNews = []
       
@@ -82,7 +86,9 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
         isFetchingRef.current = false
         return
       }
-      
+
+      rssBatchId = createRssBatchId()
+
       // Fetch sources in batches to avoid rate limiting
       // Batch size and delay can be adjusted based on rate limit settings
       const BATCH_SIZE = 50 // Fetch 50 feeds per batch
@@ -101,7 +107,9 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
         const batch = batches[batchIndex]
         
         // Fetch batch in parallel
-        const batchPromises = batch.map(source => fetchRssFeed(source))
+        const batchPromises = batch.map((source) =>
+          fetchRssFeed(source, { batchId: rssBatchId })
+        )
         const batchResults = await Promise.allSettled(batchPromises)
         
         // Convert Promise.allSettled results to expected format
@@ -244,7 +252,7 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
             
             if (successMessage) {
               lastToastTimeRef.current = now
-              toastContext.success(successMessage, 10000)
+              toastRef.current.success(successMessage, 10000)
             }
           }
           
@@ -253,7 +261,7 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
             const failureMessage = `Unable to fetch:\n${failedList}`
             // Use a small delay to show the error toast after the success toast
             setTimeout(() => {
-              toastContext.error(failureMessage, 10000)
+              toastRef.current.error(failureMessage, 10000)
             }, 500)
           }
           
@@ -374,8 +382,11 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
     } finally {
       setLoading(false)
       isFetchingRef.current = false
+      if (rssBatchId) {
+        notifyRssBatchComplete(rssBatchId)
+      }
     }
-  }, [toastContext]) // Include toastContext in deps
+  }, [])
 
   // Define fetchNews after fetchNewsInternal
   const fetchNews = useCallback(async (useCache = true, forceRefresh = false) => {
