@@ -9,6 +9,7 @@ import net from 'node:net';
 import iconv from 'iconv-lite';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -116,6 +117,61 @@ function isDevelopmentLanOriginAllowed(origin) {
   }
 }
 
+/** True if Origin matches configured web CORS allowlist (not cryptographic proof of a browser). */
+function isBrowserOriginTrustedForProxy(origin) {
+  if (!origin || typeof origin !== 'string') return false;
+  const allowedOrigins = getAllowedOrigins();
+  if (allowedOrigins.includes('*')) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (isDevelopmentLanOriginAllowed(origin)) return true;
+  return false;
+}
+
+/** Same-origin fetches often omit Origin; Referer still points at the SPA (spoofable like Origin). */
+function refererMatchesAllowedOrigin(referer) {
+  if (!referer || typeof referer !== 'string') return false;
+  try {
+    const r = new URL(referer);
+    const base = `${r.protocol}//${r.host}`;
+    return isBrowserOriginTrustedForProxy(base);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Optional shared secret(s) for RSS/HTML/YouTube proxy routes. Comma-separated in ACTUFEED_PROXY_CLIENT_KEYS.
+ * When non-empty: require header X-Actufeed-Client-Key to match (timing-safe), OR trusted browser Origin.
+ * Mobile / RN should send the key (no Origin). Web can rely on Origin without the key.
+ * Note: keys are extractable from app bundles; Origin can be spoofed by non-browsers — this is abuse friction, not proof of app identity.
+ */
+function parseProxyClientKeys() {
+  const raw = process.env.ACTUFEED_PROXY_CLIENT_KEYS;
+  if (!raw || !raw.trim()) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((k) => k.length > 0);
+}
+
+function timingSafeEqualStr(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+const PROXY_GATED_PATHS = new Set([
+  '/api/proxy/rss',
+  '/api/proxy/batch-complete',
+  '/api/proxy/html',
+  '/api/proxy/asset/check',
+  '/api/youtube/resolve',
+]);
+
+const CORS_ALLOW_HEADERS = 'Content-Type, X-Actufeed-Client-Key';
+
 app.use('/api', (req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = getAllowedOrigins();
@@ -125,7 +181,7 @@ app.use('/api', (req, res, next) => {
   if (!origin) {
     // Same-origin request - allow
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
@@ -140,7 +196,7 @@ app.use('/api', (req, res, next) => {
   ) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
@@ -150,6 +206,28 @@ app.use('/api', (req, res, next) => {
   // Origin not allowed
   console.warn(`[CORS] Blocked request from origin: ${origin}`);
   return res.status(403).json({ error: 'Origin not allowed' });
+});
+
+app.use((req, res, next) => {
+  if (!PROXY_GATED_PATHS.has(req.path)) {
+    return next();
+  }
+  const keys = parseProxyClientKeys();
+  if (keys.length === 0) {
+    return next();
+  }
+  const sent = req.headers['x-actufeed-client-key'];
+  if (typeof sent === 'string' && keys.some((k) => timingSafeEqualStr(sent, k))) {
+    return next();
+  }
+  if (isBrowserOriginTrustedForProxy(req.headers.origin)) {
+    return next();
+  }
+  if (refererMatchesAllowedOrigin(req.headers.referer)) {
+    return next();
+  }
+  console.warn(`[Proxy gate] Blocked ${req.method} ${req.path} (no valid client key, untrusted origin)`);
+  return res.status(403).json({ error: 'Proxy access denied' });
 });
 
 // Rate limiting for RSS proxy endpoint
