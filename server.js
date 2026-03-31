@@ -168,6 +168,7 @@ const PROXY_GATED_PATHS = new Set([
   '/api/proxy/html',
   '/api/proxy/asset/check',
   '/api/youtube/resolve',
+  '/api/youtube/channel-search',
 ]);
 
 const CORS_ALLOW_HEADERS = 'Content-Type, X-Actufeed-Client-Key';
@@ -1468,6 +1469,67 @@ app.post('/api/proxy/batch-complete', apiLimiter, (req, res) => {
     `[RSS Proxy] Batch complete client=${entry.ip} batch=${id} requests=${entry.requests} transferred=${human} (${bytesStr} bytes)`
   );
   res.json({ ok: true });
+});
+
+/**
+ * YouTube Data API v3 channel search (server-side key). Mobile app calls this so the key is not in the client binary.
+ * Set YOUTUBE_DATA_API_KEY in .env (see .env.example). Not tamper-proof: anyone who can call your API can use it — use rate limits + optional ACTUFEED_PROXY_CLIENT_KEYS.
+ */
+app.get('/api/youtube/channel-search', apiLimiter, async (req, res) => {
+  const apiKey = process.env.YOUTUBE_DATA_API_KEY?.trim();
+  if (!apiKey) {
+    return res.status(503).json({
+      error: 'YouTube channel search is not configured',
+      code: 'YOUTUBE_SEARCH_DISABLED',
+    });
+  }
+
+  const rawQ = req.query.q;
+  if (!rawQ || typeof rawQ !== 'string') {
+    return res.status(400).json({ error: 'Missing q parameter' });
+  }
+  const q = rawQ.trim().slice(0, 200);
+  if (q.length < 2) {
+    return res.status(400).json({ error: 'Query too short' });
+  }
+
+  const url = new URL('https://www.googleapis.com/youtube/v3/search');
+  url.searchParams.set('part', 'snippet');
+  url.searchParams.set('type', 'channel');
+  url.searchParams.set('maxResults', '15');
+  url.searchParams.set('q', q);
+  url.searchParams.set('key', apiKey);
+
+  try {
+    const r = await fetch(url.toString(), {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(12_000),
+    });
+    const json = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = json?.error?.message || `YouTube API HTTP ${r.status}`;
+      console.warn(`[YouTube channel-search] ${msg}`);
+      return res.status(502).json({ error: msg });
+    }
+    const items = [];
+    for (const it of json.items || []) {
+      const channelId = it?.id?.channelId;
+      if (!channelId) continue;
+      const sn = it.snippet || {};
+      const thumbs = sn.thumbnails || {};
+      items.push({
+        channelId,
+        title: (sn.title && String(sn.title).trim()) || channelId,
+        description: (sn.description && String(sn.description).trim()) || '',
+        thumbnailUrl: thumbs.medium?.url || thumbs.default?.url || null,
+      });
+    }
+    res.setHeader('Cache-Control', 'private, max-age=120');
+    return res.json({ items });
+  } catch (e) {
+    console.warn(`[YouTube channel-search] ${e.message}`);
+    return res.status(502).json({ error: 'YouTube search request failed' });
+  }
 });
 
 // YouTube: resolve channel URL → Atom feed + metadata (manual add / validation)
