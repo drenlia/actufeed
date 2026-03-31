@@ -24,6 +24,8 @@ services:
       # CORS and HTTPS configuration (optional in dev, but included for consistency)
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - HTTPS=${HTTPS:-false}
+      - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY:-}
+      - ACTUFEED_PROXY_CLIENT_KEYS=${ACTUFEED_PROXY_CLIENT_KEYS:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3072', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]

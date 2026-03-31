@@ -16,6 +16,10 @@ services:
       # CORS and HTTPS configuration
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - HTTPS=${HTTPS:-false}
+      # .env is not in the image (.dockerignore); pass secrets from host .env into the container.
+      # Compose loads ../.env next to this file for ${...} substitution.
+      - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY:-}
+      - ACTUFEED_PROXY_CLIENT_KEYS=${ACTUFEED_PROXY_CLIENT_KEYS:-}
       # Or use ALLOWED_HOSTS for multiple hosts (comma-separated):
       # - ALLOWED_HOSTS=${ALLOWED_HOSTS}
     mem_limit: 256m
