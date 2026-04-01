@@ -5,10 +5,10 @@ const TABS_KEY = 'newsfeed-tabs'
 const ACTIVE_TAB_KEY = 'newsfeed-active-tab'
 const TAB_FILTERS_KEY = 'newsfeed-tab-filters'
 
-// Default tab structure
+// Default tab structure (Montreal preset sources in news.json)
 export const createDefaultTab = () => ({
   id: `tab-${Date.now()}`,
-  name: 'Default',
+  name: 'Montreal',
   sources: []
 })
 
@@ -22,7 +22,13 @@ export const loadTabs = () => {
     if (stored) {
       const parsed = JSON.parse(stored)
       if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-        tabs = parsed
+        tabs = parsed.map((tab) => {
+          if (tab && tab.name === 'Default') {
+            needsSave = true
+            return { ...tab, name: 'Montreal' }
+          }
+          return tab
+        })
       }
     }
   } catch (error) {
@@ -52,13 +58,14 @@ export const loadTabs = () => {
     }
   } else {
     // Only inject default sources if:
-    // 1. There's only one tab (the default tab)
-    // 2. That tab is named "Default" (or is the first tab if no name)
+    // 1. There's only one tab (the starter Montreal tab)
+    // 2. That tab is named Montreal (legacy: Default, migrated above) or has no name
     // 3. That tab has no sources
     // This allows users to have empty tabs when there are multiple tabs
     if (tabs.length === 1) {
       const defaultTab = tabs[0]
-      const isDefaultTab = defaultTab.name === 'Default' || !defaultTab.name
+      const isDefaultTab =
+        defaultTab.name === 'Montreal' || defaultTab.name === 'Default' || !defaultTab.name
       const hasNoSources = !defaultTab.sources || 
                           !Array.isArray(defaultTab.sources) || 
                           defaultTab.sources.length === 0
