@@ -881,6 +881,11 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
       .replace(/<style[^>]*>.*?<\/style>/gi, '')
       .replace(/<core-commerce[^>]*>.*?<\/core-commerce>/gi, '')
       .trim()
+
+    // CDATA descriptions: decodeHtmlEntities leaves literal <p>/<img> when raw === textContent.
+    if (descriptionPlainFull.includes('<')) {
+      descriptionPlainFull = stripHtmlTags(descriptionPlainFull)
+    }
   }
 
   const guid = item.querySelector('guid')?.textContent || ''
@@ -902,7 +907,8 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
     } else {
       contentRawHtml = contentInnerHTML
     }
-    if (contentRawHtml !== contentText && contentRawHtml.includes('<')) {
+    // CDATA markup: textContent and unwrapped innerHTML are often identical; still strip tags.
+    if (contentRawHtml.includes('<')) {
       content = stripHtmlTags(contentRawHtml)
     } else {
       content = decodeHtmlEntities(contentText)
