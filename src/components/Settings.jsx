@@ -73,6 +73,9 @@ export const Settings = ({
   const [ytResults, setYtResults] = useState([])
   const [ytError, setYtError] = useState(null)
 
+  /** Collapsed by default so the catalog / sources list stays visible above the fold. */
+  const [manualFeedExpanded, setManualFeedExpanded] = useState(false)
+
   // Load tabs and configuration on mount
   useEffect(() => {
     // Load tabs (this will inject default sources if needed)
@@ -752,25 +755,64 @@ export const Settings = ({
           </div>
         </aside>
 
-        <div className="settings-manual-panel settings-glass-panel">
+        <div
+          className={`settings-manual-panel settings-glass-panel${manualFeedExpanded ? '' : ' settings-manual-panel--add-collapsed'}`}
+        >
           <div className="settings-section">
             <div className="settings-manual-feed-heading-row">
-              <h2 className="settings-manual-feed-title">
-                <span className="settings-manual-feed-title__text">{t.addManualFeed}</span>
-                {onHelpManualRssClick ? (
-                  <button
-                    type="button"
-                    className="settings-manual-feed-title__help"
-                    onClick={onHelpManualRssClick}
-                    aria-label={t.helpManualRssLinkAria}
-                    title={t.helpManualRssLinkAria}
+              <h2 id="manual-feed-heading" className="settings-manual-feed-title">
+                <button
+                  type="button"
+                  className="settings-manual-feed-disclosure"
+                  aria-expanded={manualFeedExpanded}
+                  aria-controls="manual-feed-collapsible"
+                  title={
+                    manualFeedExpanded ? t.manualFeedSectionHideForm : t.manualFeedSectionShowForm
+                  }
+                  onClick={() => setManualFeedExpanded((v) => !v)}
+                >
+                  <span
+                    className={`settings-manual-feed-chevron${manualFeedExpanded ? ' is-expanded' : ''}`}
+                    aria-hidden
                   >
-                    ?
-                  </button>
-                ) : null}
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M9 6l6 6-6 6"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span className="settings-manual-feed-title__text">{t.addManualFeed}</span>
+                </button>
               </h2>
+              {onHelpManualRssClick ? (
+                <button
+                  type="button"
+                  className="settings-manual-feed-title__help"
+                  onClick={onHelpManualRssClick}
+                  aria-label={t.helpManualRssLinkAria}
+                  title={t.helpManualRssLinkAria}
+                >
+                  ?
+                </button>
+              ) : null}
             </div>
-            <div className="manual-feed-container">
+            <div
+              id="manual-feed-collapsible"
+              role="region"
+              aria-labelledby="manual-feed-heading"
+              hidden={!manualFeedExpanded}
+              className="manual-feed-container"
+            >
               <div className="yt-channel-search" aria-labelledby="yt-channel-search-heading">
                 <div className="yt-channel-search__header" id="yt-channel-search-heading">
                   <span className="yt-channel-search__icon" aria-hidden>

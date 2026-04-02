@@ -821,7 +821,11 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
     if (!title && titleElement.innerText) {
       title = titleElement.innerText
     }
-    title = decodeHtmlEntities(title.trim())
+    title = decodeHtmlEntities(String(title).trim())
+    // Title with markup (CDATA HTML): textarea decode can yield empty — strip tags to plain headline.
+    if (title.includes('<')) {
+      title = stripHtmlTags(title).trim()
+    }
   }
   
   const link = item.querySelector('link')?.textContent || ''
@@ -948,6 +952,26 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
       )
     } else {
       description = ''
+    }
+  }
+
+  // UOL / similar: <title> empty and plain-text path lost the lede (entities, markup-only bodies, DOM quirks).
+  // Match mobile rssParse — recover headline from raw description / content:encoded HTML.
+  if (!title.trim()) {
+    const fromDescRaw = stripHtmlTags(descriptionRawHtmlForThumb || '').trim()
+    const fromEncRaw = stripHtmlTags(contentRawHtml || '').trim()
+    const fromRaw = longerPlainFragment(fromDescRaw, fromEncRaw)
+    if (fromRaw) {
+      const oneLine = fromRaw.replace(/\s+/g, ' ').trim()
+      title = oneLine.length > 300 ? `${oneLine.slice(0, 297).trimEnd()}…` : oneLine
+      if (!descriptionPlainFull.trim()) {
+        descriptionPlainFull = fromRaw
+      }
+      if (!description.trim()) {
+        description = truncateRssDescriptionPreview(
+          longerPlainFragment(descriptionPlainFull, content)
+        )
+      }
     }
   }
 
