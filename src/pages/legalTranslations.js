@@ -22,7 +22,7 @@ export const legalStrings = {
 
     copyrightDocTitle: 'Copyright',
     copyrightH1: 'Copyright',
-    copyrightP1: '© {year} Daniel. All rights reserved.',
+    copyrightP1: '© {year} Drenlia Inc. All rights reserved.',
     copyrightP2:
       'ActuFeed (name and logo) refers to the news feed application and related materials made available by the project. Third-party names, logos, and RSS feeds belong to their respective owners.',
     copyrightH2Oss: 'Open-source software',
@@ -51,7 +51,7 @@ export const legalStrings = {
 
     copyrightDocTitle: 'Droits d’auteur',
     copyrightH1: 'Droits d’auteur',
-    copyrightP1: '© {year} Daniel. Tous droits réservés.',
+    copyrightP1: '© {year} Drenlia Inc. Tous droits réservés.',
     copyrightP2:
       'Le nom ActuFeed (et le logo) désigne l’application de fil d’actualités et les contenus associés diffusés par le projet. Les noms, logos et flux des tiers demeurent la propriété de leurs détenteurs respectifs.',
     copyrightH2Oss: 'Logiciel libre',
