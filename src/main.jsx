@@ -6,7 +6,7 @@ import './index.css'
 import App from './App.jsx'
 import { LegalRoutesLayout } from './pages/LegalRoutesLayout.jsx'
 import { SupportPage } from './pages/SupportPage.jsx'
-import { CopyrightPage } from './pages/CopyrightPage.jsx'
+import { PrivacyPage } from './pages/PrivacyPage.jsx'
 
 // Suppress harmless CORS errors from RSS feed HTML rendering
 // These occur when browser tries to load external resources (spritemap.svg, etc.)
@@ -50,7 +50,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />} />
         <Route element={<LegalRoutesLayout />}>
           <Route path="support" element={<SupportPage />} />
-          <Route path="copyright" element={<CopyrightPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

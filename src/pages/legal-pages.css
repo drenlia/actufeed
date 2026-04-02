@@ -111,6 +111,12 @@
   letter-spacing: -0.02em;
 }
 
+.legal-page__last-updated {
+  font-size: 0.9rem;
+  color: var(--af-text-muted);
+  margin: -0.35rem 0 1.25rem !important;
+}
+
 .legal-page h2 {
   margin: 2rem 0 0.75rem;
   font-size: 1.1rem;

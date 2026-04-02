@@ -18,7 +18,7 @@ function initThemeFromStorage() {
 }
 
 /**
- * @param {{ page: 'support' | 'copyright'; children: import('react').ReactNode }} props
+ * @param {{ page: 'support' | 'privacy'; children: import('react').ReactNode }} props
  */
 export function LegalPageLayout({ page, children }) {
   const { locale, setLocale, strings } = useLegalLocale()
@@ -28,14 +28,14 @@ export function LegalPageLayout({ page, children }) {
   }, [])
 
   useEffect(() => {
-    const docTitle = page === 'support' ? strings.supportDocTitle : strings.copyrightDocTitle
+    const docTitle = page === 'support' ? strings.supportDocTitle : strings.privacyDocTitle
     document.title = `${docTitle} · ActuFeed`
     document.documentElement.lang = locale
     return () => {
       document.title = 'ACTUFEED'
       document.documentElement.lang = 'en'
     }
-  }, [page, locale, strings.supportDocTitle, strings.copyrightDocTitle])
+  }, [page, locale, strings.supportDocTitle, strings.privacyDocTitle])
 
   return (
     <div className="legal-page">
@@ -47,7 +47,7 @@ export function LegalPageLayout({ page, children }) {
           <div className="legal-page__nav-right">
             <nav className="legal-page__links" aria-label="Legal">
               <Link to="/support">{strings.navSupport}</Link>
-              <Link to="/copyright">{strings.navCopyright}</Link>
+              <Link to="/privacy">{strings.navPrivacy}</Link>
             </nav>
             <div className="legal-page__lang-switch" role="group" aria-label={strings.langLabel}>
               <button
