@@ -1,20 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './styles/theme.css'
 import './index.css'
 import App from './App.jsx'
-import { LegalLocaleProvider } from './pages/LegalLocaleContext.jsx'
+import { LegalRoutesLayout } from './pages/LegalRoutesLayout.jsx'
 import { SupportPage } from './pages/SupportPage.jsx'
 import { CopyrightPage } from './pages/CopyrightPage.jsx'
-
-function LegalRoutesLayout() {
-  return (
-    <LegalLocaleProvider>
-      <Outlet />
-    </LegalLocaleProvider>
-  )
-}
 
 // Suppress harmless CORS errors from RSS feed HTML rendering
 // These occur when browser tries to load external resources (spritemap.svg, etc.)

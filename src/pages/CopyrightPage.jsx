@@ -1,5 +1,5 @@
 import { LegalPageLayout } from './LegalPageLayout.jsx'
-import { useLegalLocale } from './LegalLocaleContext.jsx'
+import { useLegalLocale } from './useLegalLocale.js'
 import { t } from './legalTranslations.js'
 
 const GITHUB_LICENSE = 'https://github.com/drenlia/actufeed/blob/main/LICENSE'

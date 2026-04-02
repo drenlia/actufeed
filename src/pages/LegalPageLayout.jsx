@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useLegalLocale } from './LegalLocaleContext.jsx'
+import { useLegalLocale } from './useLegalLocale.js'
 import './legal-pages.css'
 
 function initThemeFromStorage() {
