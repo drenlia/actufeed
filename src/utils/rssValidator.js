@@ -2,16 +2,32 @@
 // Uses backend proxy to avoid CORS issues
 
 const MRSS_NS = 'http://search.yahoo.com/mrss/'
+const ATOM_NS = 'http://www.w3.org/2005/Atom'
 
 function isYoutubeManualChannelUrl(url) {
   try {
     const u = new URL(String(url).trim())
-    if (u.protocol !== 'https:') return false
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
     const h = u.hostname.replace(/^www\./i, '').toLowerCase()
     return h === 'youtube.com' || h === 'm.youtube.com'
   } catch {
     return false
   }
+}
+
+/** Normalize http YouTube URLs to https so they use /api/youtube/resolve like the app. */
+function normalizeYoutubeManualUrl(input) {
+  try {
+    const u = new URL(String(input).trim())
+    const h = u.hostname.replace(/^www\./i, '').toLowerCase()
+    if ((h === 'youtube.com' || h === 'm.youtube.com') && u.protocol === 'http:') {
+      u.protocol = 'https:'
+      return u.toString()
+    }
+  } catch {
+    /* ignore */
+  }
+  return String(input).trim()
 }
 
 /**
@@ -21,10 +37,11 @@ function isYoutubeManualChannelUrl(url) {
  */
 export const validateRssFeed = async (feedUrl) => {
   const warnings = []
-  
+  const normalizedInput = normalizeYoutubeManualUrl(feedUrl)
+
   // Basic URL validation
   try {
-    new URL(feedUrl)
+    new URL(normalizedInput)
   } catch {
     return {
       valid: false,
@@ -33,9 +50,9 @@ export const validateRssFeed = async (feedUrl) => {
     }
   }
 
-  if (isYoutubeManualChannelUrl(feedUrl)) {
+  if (isYoutubeManualChannelUrl(normalizedInput)) {
     try {
-      const resolveUrl = `/api/youtube/resolve?url=${encodeURIComponent(feedUrl.trim())}`
+      const resolveUrl = `/api/youtube/resolve?url=${encodeURIComponent(normalizedInput)}`
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 25000)
       const response = await fetch(resolveUrl, { signal: controller.signal })
@@ -84,7 +101,7 @@ export const validateRssFeed = async (feedUrl) => {
   
   // Try to fetch the feed using backend proxy
   try {
-    const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(feedUrl)}`
+    const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(normalizedInput)}`
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)
     
@@ -101,7 +118,7 @@ export const validateRssFeed = async (feedUrl) => {
       if (response.status === 404) {
         return {
           valid: false,
-          errors: [`Feed not found (404). Please check the URL: ${feedUrl}`],
+          errors: [`Feed not found (404). Please check the URL: ${normalizedInput}`],
           warnings: []
         }
       }
@@ -144,7 +161,7 @@ export const validateRssFeed = async (feedUrl) => {
           is404Page 
             ? `Feed not found (404). The server returned an HTML 404 error page instead of RSS feed.`
             : 'Feed returned HTML instead of RSS/XML. Please check the URL.',
-          `URL: ${feedUrl}`
+          `URL: ${normalizedInput}`
         ],
         warnings: []
       }
@@ -166,7 +183,8 @@ export const validateRssFeed = async (feedUrl) => {
     }
     
     const rss = xmlDoc.querySelector('rss')
-    const atomFeed = xmlDoc.querySelector('feed')
+    const atomFeed =
+      xmlDoc.querySelector('feed') || xmlDoc.getElementsByTagNameNS(ATOM_NS, 'feed')[0] || null
     const rdf = xmlDoc.querySelector('RDF')
 
     if (!rss && !atomFeed && !rdf) {
@@ -178,21 +196,20 @@ export const validateRssFeed = async (feedUrl) => {
     }
 
     const getAtomEntryLink = (entry) => {
-      const links = [...entry.querySelectorAll('link')]
+      const links = [...entry.getElementsByTagNameNS(ATOM_NS, 'link')]
       const href =
         links.find((l) => (l.getAttribute('rel') || 'alternate') === 'alternate')?.getAttribute('href') ||
         links.find((l) => !l.getAttribute('rel'))?.getAttribute('href') ||
-        entry.querySelector('link[href]')?.getAttribute('href') ||
+        links[0]?.getAttribute('href') ||
         ''
       return (href || '').trim()
     }
 
     const nodeHasBodyText = (node, isAtom) => {
       if (isAtom) {
-        if (
-          node.querySelector('summary')?.textContent?.trim() ||
-          node.querySelector('content')?.textContent?.trim()
-        ) {
+        const summary = node.getElementsByTagNameNS(ATOM_NS, 'summary')[0]
+        const content = node.getElementsByTagNameNS(ATOM_NS, 'content')[0]
+        if (summary?.textContent?.trim() || content?.textContent?.trim()) {
           return true
         }
         const mediaDesc = node.getElementsByTagNameNS(MRSS_NS, 'description')[0]
@@ -207,10 +224,9 @@ export const validateRssFeed = async (feedUrl) => {
 
     const nodeHasDate = (node, isAtom) => {
       if (isAtom) {
-        return !!(
-          node.querySelector('published')?.textContent?.trim() ||
-          node.querySelector('updated')?.textContent?.trim()
-        )
+        const pub = node.getElementsByTagNameNS(ATOM_NS, 'published')[0]
+        const upd = node.getElementsByTagNameNS(ATOM_NS, 'updated')[0]
+        return !!(pub?.textContent?.trim() || upd?.textContent?.trim())
       }
       return !!(
         node.querySelector('pubDate')?.textContent ||
@@ -229,7 +245,7 @@ export const validateRssFeed = async (feedUrl) => {
       itemNodes = channel ? Array.from(channel.querySelectorAll('item')) : []
     } else if (atomFeed) {
       channel = atomFeed
-      itemNodes = Array.from(atomFeed.querySelectorAll('entry'))
+      itemNodes = Array.from(atomFeed.getElementsByTagNameNS(ATOM_NS, 'entry'))
       feedFormat = 'atom'
       isAtom = true
     } else if (rdf) {
@@ -245,11 +261,14 @@ export const validateRssFeed = async (feedUrl) => {
       }
     }
 
-    const channelTitle = channel.querySelector('title')?.textContent?.trim() || ''
-    const channelDescription =
-      channel.querySelector('description')?.textContent?.trim() ||
-      channel.querySelector('subtitle')?.textContent?.trim() ||
-      ''
+    const channelTitle = isAtom
+      ? channel.getElementsByTagNameNS(ATOM_NS, 'title')[0]?.textContent?.trim() || ''
+      : channel.querySelector('title')?.textContent?.trim() || ''
+    const channelDescription = isAtom
+      ? channel.getElementsByTagNameNS(ATOM_NS, 'subtitle')[0]?.textContent?.trim() || ''
+      : channel.querySelector('description')?.textContent?.trim() ||
+        channel.querySelector('subtitle')?.textContent?.trim() ||
+        ''
 
     if (itemNodes.length === 0) {
       warnings.push('Feed contains no items or entries')
@@ -261,7 +280,10 @@ export const validateRssFeed = async (feedUrl) => {
 
     if (sampleItems.length > 0) {
       sampleItems.forEach((node) => {
-        if (node.querySelector('title')?.textContent?.trim()) requiredFields.title = true
+        const entryTitle = isAtom
+          ? node.getElementsByTagNameNS(ATOM_NS, 'title')[0]?.textContent?.trim()
+          : node.querySelector('title')?.textContent?.trim()
+        if (entryTitle) requiredFields.title = true
         if (nodeHasBodyText(node, isAtom)) requiredFields.description = true
         if (nodeHasDate(node, isAtom)) requiredFields.pubDate = true
         if (isAtom && getAtomEntryLink(node)) atomHasEntryLink = true
@@ -289,20 +311,19 @@ export const validateRssFeed = async (feedUrl) => {
       warnings.push('Feed entries do not contain category information (optional)')
     }
 
-    let channelWebLink = feedUrl
+    let channelWebLink = normalizedInput
     if (isAtom) {
-      const alt = Array.from(channel.querySelectorAll('link')).find(
-        (l) => (l.getAttribute('rel') || '') === 'alternate'
-      )
+      const links = [...channel.getElementsByTagNameNS(ATOM_NS, 'link')]
+      const alt = links.find((l) => (l.getAttribute('rel') || '') === 'alternate')
       channelWebLink =
         alt?.getAttribute('href')?.trim() ||
-        channel.querySelector('link[href]')?.getAttribute('href')?.trim() ||
-        feedUrl
+        links[0]?.getAttribute('href')?.trim() ||
+        normalizedInput
     } else {
       channelWebLink =
         channel.querySelector('link')?.textContent?.trim() ||
         channel.querySelector('link')?.getAttribute?.('href')?.trim() ||
-        feedUrl
+        normalizedInput
     }
 
     const channelLanguage =
@@ -333,7 +354,9 @@ export const validateRssFeed = async (feedUrl) => {
       itemCount: itemNodes.length,
       lastBuildDate:
         channel.querySelector('lastBuildDate')?.textContent?.trim() ||
-        channel.querySelector('updated')?.textContent?.trim() ||
+        (isAtom
+          ? channel.getElementsByTagNameNS(ATOM_NS, 'updated')[0]?.textContent?.trim()
+          : channel.querySelector('updated')?.textContent?.trim()) ||
         null,
     }
 

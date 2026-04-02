@@ -15,6 +15,11 @@ import {
 import { loadSettingsPreferences, saveSettingsPreferences } from '../utils/settingsStorage'
 import { clearCachedNews } from '../utils/storageUtils'
 import { validateRssFeed } from '../utils/rssValidator'
+import {
+  searchYoutubeChannels,
+  YOUTUBE_SEARCH_UNAVAILABLE,
+  youtubeChannelPageUrl,
+} from '../services/youtubeChannelSearch'
 import { useToastContext } from '../contexts/ToastContext'
 import { Header } from './Header'
 import { TabBar } from './TabBar'
@@ -62,6 +67,11 @@ export const Settings = ({
   const [validatingFeed, setValidatingFeed] = useState(false)
   const [feedValidationResult, setFeedValidationResult] = useState(null)
   const [feedTitle, setFeedTitle] = useState('')
+
+  const [ytQuery, setYtQuery] = useState('')
+  const [ytLoading, setYtLoading] = useState(false)
+  const [ytResults, setYtResults] = useState([])
+  const [ytError, setYtError] = useState(null)
 
   // Load tabs and configuration on mount
   useEffect(() => {
@@ -407,6 +417,39 @@ export const Settings = ({
       })
   }
 
+  const applyYoutubeChannel = (hit) => {
+    setManualFeedUrl(youtubeChannelPageUrl(hit.channelId))
+    setFeedValidationResult(null)
+    setFeedTitle('')
+    setYtError(null)
+  }
+
+  const runYoutubeSearch = async () => {
+    const q = ytQuery.trim()
+    if (q.length < 2) {
+      setYtError(t.youtubeSearchQueryTooShort)
+      setYtResults([])
+      return
+    }
+    setYtLoading(true)
+    setYtError(null)
+    setYtResults([])
+    try {
+      const { items } = await searchYoutubeChannels(q)
+      if (items.length === 0) setYtError(t.youtubeNoResults)
+      setYtResults(items)
+    } catch (e) {
+      if (e.message === YOUTUBE_SEARCH_UNAVAILABLE) {
+        setYtError(t.youtubeSearchNotConfigured)
+      } else {
+        setYtError(t.youtubeSearchFailed)
+      }
+      setYtResults([])
+    } finally {
+      setYtLoading(false)
+    }
+  }
+
   // Validate manual RSS feed
   const handleValidateFeed = async () => {
     if (!manualFeedUrl.trim()) return
@@ -728,6 +771,75 @@ export const Settings = ({
               </h2>
             </div>
             <div className="manual-feed-container">
+              <div className="yt-channel-search" aria-labelledby="yt-channel-search-heading">
+                <div className="yt-channel-search__header" id="yt-channel-search-heading">
+                  <span className="yt-channel-search__icon" aria-hidden>
+                    <svg
+                      className="yt-channel-search__logo"
+                      viewBox="0 0 24 24"
+                      width="22"
+                      height="22"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect width="24" height="24" rx="4" fill="#FF0000" />
+                      <path fill="#fff" d="M10 8.5v7l6-3.5-6-3.5z" />
+                    </svg>
+                  </span>
+                  <span className="yt-channel-search__label">{t.youtubeFindChannel}</span>
+                </div>
+                <div className="yt-channel-search__row">
+                  <input
+                    type="search"
+                    className="yt-channel-search__input"
+                    placeholder={t.youtubeSearchPlaceholder}
+                    value={ytQuery}
+                    onChange={(e) => setYtQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') runYoutubeSearch()
+                    }}
+                    autoComplete="off"
+                    enterKeyHint="search"
+                  />
+                  <button
+                    type="button"
+                    className="yt-channel-search__btn"
+                    onClick={runYoutubeSearch}
+                    disabled={ytLoading}
+                  >
+                    {ytLoading ? t.youtubeSearching : t.youtubeSearchButton}
+                  </button>
+                </div>
+                {ytError ? (
+                  <div className="yt-channel-search__msg yt-channel-search__msg--error" role="alert">
+                    {ytError}
+                  </div>
+                ) : null}
+                {ytResults.length > 0 ? (
+                  <ul className="yt-channel-search__results" role="listbox" aria-label={t.youtubeFindChannel}>
+                    {ytResults.map((hit) => (
+                      <li key={hit.channelId}>
+                        <button
+                          type="button"
+                          className="yt-channel-search__hit"
+                          onClick={() => applyYoutubeChannel(hit)}
+                        >
+                          {hit.thumbnailUrl ? (
+                            <img
+                              src={hit.thumbnailUrl}
+                              alt=""
+                              className="yt-channel-search__thumb"
+                              width="40"
+                              height="40"
+                            />
+                          ) : null}
+                          <span className="yt-channel-search__hit-title">{hit.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
               <div className="manual-feed-input-group">
                 <input
                   type="text"

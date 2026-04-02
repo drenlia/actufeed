@@ -3498,6 +3498,141 @@
   padding-bottom: 10px;
 }
 
+/* YouTube channel search (manual feed panel; matches app flow) */
+.yt-channel-search {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--af-border);
+}
+
+.yt-channel-search__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.yt-channel-search__label {
+  font-weight: 700;
+  font-size: 0.95em;
+  color: var(--af-text, #1a1a1a);
+}
+
+.yt-channel-search__row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.yt-channel-search__input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1.5px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  font-size: 0.95em;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.yt-channel-search__input:focus {
+  outline: none;
+  border-color: #ff0000;
+  box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.12);
+}
+
+.yt-channel-search__btn {
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9em;
+  white-space: nowrap;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.yt-channel-search__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(204, 0, 0, 0.35);
+}
+
+.yt-channel-search__btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.yt-channel-search__msg {
+  margin-top: 10px;
+  font-size: 0.9em;
+}
+
+.yt-channel-search__msg--error {
+  color: #b91c1c;
+}
+
+.yt-channel-search__results {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--af-border);
+  border-radius: 12px;
+  background: var(--af-surface, #fff);
+}
+
+.yt-channel-search__hit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--af-border);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+
+.yt-channel-search__results li:last-child .yt-channel-search__hit {
+  border-bottom: none;
+}
+
+.yt-channel-search__hit:hover,
+.yt-channel-search__hit:focus-visible {
+  background: rgba(255, 0, 0, 0.06);
+  outline: none;
+}
+
+.yt-channel-search__thumb {
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.yt-channel-search__hit-title {
+  font-weight: 600;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .yt-channel-search__row {
+    flex-direction: column;
+  }
+
+  .yt-channel-search__btn {
+    width: 100%;
+  }
+}
+
 /* Manual RSS Feed Input */
 .manual-feed-container {
   background: var(--af-surface-muted);
