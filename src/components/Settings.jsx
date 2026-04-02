@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { translations } from '../constants/translations'
-import { searchSources, getAllSources, getAllCountries } from '../services/sourceSearchService'
+import {
+  searchSources,
+  getAllSources,
+  getAllCountries,
+  CATALOG_BROWSE_LIMIT,
+} from '../services/sourceSearchService'
 import { 
   loadNewsConfig, 
   saveNewsConfig, 
@@ -117,7 +122,10 @@ export const Settings = ({
     setAvailableCountries(countries)
     
     // Load initial available sources (filtered by countries if any selected)
-    const initialSources = getAllSources(50, preferences.selectedCountries.size > 0 ? preferences.selectedCountries : null)
+    const initialSources = getAllSources(
+      CATALOG_BROWSE_LIMIT,
+      preferences.selectedCountries.size > 0 ? preferences.selectedCountries : null
+    )
     setSearchResults(initialSources)
   }, [])
   
@@ -155,7 +163,7 @@ export const Settings = ({
 
       if (searchQuery.trim().length === 0) {
         // Show initial sources when no search (filtered by countries)
-        setSearchResults(getAllSources(50, countryFilters))
+        setSearchResults(getAllSources(CATALOG_BROWSE_LIMIT, countryFilters))
         return
       }
 

@@ -9,6 +9,9 @@ import {
 import { translations } from '../constants/translations'
 import { itemNeedsDescriptionExpand } from '../utils/newsDescriptionExpand'
 
+/** Longest edge below this ⇒ RSS “thumb” is usually a wire logo; upscaling looks soft — use feed logo instead. */
+const MIN_ARTICLE_THUMB_LONG_EDGE_PX = 220
+
 const DESCRIPTION_STRIP_REGEX = [
   /<img[^>]*>/gi,
   /<figure[^>]*>.*?<\/figure>/gi,
@@ -43,6 +46,8 @@ export const NewsItem = ({
   const formatDateLocalized = (date) => formatDate(date, uiLanguage)
   const [expanded, setExpanded] = useState(false)
   const [imageHidden, setImageHidden] = useState(false)
+  /** Thumbnail URL failed or was blank — try {@link item.feedLogo} next (same as mobile). */
+  const [thumbLoadFailed, setThumbLoadFailed] = useState(false)
 
   const needsExpandToggle = useMemo(() => itemNeedsDescriptionExpand(item), [item])
 
@@ -52,11 +57,36 @@ export const NewsItem = ({
     setExpanded(expandAllSignal.expanded)
   }, [expandAllSignal, needsExpandToggle])
 
-  const imageUrl = !imageHidden && (item.thumbnail || item.feedLogo)
-  const isFeedLogoOnly = !item.thumbnail && !!item.feedLogo
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setImageHidden(false)
+      setThumbLoadFailed(false)
+    })
+    return () => cancelAnimationFrame(id)
+  }, [item.id, item.thumbnail, item.feedLogo])
+
+  const useThumbnail = Boolean(item.thumbnail) && !thumbLoadFailed
+  const imageUrl =
+    !imageHidden && (useThumbnail ? item.thumbnail : item.feedLogo)
+  const isFeedLogoOnly = (!useThumbnail || !item.thumbnail) && !!item.feedLogo
   const isFaviconLogo =
     isFeedLogoOnly &&
     (item.feedLogoTier === 'favicon' || /\.ico(\?|$)/i.test(item.feedLogo || ''))
+
+  const handleImageError = () => {
+    if (useThumbnail && item.feedLogo) setThumbLoadFailed(true)
+    else setImageHidden(true)
+  }
+
+  const handleImageLoad = (e) => {
+    if (!useThumbnail || !item.thumbnail) return
+    const el = e?.currentTarget
+    const nw = el?.naturalWidth ?? 0
+    const nh = el?.naturalHeight ?? 0
+    if (nw > 0 && nh > 0 && Math.max(nw, nh) < MIN_ARTICLE_THUMB_LONG_EDGE_PX && item.feedLogo) {
+      setThumbLoadFailed(true)
+    }
+  }
 
   const fullText = useMemo(
     () => (item.descriptionFull || item.content || item.description || '').trim(),
@@ -100,10 +130,13 @@ export const NewsItem = ({
           <div className="news-image-container">
             <a href={item.link} target="_blank" rel="noopener noreferrer" className="news-image-link">
               <img
+                key={imageUrl}
                 src={imageUrl}
                 alt={item.title || item.source || 'Article'}
                 className={`news-image ${isFaviconLogo ? 'news-image--favicon' : ''} ${isFeedLogoOnly && !isFaviconLogo ? 'news-image--logo' : ''}`}
-                onError={() => setImageHidden(true)}
+                onError={handleImageError}
+                onLoad={handleImageLoad}
+                decoding="async"
               />
             </a>
           </div>

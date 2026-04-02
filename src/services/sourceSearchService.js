@@ -123,13 +123,16 @@ export const searchSources = (query, countryFilters = null) => {
   return filteredResults
 }
 
+/** Must cover all outlets in cityNewsOutlets.json (order is JSON key order; a low cap hides later regions e.g. Montreal). */
+export const CATALOG_BROWSE_LIMIT = 2000
+
 /**
  * Get all available sources (for browsing when no search query)
- * @param {number} limit - Maximum number of sources to return (default: 100)
+ * @param {number} limit - Maximum number of sources to return (default: CATALOG_BROWSE_LIMIT)
  * @param {Set} countryFilters - Set of country codes to filter by (optional)
  * @returns {Array} Array of all sources
  */
-export const getAllSources = (limit = 100, countryFilters = null) => {
+export const getAllSources = (limit = CATALOG_BROWSE_LIMIT, countryFilters = null) => {
   const allSources = []
   
   Object.entries(cityNewsData.cities).forEach(([cityKey, cityData]) => {

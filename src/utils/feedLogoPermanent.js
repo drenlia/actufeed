@@ -16,10 +16,7 @@ export function getPermanentFeedLogoUrl(feedUrl) {
   try {
     const u = new URL(feedUrl.trim())
     const host = u.hostname.toLowerCase()
-    const path = (u.pathname || '/').replace(/\/+$/, '') || '/'
-    const isMg =
-      (host === 'montrealgazette.com' || host === 'www.montrealgazette.com') && path === '/feed'
-    if (isMg) return MONTREAL_GAZETTE_LOGO
+    if (host === 'montrealgazette.com' || host === 'www.montrealgazette.com') return MONTREAL_GAZETTE_LOGO
   } catch {
     // ignore
   }

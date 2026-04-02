@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "lastUpdated": "2026-01-10",
+  "lastUpdated": "2026-03-29",
   "cities": {
     "Australia": {
       "country": "AU",
@@ -1001,6 +1001,54 @@
           "url": "https://8columnas.com.mx/feed/",
           "language": "fr",
           "type": "online"
+        }
+      ]
+    },
+    "Montreal": {
+      "country": "CA",
+      "province": "",
+      "outlets": [
+        {
+          "name": "CBC Montreal",
+          "url": "https://www.cbc.ca/webfeed/rss/rss-canada-montreal",
+          "language": "en",
+          "type": "broadcast"
+        },
+        {
+          "name": "Montreal Gazette",
+          "url": "https://montrealgazette.com/feed",
+          "language": "en",
+          "type": "newspaper"
+        },
+        {
+          "name": "CTV News Montreal",
+          "url": "https://montreal.ctvnews.ca/rss/ctv-montreal-news-1.822294",
+          "language": "en",
+          "type": "broadcast"
+        },
+        {
+          "name": "Radio-Canada En-bref",
+          "url": "https://ici.radio-canada.ca/info/rss/info/en-bref",
+          "language": "fr",
+          "type": "broadcast"
+        },
+        {
+          "name": "La Presse",
+          "url": "https://www.lapresse.ca/actualites/rss",
+          "language": "fr",
+          "type": "newspaper"
+        },
+        {
+          "name": "Le Devoir",
+          "url": "https://www.ledevoir.com/rss/manchettes.xml",
+          "language": "fr",
+          "type": "newspaper"
+        },
+        {
+          "name": "Journal de Montréal",
+          "url": "https://www.journaldemontreal.com/rss.xml",
+          "language": "fr",
+          "type": "newspaper"
         }
       ]
     },

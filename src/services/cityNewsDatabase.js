@@ -17,12 +17,12 @@ export const CITY_NEWS_OUTLETS = {
   },
   'Montreal': {
     'CA': [
-      { name: 'CBC Montreal', url: 'https://www.cbc.ca/cmlink/rss-canada-montreal', language: 'en' },
+      { name: 'CBC Montreal', url: 'https://www.cbc.ca/webfeed/rss/rss-canada-montreal', language: 'en' },
       { name: 'Montreal Gazette', url: 'https://montrealgazette.com/feed', language: 'en' },
       { name: 'CTV News Montreal', url: 'https://montreal.ctvnews.ca/rss/ctv-montreal-news-1.822294', language: 'en' },
-      { name: 'Radio-Canada Montréal', url: 'https://ici.radio-canada.ca/rss/4159/montreal.xml', language: 'fr' },
-      { name: 'La Presse', url: 'https://www.lapresse.ca/rss.1.1.xml', language: 'fr' },
-      { name: 'Le Devoir', url: 'https://www.ledevoir.com/rss/edition.xml', language: 'fr' },
+      { name: 'Radio-Canada En-bref', url: 'https://ici.radio-canada.ca/info/rss/info/en-bref', language: 'fr' },
+      { name: 'La Presse', url: 'https://www.lapresse.ca/actualites/rss', language: 'fr' },
+      { name: 'Le Devoir', url: 'https://www.ledevoir.com/rss/manchettes.xml', language: 'fr' },
       { name: 'Journal de Montréal', url: 'https://www.journaldemontreal.com/rss.xml', language: 'fr' },
     ]
   },

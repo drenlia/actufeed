@@ -253,6 +253,130 @@ const extractCategories = (item, source) => {
   return categories
 }
 
+/** PR wires embed tracking / “tiny” images first; skip so we prefer real article art (e.g. wp-content/uploads). */
+function isSkippableWireServiceThumbUrl(url) {
+  if (!url || url.length < 16) return false
+  const u = url.toLowerCase()
+  if (u.includes('globenewswire.com/newsroom/ti')) return true
+  if (u.includes('globenewswire.com') && u.includes('/tiny/')) return true
+  if (u.includes('ml.globenewswire.com')) return true
+  if (u.includes('ml-eu.globenewswire.com')) return true
+  if (u.includes('cts.businesswire.com/ct/')) return true
+  return false
+}
+
+/**
+ * Postmedia full-content RSS embeds “Editor’s Picks” with theme placeholder PNGs (grey mesh).
+ * Same-host scoring was beating real /wp-content/uploads/ art. Author blocks use Gravatar — not hero art.
+ */
+function isSkippablePlaceholderOrAvatarThumbUrl(url) {
+  if (!url || url.length < 12) return false
+  const u = url.toLowerCase()
+  if (u.includes('placeholder-img')) return true
+  if (u.includes('placeholder-image')) return true
+  if (u.includes('placeholder.svg')) return true
+  if (u.includes('/wp-content/themes/') && u.includes('placeholder')) return true
+  if (u.includes('gravatar.com/avatar')) return true
+  return false
+}
+
+/**
+ * Prefer real hero art (Postmedia / WordPress) over first non-wire image.
+ * Same-host + /wp-content/uploads/ + larger srcset / w= query wins.
+ */
+function scoreRssThumbnailCandidate(url, itemLink) {
+  if (!url || isSkippableWireServiceThumbUrl(url) || isSkippablePlaceholderOrAvatarThumbUrl(url)) return -1
+  let score = 0
+  const u = url.toLowerCase()
+  try {
+    const linkHost = new URL(itemLink).hostname.replace(/^www\./, '')
+    const imgHost = new URL(url).hostname.replace(/^www\./, '')
+    if (imgHost === linkHost || imgHost.endsWith(`.${linkHost}`)) score += 100
+  } catch {
+    /* ignore */
+  }
+  if (u.includes('/wp-content/uploads/')) score += 90
+  if (u.includes('wp.com') && u.includes('uploads')) score += 70
+  if (u.includes('postmedia') && (u.includes('upload') || u.includes('wp-content'))) score += 35
+  if (/\.(jpe?g|png|webp|gif|avif)(\?|$|#)/i.test(url)) score += 12
+  const wMatch = u.match(/[?&]w=(\d+)/)
+  if (wMatch) {
+    const w = parseInt(wMatch[1], 10)
+    if (w >= 900) score += 30
+    else if (w >= 560) score += 22
+    else if (w >= 400) score += 14
+    else if (w >= 200) score += 6
+  }
+  score += Math.min(url.length / 30, 10)
+  return score
+}
+
+function bestUrlFromSrcsetString(srcset) {
+  if (!srcset || !String(srcset).trim()) return ''
+  let best = ''
+  let bestW = 0
+  for (const part of String(srcset).split(',')) {
+    const trimmed = part.trim()
+    const m = trimmed.match(/^(\S+)(?:\s+(\d+)w)?/i)
+    if (!m) continue
+    const candidate = m[1]
+    const w = m[2] ? parseInt(m[2], 10) : 0
+    if (w > bestW || (w === bestW && candidate.length > best.length)) {
+      bestW = w
+      best = candidate
+    }
+  }
+  return best
+}
+
+function bestNormalizedSrcFromImgElement(descImg, item) {
+  const itemLink = item.querySelector('link')?.textContent || ''
+  const candidates = []
+  const src = descImg.getAttribute('src')
+  const dataSrc =
+    descImg.getAttribute('data-src') ||
+    descImg.getAttribute('data-lazy-src') ||
+    descImg.getAttribute('data-original')
+  const srcset = descImg.getAttribute('srcset')
+  if (src) candidates.push(src)
+  if (dataSrc) candidates.push(dataSrc)
+  const fromSet = bestUrlFromSrcsetString(srcset || '')
+  if (fromSet) candidates.push(fromSet)
+  const alt = (descImg.getAttribute('alt') || '').trim().toLowerCase()
+  if (alt === 'placeholder-img' || /^placeholder\b/i.test(alt)) {
+    return { url: '', score: -1 }
+  }
+  let bestUrl = ''
+  let bestScore = -1
+  for (const raw of candidates) {
+    const n = normalizeRssImgSrcFromHtml(raw, item)
+    const s = scoreRssThumbnailCandidate(n, itemLink)
+    if (s > bestScore) {
+      bestScore = s
+      bestUrl = n
+    }
+  }
+  return { url: bestUrl, score: bestScore }
+}
+
+function normalizeRssImgSrcFromHtml(raw, item) {
+  let thumbnail = decodeHtmlEntities(String(raw || '').trim())
+  if (!thumbnail || thumbnail.startsWith('data:')) return ''
+  if (thumbnail.startsWith('//')) thumbnail = `https:${thumbnail}`
+  else if (thumbnail.startsWith('/')) {
+    const link = item.querySelector('link')?.textContent || ''
+    if (link) {
+      try {
+        thumbnail = new URL(thumbnail, link).href
+      } catch {
+        /* keep relative */
+      }
+    }
+  }
+  if (!/^https?:\/\//i.test(thumbnail)) return ''
+  return thumbnail
+}
+
 // Extract image/thumbnail from RSS item
 const extractThumbnail = (item, description) => {
   // Try multiple selectors for different RSS formats
@@ -286,45 +410,66 @@ const extractThumbnail = (item, description) => {
       const descParser = new DOMParser()
       const descDoc = descParser.parseFromString(description, 'text/html')
       
-      // Try first img tag
-      const descImg = descDoc.querySelector('img')
-      if (descImg) {
-        thumbnail = descImg.getAttribute('src') || descImg.getAttribute('data-src') || ''
-        if (thumbnail && !thumbnail.startsWith('data:')) {
-          // Clean up relative URLs
-          if (thumbnail.startsWith('//')) {
-            thumbnail = 'https:' + thumbnail
-          } else if (thumbnail.startsWith('/')) {
-            // Try to extract base URL from link if available
-            const link = item.querySelector('link')?.textContent || ''
-            if (link) {
-              try {
-                const url = new URL(link)
-                thumbnail = url.origin + thumbnail
-              } catch (e) {
-                // Keep original thumbnail
-              }
-            }
-          }
-          return thumbnail
+      let bestPick = ''
+      let bestPickScore = -1
+      const itemLink = item.querySelector('link')?.textContent || ''
+      for (const descImg of descDoc.querySelectorAll('img')) {
+        const { url, score } = bestNormalizedSrcFromImgElement(descImg, item)
+        if (score > bestPickScore) {
+          bestPickScore = score
+          bestPick = url
         }
       }
-      
-      // Try meta property og:image
+      if (bestPickScore >= 0) thumbnail = bestPick
+
       const ogImage = descDoc.querySelector('meta[property="og:image"]')
       if (ogImage) {
-        thumbnail = ogImage.getAttribute('content') || ''
-        if (thumbnail) return thumbnail
-      }
-    } catch (e) {
-      // If parsing fails, try regex fallback
-      const imgMatch = description.match(/<img[^>]+src=["']([^"']+)["']/i)
-      if (imgMatch && imgMatch[1]) {
-        thumbnail = imgMatch[1]
-        if (thumbnail && !thumbnail.startsWith('data:')) {
-          return thumbnail
+        const ogRaw = ogImage.getAttribute('content') || ''
+        const ogNorm = normalizeRssImgSrcFromHtml(ogRaw, item)
+        const ogScore = scoreRssThumbnailCandidate(ogNorm, itemLink)
+        if (ogScore > bestPickScore) {
+          thumbnail = ogNorm
+          bestPickScore = ogScore
         }
       }
+      if (thumbnail) return thumbnail
+    } catch {
+      const itemLink = item.querySelector('link')?.textContent || ''
+      let bestPick = ''
+      let bestPickScore = -1
+      const tagRe = /<img\b[^>]*>/gi
+      let tm
+      while ((tm = tagRe.exec(description)) !== null) {
+        const tag = tm[0]
+        const altM = tag.match(/\balt=["']([^"']*)["']/i)
+        const altRaw = (altM?.[1] || '').trim().toLowerCase()
+        if (altRaw === 'placeholder-img' || /^placeholder\b/i.test(altRaw)) continue
+        const srcM = tag.match(/\bsrc=["']([^"']*)["']/i)
+        const dsM = tag.match(/\bdata-src=["']([^"']*)["']/i)
+        const lazyM = tag.match(/\bdata-lazy-src=["']([^"']*)["']/i)
+        const ssetM = tag.match(/\bsrcset=["']([^"']+)["']/i)
+        const fromSet = bestUrlFromSrcsetString(ssetM ? ssetM[1] : '')
+        for (const raw of [srcM?.[1], dsM?.[1], lazyM?.[1], fromSet].filter(Boolean)) {
+          const n = normalizeRssImgSrcFromHtml(raw, item)
+          const s = scoreRssThumbnailCandidate(n, itemLink)
+          if (s > bestPickScore) {
+            bestPickScore = s
+            bestPick = n
+          }
+        }
+      }
+      const ogMatch =
+        description.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+        description.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+      if (ogMatch?.[1]) {
+        const ogNorm = normalizeRssImgSrcFromHtml(ogMatch[1], item)
+        const ogScore = scoreRssThumbnailCandidate(ogNorm, itemLink)
+        if (ogScore > bestPickScore) {
+          bestPickScore = ogScore
+          bestPick = ogNorm
+        }
+      }
+      if (bestPickScore >= 0) return bestPick
     }
   }
   
@@ -738,8 +883,6 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
       .trim()
   }
 
-  let thumbnail = extractThumbnail(item, descriptionRawHtmlForThumb)
-
   const guid = item.querySelector('guid')?.textContent || ''
   const author = decodeHtmlEntities(
     item.querySelector('author')?.textContent ||
@@ -754,14 +897,24 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
   if (contentElement) {
     const contentText = contentElement.textContent || ''
     const contentInnerHTML = contentElement.innerHTML || ''
-    contentRawHtml = contentInnerHTML
-    if (contentInnerHTML !== contentText && contentInnerHTML.includes('<')) {
-      content = stripHtmlTags(contentInnerHTML)
+    if (contentInnerHTML.includes('<![CDATA[')) {
+      contentRawHtml = contentInnerHTML.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    } else {
+      contentRawHtml = contentInnerHTML
+    }
+    if (contentRawHtml !== contentText && contentRawHtml.includes('<')) {
+      content = stripHtmlTags(contentRawHtml)
     } else {
       content = decodeHtmlEntities(contentText)
     }
     content = stripFeedExcerptBoilerplate(content.trim(), contentRawHtml)
   }
+
+  // Match mobile rssParse: WordPress/Postmedia often put teaser in <description>, hero <img> in content:encoded
+  const thumbnailHtmlCombined = [descriptionRawHtmlForThumb, contentRawHtml]
+    .filter((s) => s && String(s).trim())
+    .join('\n')
+  let thumbnail = extractThumbnail(item, thumbnailHtmlCombined)
 
   const MAX_CONTENT_SIZE = 50 * 1024 // 50KB
   if (content.length > MAX_CONTENT_SIZE) {
