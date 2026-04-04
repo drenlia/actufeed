@@ -40,6 +40,8 @@ export const NewsItem = ({
   isNew,
   combinedCategories,
   onCategoryClick,
+  onArticleMetaFilter = null,
+  articleFilterActive = null,
   expandAllSignal = null,
   readLaterVariant = null,
   readLaterSaved = false,
@@ -54,6 +56,19 @@ export const NewsItem = ({
   const [thumbLoadFailed, setThumbLoadFailed] = useState(false)
 
   const needsExpandToggle = useMemo(() => itemNeedsDescriptionExpand(item), [item])
+
+  const lens = articleFilterActive
+  const langKey = item.language === 'en' || item.language === 'fr' ? item.language : null
+  const langFilterActive =
+    Boolean(lens && langKey && lens.newsFilter === langKey && lens.newsFilter !== 'all')
+  const sourceTrim = (item.source || '').trim()
+  const sourceFilterActive = Boolean(lens?.sourceTrim && sourceTrim === lens.sourceTrim)
+  const rankFilterActive = Boolean(
+    lens &&
+      item.popularityScore > 0 &&
+      lens.minPopularityScore != null &&
+      lens.minPopularityScore === item.popularityScore
+  )
 
   useEffect(() => {
     if (!expandAllSignal || expandAllSignal.nonce === 0) return
@@ -207,20 +222,92 @@ export const NewsItem = ({
               </h2>
             ) : null}
             <div className="news-meta">
-              <span className={`lang-badge ${item.language}`}>{item.language.toUpperCase()}</span>
+              {onArticleMetaFilter && langKey ? (
+                <button
+                  type="button"
+                  className={`lang-badge news-meta-filter-hit ${langKey}${
+                    langFilterActive ? ' news-meta-filter-hit--active' : ''
+                  }`}
+                  title={langFilterActive ? t.filterFromArticleLangClearTitle : t.filterFromArticleLangTitle}
+                  aria-label={
+                    langFilterActive
+                      ? t.filterFromArticleLangClearA11y.replace('{lang}', langKey.toUpperCase())
+                      : t.filterFromArticleLangA11y.replace('{lang}', langKey.toUpperCase())
+                  }
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onArticleMetaFilter('language', langKey)
+                  }}
+                >
+                  {langKey.toUpperCase()}
+                </button>
+              ) : (
+                <span className={`lang-badge ${item.language || ''}`}>
+                  {(item.language || '?').toUpperCase()}
+                </span>
+              )}
               {item.syndicationFormat === 'atom' && (
                 <span className="news-syndication-badge" title={t.syndicationAtomBadgeTitle}>
                   {t.syndicationAtomBadge}
                 </span>
               )}
-              <span className="news-source">{item.source}</span>
+              {onArticleMetaFilter && item.source ? (
+                <button
+                  type="button"
+                  className={`news-source news-meta-filter-hit news-source-link${
+                    sourceFilterActive ? ' news-meta-filter-hit--active' : ''
+                  }`}
+                  title={
+                    sourceFilterActive ? t.filterFromArticleSourceClearTitle : t.filterFromArticleSourceTitle
+                  }
+                  aria-label={
+                    sourceFilterActive ? t.filterFromArticleSourceClearA11y : t.filterFromArticleSourceA11y
+                  }
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onArticleMetaFilter('source', item.source)
+                  }}
+                >
+                  {item.source}
+                </button>
+              ) : (
+                <span className="news-source">{item.source}</span>
+              )}
               <span className="news-date">{formatDateLocalized(item.publishedAt)}</span>
               {(item.popularityScore > 0 || (item.categories && item.categories.length > 0)) && (
                 <div className="news-meta-rating-cats">
                   {item.popularityScore > 0 && (
-                    <span className="popularity-badge" title="Popularity Score">
-                      {item.popularityScore}
-                    </span>
+                    onArticleMetaFilter ? (
+                      <button
+                        type="button"
+                        className={`popularity-badge news-meta-filter-hit${
+                          rankFilterActive ? ' news-meta-filter-hit--active' : ''
+                        }`}
+                        title={
+                          rankFilterActive
+                            ? t.filterFromArticleRankClearTitle.replace('{n}', String(item.popularityScore))
+                            : t.filterFromArticleRankTitle.replace('{n}', String(item.popularityScore))
+                        }
+                        aria-label={
+                          rankFilterActive
+                            ? t.filterFromArticleRankClearA11y.replace('{n}', String(item.popularityScore))
+                            : t.filterFromArticleRankA11y.replace('{n}', String(item.popularityScore))
+                        }
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onArticleMetaFilter('minPopularity', item.popularityScore)
+                        }}
+                      >
+                        {item.popularityScore}
+                      </button>
+                    ) : (
+                      <span className="popularity-badge" title="Popularity Score">
+                        {item.popularityScore}
+                      </span>
+                    )
                   )}
                   {item.categories &&
                     item.categories.map((cat, idx) => {
@@ -228,13 +315,40 @@ export const NewsItem = ({
                         c.variants.some((v) => v.toLowerCase() === cat.toLowerCase())
                       )
                       const displayName = combinedCat ? combinedCat.displayName : cat
-                      return (
-                        <span
+                      const catFilterActive = Boolean(
+                        lens?.selectedCategoryKeys?.includes(displayName)
+                      )
+                      return onArticleMetaFilter || onCategoryClick ? (
+                        <button
                           key={idx}
-                          className="category-badge"
-                          onClick={() => onCategoryClick(displayName)}
-                          title="Filter by category"
+                          type="button"
+                          className={`category-badge news-meta-filter-hit${
+                            catFilterActive ? ' news-meta-filter-hit--active' : ''
+                          }`}
+                          title={
+                            catFilterActive
+                              ? t.filterFromArticleCategoryClearTitle
+                              : t.filterFromArticleCategoryTitle
+                          }
+                          aria-label={
+                            catFilterActive
+                              ? t.filterFromArticleCategoryClearA11y.replace('{cat}', cat)
+                              : t.filterFromArticleCategoryA11y.replace('{cat}', cat)
+                          }
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (onArticleMetaFilter) {
+                              onArticleMetaFilter('category', displayName)
+                            } else {
+                              onCategoryClick?.(displayName)
+                            }
+                          }}
                         >
+                          {cat}
+                        </button>
+                      ) : (
+                        <span key={idx} className="category-badge">
                           {cat}
                         </span>
                       )

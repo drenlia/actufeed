@@ -3,14 +3,36 @@ import { getSearchableText } from './locationUtils'
 
 // Filter news based on all selected filters
 export const filterNews = (news, filters, combinedCategories) => {
-  const { newsFilter, showHighlyRated, searchQuery, selectedCategories } = filters
-  
+  const {
+    newsFilter,
+    showHighlyRated,
+    searchQuery,
+    selectedCategories,
+    sourceNameFilter = '',
+    minPopularityScore = null,
+  } = filters
+
   return news.filter(item => {
     // Language filter
     if (newsFilter !== 'all' && item.language !== newsFilter) {
       return false
     }
-    
+
+    const outlet = typeof sourceNameFilter === 'string' ? sourceNameFilter.trim() : ''
+    if (outlet) {
+      const itemSource = (item.source || '').trim()
+      if (itemSource !== outlet) {
+        return false
+      }
+    }
+
+    if (minPopularityScore != null && minPopularityScore > 0) {
+      const score = item.popularityScore || 0
+      if (score < minPopularityScore) {
+        return false
+      }
+    }
+
     // Highly rated filter
     if (showHighlyRated) {
       const score = item.popularityScore || 0

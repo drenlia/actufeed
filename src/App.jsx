@@ -39,6 +39,8 @@ function AppContent() {
   const [sortBy, setSortBy] = useState('date') // 'date' or 'popularity'
   const [showHighlyRated, setShowHighlyRated] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [sourceNameFilter, setSourceNameFilter] = useState('')
+  const [minPopularityScore, setMinPopularityScore] = useState(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [activeTabId, setActiveTabIdState] = useState(null)
@@ -219,6 +221,11 @@ function AppContent() {
         setSortBy(savedFilters.sortBy || 'date')
         setShowHighlyRated(savedFilters.showHighlyRated || false)
         setSearchQuery(savedFilters.searchQuery || '')
+        setSourceNameFilter(typeof savedFilters.sourceNameFilter === 'string' ? savedFilters.sourceNameFilter : '')
+        const minP = savedFilters.minPopularityScore
+        setMinPopularityScore(
+          typeof minP === 'number' && minP > 0 && Number.isFinite(minP) ? Math.min(99, Math.floor(minP)) : null
+        )
       }
     }
   }, [])
@@ -312,10 +319,21 @@ function AppContent() {
         selectedCategories: Array.from(selectedCategories),
         sortBy,
         showHighlyRated,
-        searchQuery
+        searchQuery,
+        sourceNameFilter,
+        minPopularityScore,
       })
     }
-  }, [activeTabId, newsFilter, selectedCategories, sortBy, showHighlyRated, searchQuery])
+  }, [
+    activeTabId,
+    newsFilter,
+    selectedCategories,
+    sortBy,
+    showHighlyRated,
+    searchQuery,
+    sourceNameFilter,
+    minPopularityScore,
+  ])
 
   // Handle tab change
   const handleTabChange = (tabId) => {
@@ -334,6 +352,11 @@ function AppContent() {
       setSortBy(savedFilters.sortBy || 'date')
       setShowHighlyRated(savedFilters.showHighlyRated || false)
       setSearchQuery(savedFilters.searchQuery || '')
+      setSourceNameFilter(typeof savedFilters.sourceNameFilter === 'string' ? savedFilters.sourceNameFilter : '')
+      const minP = savedFilters.minPopularityScore
+      setMinPopularityScore(
+        typeof minP === 'number' && minP > 0 && Number.isFinite(minP) ? Math.min(99, Math.floor(minP)) : null
+      )
     } else {
       // Reset to defaults if no saved filters
       setNewsFilter('all')
@@ -341,6 +364,8 @@ function AppContent() {
       setSortBy('date')
       setShowHighlyRated(false)
       setSearchQuery('')
+      setSourceNameFilter('')
+      setMinPopularityScore(null)
     }
     
     // Force refresh news for the new tab
@@ -413,7 +438,9 @@ function AppContent() {
     newsFilter,
     showHighlyRated,
     searchQuery,
-    selectedCategories
+    selectedCategories,
+    sourceNameFilter,
+    minPopularityScore,
   }
   
   const filteredNews = filterNews(news, filters, combinedCategories)
@@ -548,8 +575,64 @@ function AppContent() {
     setNewsFilter('all')
     setShowHighlyRated(false)
     setSearchQuery('')
+    setSourceNameFilter('')
+    setMinPopularityScore(null)
     setSortBy('date')
   }
+
+  const handleArticleMetaFilter = useCallback((kind, value) => {
+    scrollToTop()
+    if (kind === 'language' && (value === 'en' || value === 'fr')) {
+      setNewsFilter((prev) => (prev === value ? 'all' : value))
+      return
+    }
+    if (kind === 'source') {
+      const next = String(value || '').trim()
+      setSourceNameFilter((prev) => (prev.trim() === next ? '' : next))
+      setSearchQuery('')
+      return
+    }
+    if (kind === 'category') {
+      toggleCategory(value)
+      return
+    }
+    if (kind === 'minPopularity') {
+      const n = Math.floor(Number(value))
+      if (!Number.isFinite(n) || n <= 0) return
+      const clamped = Math.min(99, n)
+      setMinPopularityScore((prev) => (prev === clamped ? null : clamped))
+    }
+  }, [scrollToTop, toggleCategory])
+
+  const hasNarrowingFilters = useMemo(
+    () =>
+      newsFilter !== 'all' ||
+      searchQuery.trim().length > 0 ||
+      sortBy !== 'date' ||
+      showHighlyRated ||
+      selectedCategories.size > 0 ||
+      sourceNameFilter.trim().length > 0 ||
+      minPopularityScore != null,
+    [
+      newsFilter,
+      searchQuery,
+      sortBy,
+      showHighlyRated,
+      selectedCategories,
+      sourceNameFilter,
+      minPopularityScore,
+    ]
+  )
+
+  const articleFilterActive = useMemo(
+    () => ({
+      newsFilter,
+      sourceTrim: sourceNameFilter.trim(),
+      minPopularityScore,
+      selectedCategoryKeys: Array.from(selectedCategories),
+    }),
+    [newsFilter, sourceNameFilter, minPopularityScore, selectedCategories]
+  )
 
   const dismissSplash = useCallback(() => {
     setShowSplash(false)
@@ -644,6 +727,7 @@ function AppContent() {
             onDescriptionFontLarger={handleDescriptionFontLarger}
             fontScaleAtMin={fontScaleAtMin}
             fontScaleAtMax={fontScaleAtMax}
+            narrowingFiltersActive={hasNarrowingFilters}
             headerTabsSlot={
               tabs.length > 1 ? (
                 <TabNavigation
@@ -672,6 +756,10 @@ function AppContent() {
             onHighlyRatedToggle={() => setShowHighlyRated(!showHighlyRated)}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            sourceNameFilter={sourceNameFilter}
+            minPopularityScore={minPopularityScore}
+            onClearSourceFilter={() => setSourceNameFilter('')}
+            onClearMinRankFilter={() => setMinPopularityScore(null)}
             onRefresh={handleFeedOrSavedRefresh}
             loading={feedView === 'saved' ? false : loading}
             autoRefresh={autoRefresh}
@@ -692,6 +780,8 @@ function AppContent() {
             newItemIds={feedView === 'saved' ? emptyNewItemIds : newItemIds}
             combinedCategories={combinedCategories}
             onCategoryClick={toggleCategory}
+            onArticleMetaFilter={handleArticleMetaFilter}
+            articleFilterActive={articleFilterActive}
             expandAllSignal={descExpandAllSignal}
             feedLayout={resolvedFeedLayout}
             descriptionFontScale={feedDescriptionFontScale}

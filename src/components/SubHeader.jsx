@@ -22,6 +22,10 @@ export const SubHeader = ({
   onHighlyRatedToggle,
   searchQuery,
   onSearchChange,
+  sourceNameFilter = '',
+  minPopularityScore = null,
+  onClearSourceFilter,
+  onClearMinRankFilter,
   onRefresh,
   loading,
   autoRefresh,
@@ -182,6 +186,30 @@ export const SubHeader = ({
               {t.clearFilters}
             </button>
           </div>
+          {(sourceNameFilter?.trim() || minPopularityScore != null) && (
+            <div className="sub-header__quick-filter-chips">
+              {sourceNameFilter?.trim() ? (
+                <button
+                  type="button"
+                  className="filter-quick-chip"
+                  onClick={onClearSourceFilter}
+                  title={t.clearFilters}
+                >
+                  {t.filterChipSource.replace('{name}', sourceNameFilter.trim())} ×
+                </button>
+              ) : null}
+              {minPopularityScore != null ? (
+                <button
+                  type="button"
+                  className="filter-quick-chip"
+                  onClick={onClearMinRankFilter}
+                  title={t.clearFilters}
+                >
+                  {t.filterChipMinRank.replace('{n}', String(minPopularityScore))} ×
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -11,6 +11,10 @@ export const NewsList = ({
   newItemIds,
   combinedCategories,
   onCategoryClick,
+  /** (kind, value) => void — language|source|category|minPopularity */
+  onArticleMetaFilter = null,
+  /** Current filter lens for highlighting / clear affordances on article meta. */
+  articleFilterActive = null,
   expandAllSignal = null,
   /** 'list' | 'columns2' | 'columns3' */
   feedLayout = 'list',
@@ -70,6 +74,8 @@ export const NewsList = ({
           isNew={newItemIds.has(item.id)}
           combinedCategories={combinedCategories}
           onCategoryClick={onCategoryClick}
+          onArticleMetaFilter={onArticleMetaFilter}
+          articleFilterActive={articleFilterActive}
           expandAllSignal={expandAllSignal}
           readLaterVariant={readLaterVariant}
           readLaterSaved={

@@ -52,6 +52,8 @@ export const Header = ({
   savedArticlesCount = 0,
   isSavedArticlesView = false,
   onSavedArticlesClick,
+  /** True when feed filters narrow the list (language, search, sort, categories, outlet, min rank, etc.). */
+  narrowingFiltersActive = false,
 }) => {
   const t = translations[uiLanguage]
   const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
@@ -214,6 +216,9 @@ export const Header = ({
       <svg className="header-filters-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
       </svg>
+      {narrowingFiltersActive ? (
+        <span className="header-filters-active-dot" aria-hidden />
+      ) : null}
     </button>
   ) : null
 
@@ -513,6 +518,9 @@ export const Header = ({
         <svg className="header-web-feed-float-filters__icon" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
         </svg>
+        {narrowingFiltersActive ? (
+          <span className="header-filters-active-dot header-filters-active-dot--float" aria-hidden />
+        ) : null}
       </button>
     ) : null
 
