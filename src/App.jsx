@@ -47,7 +47,15 @@ function AppContent() {
     () => loadSettingsPreferences().subheaderCollapsed
   )
   const [showToastMessages, setShowToastMessages] = useState(false)
-  const [showSplash, setShowSplash] = useState(true)
+  /** Skip mounting splash when already completed — avoids SplashScreen returning null while showSplash is still true (blank flash). */
+  const [showSplash, setShowSplash] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      return localStorage.getItem('splashScreenShown') !== 'true'
+    } catch {
+      return true
+    }
+  })
   const [colorMode, setColorMode] = useState(() => loadSettingsPreferences().theme)
   const [descExpandAllSignal, setDescExpandAllSignal] = useState({ nonce: 0, expanded: true })
   const [descBulkExpanded, setDescBulkExpanded] = useState(false)
@@ -543,9 +551,13 @@ function AppContent() {
     setSortBy('date')
   }
 
-  // Show Splash Screen on first load
+  const dismissSplash = useCallback(() => {
+    setShowSplash(false)
+  }, [])
+
+  // Show Splash Screen on first load (never mounted if splash already completed — see useState init)
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />
+    return <SplashScreen onComplete={dismissSplash} />
   }
 
   // Show Settings as full page
