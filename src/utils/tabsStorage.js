@@ -1,15 +1,73 @@
 // Utilities for managing tabs configuration
-import { loadNewsConfig } from './newsConfigUtils.js'
+import {
+  MONTREAL_DEFAULT_SOURCES,
+  CANADA_DEFAULT_SOURCES,
+  TECH_DEFAULT_SOURCES,
+  sourceToWebCatalogShape,
+} from '../constants/defaultSources.js'
 
 const TABS_KEY = 'newsfeed-tabs'
 const ACTIVE_TAB_KEY = 'newsfeed-active-tab'
 const TAB_FILTERS_KEY = 'newsfeed-tab-filters'
 
-// Default tab structure (Montreal preset sources in news.json)
+function newTabId() {
+  return `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/** Same three tabs + sources as a fresh install of the native app. */
+function createFreshDefaultTabs() {
+  return [
+    {
+      id: newTabId(),
+      name: 'Montreal',
+      sources: MONTREAL_DEFAULT_SOURCES.map(sourceToWebCatalogShape),
+    },
+    {
+      id: newTabId(),
+      name: 'Canada',
+      sources: CANADA_DEFAULT_SOURCES.map(sourceToWebCatalogShape),
+    },
+    {
+      id: newTabId(),
+      name: 'Tech',
+      sources: TECH_DEFAULT_SOURCES.map(sourceToWebCatalogShape),
+    },
+  ]
+}
+
+/**
+ * Match or create a tab by display name (accent-insensitive) and set its sources.
+ * @returns {{ nextTabs: object[], targetTabId: string, created: boolean }}
+ */
+export function upsertDefaultTab(tabs, displayName, sources) {
+  const norm = (s) =>
+    String(s)
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+  const n = norm(displayName)
+  const existing = tabs.find((t) => norm(t.name) === n)
+  if (existing) {
+    return {
+      nextTabs: tabs.map((t) => (t.id === existing.id ? { ...t, sources: [...sources] } : t)),
+      targetTabId: existing.id,
+      created: false,
+    }
+  }
+  const newTab = {
+    id: newTabId(),
+    name: displayName,
+    sources: [...sources],
+  }
+  return { nextTabs: [...tabs, newTab], targetTabId: newTab.id, created: true }
+}
+
+// Legacy empty tab (fallback only)
 export const createDefaultTab = () => ({
-  id: `tab-${Date.now()}`,
+  id: newTabId(),
   name: 'Montreal',
-  sources: []
+  sources: [],
 })
 
 // Load tabs from localStorage
@@ -35,52 +93,35 @@ export const loadTabs = () => {
     console.warn('Failed to load tabs from localStorage:', error)
   }
   
-  // Get default sources from news.json
-  let defaultSources = []
-  try {
-    const defaultConfig = loadNewsConfig()
-    if (defaultConfig && defaultConfig.sources && defaultConfig.sources.length > 0) {
-      defaultSources = defaultConfig.sources
-    }
-  } catch (error) {
-    console.warn('Failed to load default sources:', error)
-  }
-  
-  // If no tabs exist, create default tab with default sources
+  const montrealDefaults = MONTREAL_DEFAULT_SOURCES.map(sourceToWebCatalogShape)
+
+  // If no tabs exist, create Montreal + Canada + Tech (same as native app)
   if (tabs.length === 0) {
-    if (defaultSources.length > 0) {
-      const defaultTab = createDefaultTab()
-      defaultTab.sources = defaultSources
-      tabs = [defaultTab]
-      needsSave = true
-    } else {
-      tabs = [createDefaultTab()]
-    }
+    tabs = createFreshDefaultTabs()
+    needsSave = true
   } else {
-    // Only inject default sources if:
-    // 1. There's only one tab (the starter Montreal tab)
-    // 2. That tab is named Montreal (legacy: Default, migrated above) or has no name
+    // Only inject Montréal defaults if:
+    // 1. There's only one tab (legacy starter)
+    // 2. That tab is named Montreal / Default / Montréal or has no name
     // 3. That tab has no sources
-    // This allows users to have empty tabs when there are multiple tabs
     if (tabs.length === 1) {
       const defaultTab = tabs[0]
       const isDefaultTab =
-        defaultTab.name === 'Montreal' || defaultTab.name === 'Default' || !defaultTab.name
-      const hasNoSources = !defaultTab.sources || 
-                          !Array.isArray(defaultTab.sources) || 
-                          defaultTab.sources.length === 0
-      
-      if (isDefaultTab && hasNoSources && defaultSources.length > 0) {
-        // Inject default sources into the default tab only
+        defaultTab.name === 'Montreal' ||
+        defaultTab.name === 'Montréal' ||
+        defaultTab.name === 'Default' ||
+        !defaultTab.name
+      const hasNoSources =
+        !defaultTab.sources || !Array.isArray(defaultTab.sources) || defaultTab.sources.length === 0
+
+      if (isDefaultTab && hasNoSources) {
         needsSave = true
         tabs[0] = {
           ...defaultTab,
-          sources: [...defaultSources] // Create a copy to avoid reference issues
+          sources: [...montrealDefaults],
         }
       }
     }
-    // If there are multiple tabs, don't auto-fill any of them
-    // Users can manage their tabs independently
   }
   
   // Save tabs if we made any changes

@@ -34,6 +34,21 @@ export const translations = {
     articlesCountMobileAbbr: 'art.',
     articleCountMobileAbbr: 'art.',
     showing: 'Showing',
+    feedLayoutSelectAria: 'Article layout',
+    feedLayoutOptionList: 'List layout',
+    feedLayoutOption2: 'Two columns',
+    feedLayoutOption3: 'Three columns',
+    feedFontSmaller: 'Smaller description text',
+    feedFontLarger: 'Larger description text',
+    feedFontScaleGroupAria: 'Description text size',
+    savedArticlesHeaderA11y: 'Saved articles',
+    savedArticlesHeaderCountA11y: 'Saved articles, {n} items',
+    savedArticlesTitle: 'Saved',
+    savedArticlesEmptyTitle: 'Nothing saved yet',
+    savedArticlesEmptyHint: 'On the feed, use + on a card image to save an article for later.',
+    saveArticleA11y: 'Save article for later',
+    unsaveArticleA11y: 'Remove from saved',
+    removeSavedArticleA11y: 'Remove saved article',
     clearFilters: 'Clear All Filters',
     settings: 'Settings',
     titleBackToFeed: 'Back to news feed',
@@ -115,10 +130,36 @@ export const translations = {
     syndicationAtomBadgeTitle: 'Article from an Atom feed (e.g. many YouTube channel feeds)',
     detectingLanguage: 'Auto-detecting...',
     tabsListAria: 'News feed tabs',
+    /** Settings header tabs: screen-reader suffix for active feeds count; replace {n}. */
+    settingsTabSourcesCountA11y: '{n} sources',
     createTab: 'Create Tab',
     showToastMessages: 'Show fetch banners',
-    note: 'Note:',
-    cacheNotice: 'News articles are locally cached. When you add or remove sources, you may need to refresh the page to see updated articles.',
+    restoreDefaultSources: 'Restore default sources',
+    restoreDefaultTitle: 'Restore default sources?',
+    restoreDefaultMessageHasSources:
+      'All feeds currently in this tab will be removed and replaced with the built-in Montréal feeds. Other tabs are unchanged.',
+    restoreDefaultMessageEmptyTab:
+      'The built-in Montréal feeds will be added to this tab. Other tabs are unchanged.',
+    restoreDefaultMessageHasSourcesCanada:
+      'All feeds currently in this tab will be removed and replaced with the built-in Canada feeds. Other tabs are unchanged.',
+    restoreDefaultMessageEmptyTabCanada:
+      'The built-in Canada feeds will be added to this tab. Other tabs are unchanged.',
+    restoreDefaultMessageHasSourcesTech:
+      'All feeds currently in this tab will be removed and replaced with the built-in Tech feeds. Other tabs are unchanged.',
+    restoreDefaultMessageEmptyTabTech:
+      'The built-in Tech feeds will be added to this tab. Other tabs are unchanged.',
+    restoreUnknownTabTitle: 'Restore built-in sources',
+    restoreUnknownTabMessage:
+      'You are in a custom tab. Choose which built-in tab to restore (or create if it does not exist yet).',
+    restoreMontrealTab: 'Restore Montréal tab',
+    restoreCanadaTab: 'Restore Canada tab',
+    restoreTechTab: 'Restore Tech tab',
+    restore: 'Restore',
+    restoreDefaultsDone: 'Default sources restored.',
+    restoreDefaultsAlreadyTitle: 'Already default sources',
+    restoreDefaultsAlreadyMessage:
+      'This tab already has the same feeds as the built-in list for this category. Nothing to change.',
+    restoreDefaultsAlreadyOk: 'OK',
     deleteTab: 'Delete',
     editTabName: 'Double-click to edit',
     tabName: 'Tab Name',
@@ -204,7 +245,7 @@ export const translations = {
       { group: '🌙 / ☀️', text: 'Dark or light theme.' },
       { group: '⚙️', text: 'Opens Settings (tabs, sources, manual feed, backup).' },
       {
-        group: 'Phone: ▲ / ▼ by article count',
+        group: 'Phone: ▲ / ▼ next to the title',
         text: 'Hides or shows the whole icon row (filters, theme, language, settings). Remembered for next time.',
       },
       {
@@ -222,6 +263,14 @@ export const translations = {
         text: 'Expand or shrink all article descriptions at once when the list supports it.',
       },
       {
+        group: 'Layout & text (wide screen)',
+        text: 'In the header: the layout icon opens a menu of three layout icons (no labels). Layout follows window width until you pick one; choose the same icon again to go back to width-based layout. A− / A+ change description size; saved in the browser.',
+      },
+      {
+        group: '🔖 Saved',
+        text: 'Header button opens your saved list (stored in this browser). On the feed, + on a card image saves; the same control shows a bookmark when already saved. On the saved page, trash on the image removes it.',
+      },
+      {
         group: 'Articles',
         text: 'Title → full story in a new tab. “more…” → longer text. New rows stay highlighted briefly.',
       },
@@ -234,9 +283,8 @@ export const translations = {
       { group: 'Tabs', text: '+ add, drag to reorder, × remove — keep at least one.' },
       {
         group: 'Phone header',
-        text: 'If icons are hidden, tap ⋮. The ▼/▲ by the article count on the feed restores the icon row (same saved choice).',
+        text: 'If icons are hidden, tap ⋮. The ▼/▲ on the feed header restores the icon row (same saved choice).',
       },
-      { group: 'Cache', text: 'Reload the page if counts look wrong after editing sources.' },
       { group: 'Countries', text: 'Sidebar pills limit which outlets appear while you search sources.' },
       { group: 'Sources', text: 'Left: catalog. Right: this tab’s list — checkboxes, +/−, bulk actions.' },
       {
@@ -280,6 +328,21 @@ export const translations = {
     articlesCountMobileAbbr: 'act.',
     articleCountMobileAbbr: 'act.',
     showing: 'Affichage de',
+    feedLayoutSelectAria: 'Disposition des articles',
+    feedLayoutOptionList: 'Affichage liste',
+    feedLayoutOption2: 'Deux colonnes',
+    feedLayoutOption3: 'Trois colonnes',
+    feedFontSmaller: 'Texte de description plus petit',
+    feedFontLarger: 'Texte de description plus grand',
+    feedFontScaleGroupAria: 'Taille du texte des descriptions',
+    savedArticlesHeaderA11y: 'Articles enregistrés',
+    savedArticlesHeaderCountA11y: 'Articles enregistrés, {n}',
+    savedArticlesTitle: 'Enregistrés',
+    savedArticlesEmptyTitle: 'Rien d’enregistré pour l’instant',
+    savedArticlesEmptyHint: 'Sur le fil, utilisez + sur l’image d’une carte pour enregistrer un article.',
+    saveArticleA11y: 'Enregistrer l’article pour plus tard',
+    unsaveArticleA11y: 'Retirer des enregistrés',
+    removeSavedArticleA11y: 'Supprimer l’article enregistré',
     clearFilters: 'Effacer tous les filtres',
     settings: 'Paramètres',
     titleBackToFeed: 'Retour au fil d’actualités',
@@ -361,10 +424,35 @@ export const translations = {
     syndicationAtomBadgeTitle: 'Article issu d’un flux Atom (ex. nombre de flux chaîne YouTube)',
     detectingLanguage: 'Détection automatique...',
     tabsListAria: 'Onglets du fil d’actualités',
+    settingsTabSourcesCountA11y: '{n} sources',
     createTab: 'Créer un onglet',
     showToastMessages: 'Afficher les bannières de récupération',
-    note: 'Note :',
-    cacheNotice: 'Les articles de presse sont mis en cache localement. Lorsque vous ajoutez ou supprimez des sources, vous devrez peut-être actualiser la page pour voir les articles mis à jour.',
+    restoreDefaultSources: 'Rétablir les sources par défaut',
+    restoreDefaultTitle: 'Rétablir les sources par défaut ?',
+    restoreDefaultMessageHasSources:
+      'Tous les flux actuellement dans cet onglet seront retirés et remplacés par les flux Montréal intégrés. Les autres onglets ne changent pas.',
+    restoreDefaultMessageEmptyTab:
+      'Les flux Montréal intégrés seront ajoutés à cet onglet. Les autres onglets ne changent pas.',
+    restoreDefaultMessageHasSourcesCanada:
+      'Tous les flux actuellement dans cet onglet seront retirés et remplacés par les flux Canada intégrés. Les autres onglets ne changent pas.',
+    restoreDefaultMessageEmptyTabCanada:
+      'Les flux Canada intégrés seront ajoutés à cet onglet. Les autres onglets ne changent pas.',
+    restoreDefaultMessageHasSourcesTech:
+      'Tous les flux actuellement dans cet onglet seront retirés et remplacés par les flux Tech intégrés. Les autres onglets ne changent pas.',
+    restoreDefaultMessageEmptyTabTech:
+      'Les flux Tech intégrés seront ajoutés à cet onglet. Les autres onglets ne changent pas.',
+    restoreUnknownTabTitle: 'Rétablir les sources intégrées',
+    restoreUnknownTabMessage:
+      'Vous êtes dans un onglet personnalisé. Choisissez quel onglet intégré rétablir (ou créer s’il n’existe pas encore).',
+    restoreMontrealTab: 'Rétablir l’onglet Montréal',
+    restoreCanadaTab: 'Rétablir l’onglet Canada',
+    restoreTechTab: 'Rétablir l’onglet Tech',
+    restore: 'Rétablir',
+    restoreDefaultsDone: 'Sources par défaut rétablies.',
+    restoreDefaultsAlreadyTitle: 'Déjà les sources par défaut',
+    restoreDefaultsAlreadyMessage:
+      'Cet onglet contient déjà les mêmes flux que la liste intégrée pour cette catégorie. Aucun changement.',
+    restoreDefaultsAlreadyOk: 'D’accord',
     deleteTab: 'Supprimer',
     editTabName: 'Double-cliquez pour modifier',
     tabName: 'Nom de l\'onglet',
@@ -450,7 +538,7 @@ export const translations = {
       { group: '🌙 / ☀️', text: 'Thème sombre ou clair.' },
       { group: '⚙️', text: 'Ouvre Paramètres (onglets, sources, flux manuel, sauvegarde).' },
       {
-        group: 'Téléphone : ▲ / ▼ près du nombre',
+        group: 'Téléphone : ▲ / ▼ près du titre',
         text: 'Affiche ou masque toute la rangée d’icônes (filtres, thème, langue, paramètres). Mémorisé.',
       },
       {
@@ -468,6 +556,14 @@ export const translations = {
         text: 'Développer ou réduire toutes les descriptions d’articles quand c’est disponible.',
       },
       {
+        group: 'Mise en page et texte (grand écran)',
+        text: 'Dans le bandeau : l’icône de mise en page ouvre un menu de trois pictogrammes (sans libellés). Tant que vous n’en choisissez pas, la disposition suit la largeur de la fenêtre ; choisir le même pictogramme à nouveau revient à ce mode. A− / A+ règlent la taille du texte des descriptions ; mémorisé dans le navigateur.',
+      },
+      {
+        group: '🔖 Enregistrés',
+        text: 'Le bouton du bandeau ouvre la liste enregistrée (mémorisée dans ce navigateur). Sur le fil, + sur l’image enregistre ; un marque-page indique que c’est déjà enregistré. Sur la page Enregistrés, la corbeille sur l’image retire l’article.',
+      },
+      {
         group: 'Articles',
         text: 'Titre → article complet dans un nouvel onglet. « plus… » → texte plus long. Les nouvelles lignes restent mises en évidence un moment.',
       },
@@ -480,9 +576,8 @@ export const translations = {
       { group: 'Onglets', text: 'Le + ajoute, glisser-déposer pour l’ordre, × supprime — il en faut au moins un.' },
       {
         group: 'Bandeau téléphone',
-        text: 'Icônes masquées : touchez ⋮. Sur le fil, ▼/▲ près du nombre d’articles réaffiche la rangée (même réglage enregistré).',
+        text: 'Icônes masquées : touchez ⋮. Sur le fil, ▼/▲ dans le bandeau réaffiche la rangée (même réglage enregistré).',
       },
-      { group: 'Cache', text: 'Rechargez la page si les compteurs semblent faux après un changement de sources.' },
       { group: 'Pays', text: 'La colonne latérale limite les médias proposés lors de la recherche de sources.' },
       { group: 'Sources', text: 'Gauche : catalogue. Droite : liste de l’onglet actif — cases, +/−, actions groupées.' },
       {

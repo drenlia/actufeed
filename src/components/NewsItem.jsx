@@ -41,6 +41,10 @@ export const NewsItem = ({
   combinedCategories,
   onCategoryClick,
   expandAllSignal = null,
+  readLaterVariant = null,
+  readLaterSaved = false,
+  onToggleSavedArticle = null,
+  onRemoveSavedArticle = null,
 }) => {
   const t = translations[uiLanguage]
   const formatDateLocalized = (date) => formatDate(date, uiLanguage)
@@ -139,6 +143,58 @@ export const NewsItem = ({
                 decoding="async"
               />
             </a>
+            {readLaterVariant === 'feed' && onToggleSavedArticle ? (
+              <button
+                type="button"
+                className={`news-read-later-fab${readLaterSaved ? ' news-read-later-fab--saved' : ''}`}
+                aria-label={readLaterSaved ? t.unsaveArticleA11y : t.saveArticleA11y}
+                title={readLaterSaved ? t.unsaveArticleA11y : t.saveArticleA11y}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onToggleSavedArticle(item)
+                }}
+              >
+                <span className="news-read-later-fab__inner" aria-hidden>
+                  {readLaterSaved ? (
+                    <svg className="news-read-later-fab__icon" viewBox="0 0 24 24" width="20" height="20">
+                      <path
+                        fill="currentColor"
+                        d="M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2z"
+                      />
+                    </svg>
+                  ) : (
+                    <span className="news-read-later-fab__plus">+</span>
+                  )}
+                </span>
+              </button>
+            ) : null}
+            {readLaterVariant === 'saved' && onRemoveSavedArticle ? (
+              <button
+                type="button"
+                className="news-read-later-fab news-read-later-fab--remove"
+                aria-label={t.removeSavedArticleA11y}
+                title={t.removeSavedArticleA11y}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onRemoveSavedArticle(item.id)
+                }}
+              >
+                <span className="news-read-later-fab__inner" aria-hidden>
+                  <svg className="news-read-later-fab__icon" viewBox="0 0 24 24" width="20" height="20">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"
+                    />
+                  </svg>
+                </span>
+              </button>
+            ) : null}
           </div>
         )}
         <div className="news-text-content">

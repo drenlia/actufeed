@@ -7,15 +7,26 @@ import {
   useMatchMedia,
 } from '../hooks/useMatchMedia'
 
+const LAYOUT_ICON_URL = {
+  list: '/icons/as-list.png',
+  columns2: '/icons/2-columns.png',
+  columns3: '/icons/3-columns.png',
+}
+
+const LAYOUT_MENU_KEYS = ['list', 'columns2', 'columns3']
+
+const LAYOUT_OPTION_ARIA_KEY = {
+  list: 'feedLayoutOptionList',
+  columns2: 'feedLayoutOption2',
+  columns3: 'feedLayoutOption3',
+}
+
 const utilSlot = (child) => <div className="header-util-slot">{child}</div>
 
 export const Header = ({
   uiLanguage,
   onLanguageToggle,
-  articleCount,
-  totalCount,
   onSettingsClick,
-  showArticleCount = true,
   isSettingsPage = false,
   onTitleClick,
   onHelpClick,
@@ -31,15 +42,97 @@ export const Header = ({
   webFeedHeaderShrunk = false,
   onWebFeedHeaderShrunkChange,
   headerTabsSlot = null,
+  feedLayoutPreference = 'auto',
+  onFeedLayoutPreferenceChange,
+  resolvedFeedLayout = 'list',
+  onDescriptionFontSmaller,
+  onDescriptionFontLarger,
+  fontScaleAtMin = false,
+  fontScaleAtMax = false,
+  savedArticlesCount = 0,
+  isSavedArticlesView = false,
+  onSavedArticlesClick,
 }) => {
   const t = translations[uiLanguage]
   const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
   const isWideFeedHeaderLayout = useMatchMedia(DESKTOP_HEADER_LAYOUT_MEDIA)
+  const showFeedLayoutSelect =
+    !isSettingsPage && isWideFeedHeaderLayout && Boolean(onFeedLayoutPreferenceChange)
+  const showFontScaleButtons = !isSettingsPage && (onDescriptionFontSmaller || onDescriptionFontLarger)
+  const layoutPreviewIcon = LAYOUT_ICON_URL[resolvedFeedLayout] || LAYOUT_ICON_URL.list
+  const layoutMenuHighlightKey =
+    feedLayoutPreference === 'auto' || !feedLayoutPreference ? resolvedFeedLayout : feedLayoutPreference
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  const [feedLayoutPopoverOpen, setFeedLayoutPopoverOpen] = useState(false)
   const launcherRef = useRef(null)
   const sheetRef = useRef(null)
+  const feedLayoutPickerRef = useRef(null)
+  const utilToolbarRef = useRef(null)
+  const [hideFontScaleInUtilToolbar, setHideFontScaleInUtilToolbar] = useState(false)
+
+  const handleFeedLayoutIconPick = useCallback(
+    (value) => {
+      if (!onFeedLayoutPreferenceChange) return
+      if (feedLayoutPreference === value) {
+        onFeedLayoutPreferenceChange('auto')
+      } else {
+        onFeedLayoutPreferenceChange(value)
+      }
+      setFeedLayoutPopoverOpen(false)
+    },
+    [feedLayoutPreference, onFeedLayoutPreferenceChange]
+  )
 
   const useCompactMobileToolbar = Boolean(mobileCompactToolbar && onMobileCompactToolbarChange)
+
+  /* Phone: drop A−/A+ from the icon row when it would need horizontal scroll (reset on window resize). */
+  useLayoutEffect(() => {
+    if (!isPhoneLayout || !showFontScaleButtons || useCompactMobileToolbar) {
+      setHideFontScaleInUtilToolbar(false)
+      return undefined
+    }
+
+    const el = utilToolbarRef.current
+    if (!el) return undefined
+
+    let rafId = 0
+
+    const measure = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        if (!el.isConnected) return
+        setHideFontScaleInUtilToolbar((hidden) => {
+          if (hidden) return hidden
+          return el.scrollWidth > el.clientWidth + 2
+        })
+      })
+    }
+
+    const onWindowResize = () => {
+      setHideFontScaleInUtilToolbar(false)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(measure)
+      })
+    }
+
+    let ro = null
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure)
+      ro.observe(el)
+    }
+    window.addEventListener('resize', onWindowResize)
+    measure()
+
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', onWindowResize)
+      cancelAnimationFrame(rafId)
+    }
+  }, [isPhoneLayout, showFontScaleButtons, useCompactMobileToolbar])
+
+  const showDesktopFeedMeta =
+    !isSettingsPage &&
+    (showFeedLayoutSelect || (showFontScaleButtons && !isPhoneLayout))
 
   const githubUrl = 'https://github.com/drenlia/actufeed'
 
@@ -68,6 +161,44 @@ export const Header = ({
         </svg>
       </button>
     ) : null
+
+  const showSavedArticlesButton = !isSettingsPage && Boolean(onSavedArticlesClick)
+
+  const savedArticlesBtn = showSavedArticlesButton ? (
+    <button
+      type="button"
+      className={`header-saved-btn${isSavedArticlesView ? ' header-saved-btn--active' : ''}`}
+      onClick={onSavedArticlesClick}
+      aria-pressed={isSavedArticlesView}
+      aria-label={
+        savedArticlesCount > 0
+          ? t.savedArticlesHeaderCountA11y.replace('{n}', String(savedArticlesCount))
+          : t.savedArticlesHeaderA11y
+      }
+    >
+      <svg className="header-saved-btn__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinejoin="round"
+          d="M6 4h12v16l-6-3-6 3V4z"
+        />
+        <path
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          d="M9 4v5l3-2 3 2V4"
+        />
+      </svg>
+      {savedArticlesCount > 0 ? (
+        <span className="header-saved-btn__pill" aria-hidden>
+          {savedArticlesCount > 99 ? '99+' : savedArticlesCount}
+        </span>
+      ) : null}
+    </button>
+  ) : null
 
   const filtersBtn = onToggleFilters ? (
     <button
@@ -156,10 +287,47 @@ export const Header = ({
     </button>
   ) : null
 
+  const fontSmallerToolbarBtn =
+    showFontScaleButtons &&
+    isPhoneLayout &&
+    !hideFontScaleInUtilToolbar &&
+    onDescriptionFontSmaller ? (
+      <button
+        type="button"
+        className="header-font-scale-btn header-font-scale-btn--toolbar"
+        onClick={onDescriptionFontSmaller}
+        disabled={fontScaleAtMin}
+        aria-label={t.feedFontSmaller}
+        title={t.feedFontSmaller}
+      >
+        A−
+      </button>
+    ) : null
+
+  const fontLargerToolbarBtn =
+    showFontScaleButtons &&
+    isPhoneLayout &&
+    !hideFontScaleInUtilToolbar &&
+    onDescriptionFontLarger ? (
+      <button
+        type="button"
+        className="header-font-scale-btn header-font-scale-btn--toolbar"
+        onClick={onDescriptionFontLarger}
+        disabled={fontScaleAtMax}
+        aria-label={t.feedFontLarger}
+        title={t.feedFontLarger}
+      >
+        A+
+      </button>
+    ) : null
+
   const toolbarSlots = (
     <>
       {utilSlot(expandBtn)}
       {utilSlot(filtersBtn)}
+      {utilSlot(savedArticlesBtn)}
+      {utilSlot(fontSmallerToolbarBtn)}
+      {utilSlot(fontLargerToolbarBtn)}
       {utilSlot(themeBtn)}
       {utilSlot(langBtn)}
       {utilSlot(helpBtn)}
@@ -215,6 +383,31 @@ export const Header = ({
   useEffect(() => {
     if (!isSettingsPage) setToolsMenuOpen(false)
   }, [isSettingsPage])
+
+  useEffect(() => {
+    if (!showFeedLayoutSelect) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- picker removed below desktop breakpoint
+      setFeedLayoutPopoverOpen(false)
+    }
+  }, [showFeedLayoutSelect])
+
+  useEffect(() => {
+    if (!feedLayoutPopoverOpen) return undefined
+    const onDocMouseDown = (e) => {
+      if (feedLayoutPickerRef.current && !feedLayoutPickerRef.current.contains(e.target)) {
+        setFeedLayoutPopoverOpen(false)
+      }
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setFeedLayoutPopoverOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [feedLayoutPopoverOpen])
 
   const mobileSheet =
     useCompactMobileToolbar && isSettingsPage && toolsMenuOpen
@@ -365,27 +558,6 @@ export const Header = ({
           </div>
         </div>
 
-        {showArticleCount && articleCount !== undefined && (
-          <div className="header-article-count-mobile-wrap">
-            <span
-              className="header-article-count-mobile"
-              aria-live="polite"
-              aria-label={`${articleCount} ${articleCount === 1 ? t.articleCount : t.articlesCount}`}
-            >
-              <strong>{articleCount}</strong>{' '}
-              <span className="header-article-count-mobile__word header-article-count-mobile__word--full">
-                {articleCount === 1 ? t.articleCount : t.articlesCount}
-              </span>
-              <span
-                className="header-article-count-mobile__word header-article-count-mobile__word--short"
-                aria-hidden="true"
-              >
-                {articleCount === 1 ? t.articleCountMobileAbbr : t.articlesCountMobileAbbr}
-              </span>
-            </span>
-          </div>
-        )}
-
         {isPhoneLayout && !isSettingsPage && onMobileCompactToolbarChange && (
           <button
             type="button"
@@ -434,24 +606,115 @@ export const Header = ({
         {feedTabsInHeader ? <div className="header-feed-tabs">{headerTabsSlot}</div> : null}
 
         <div className="header-desktop-actions">
-          {showArticleCount && articleCount !== undefined && (
+          {showDesktopFeedMeta ? (
             <div className="header-news-meta header-news-meta--desktop">
-              <div className="news-counter">
-                <span className="counter-text">
-                  {t.showing} <strong>{articleCount}</strong>{' '}
-                  {articleCount === 1 ? t.articleCount : t.articlesCount}
-                  {totalCount !== undefined && totalCount !== articleCount && (
-                    <span className="counter-total">
-                      {' '}
-                      / {totalCount} {t.articlesCount}
-                    </span>
-                  )}
-                </span>
-              </div>
+              {showFeedLayoutSelect ? (
+                <div className="header-feed-layout-row">
+                  <div className="header-feed-layout-picker" ref={feedLayoutPickerRef}>
+                    <button
+                      type="button"
+                      className="header-feed-layout-trigger"
+                      aria-label={t.feedLayoutSelectAria}
+                      aria-expanded={feedLayoutPopoverOpen}
+                      aria-haspopup="listbox"
+                      onClick={() => setFeedLayoutPopoverOpen((o) => !o)}
+                    >
+                      <img
+                        src={layoutPreviewIcon}
+                        alt=""
+                        className="header-feed-layout-trigger__icon"
+                        width={22}
+                        height={22}
+                        decoding="async"
+                      />
+                      <span className="header-feed-layout-trigger__chevron" aria-hidden />
+                    </button>
+                    {feedLayoutPopoverOpen ? (
+                      <div
+                        className="header-feed-layout-panel"
+                        role="listbox"
+                        aria-label={t.feedLayoutSelectAria}
+                      >
+                        {LAYOUT_MENU_KEYS.map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            role="option"
+                            aria-selected={layoutMenuHighlightKey === key}
+                            className={`header-feed-layout-option${
+                              layoutMenuHighlightKey === key ? ' header-feed-layout-option--selected' : ''
+                            }`}
+                            onClick={() => handleFeedLayoutIconPick(key)}
+                            aria-label={t[LAYOUT_OPTION_ARIA_KEY[key]]}
+                          >
+                            <img
+                              src={LAYOUT_ICON_URL[key]}
+                              alt=""
+                              className="header-feed-layout-option__icon"
+                              width={22}
+                              height={22}
+                              decoding="async"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  {showFontScaleButtons ? (
+                    <div className="header-font-scale-desktop" role="group" aria-label={t.feedFontScaleGroupAria}>
+                      <button
+                        type="button"
+                        className="header-font-scale-btn"
+                        onClick={onDescriptionFontSmaller}
+                        disabled={fontScaleAtMin}
+                        aria-label={t.feedFontSmaller}
+                        title={t.feedFontSmaller}
+                      >
+                        A−
+                      </button>
+                      <button
+                        type="button"
+                        className="header-font-scale-btn"
+                        onClick={onDescriptionFontLarger}
+                        disabled={fontScaleAtMax}
+                        aria-label={t.feedFontLarger}
+                        title={t.feedFontLarger}
+                      >
+                        A+
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="header-feed-layout-row header-feed-layout-row--font-only">
+                  <div className="header-font-scale-desktop" role="group" aria-label={t.feedFontScaleGroupAria}>
+                    <button
+                      type="button"
+                      className="header-font-scale-btn"
+                      onClick={onDescriptionFontSmaller}
+                      disabled={fontScaleAtMin}
+                      aria-label={t.feedFontSmaller}
+                      title={t.feedFontSmaller}
+                    >
+                      A−
+                    </button>
+                    <button
+                      type="button"
+                      className="header-font-scale-btn"
+                      onClick={onDescriptionFontLarger}
+                      disabled={fontScaleAtMax}
+                      aria-label={t.feedFontLarger}
+                      title={t.feedFontLarger}
+                    >
+                      A+
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          ) : null}
 
-          <div className="header-util-toolbar">
+          <div ref={utilToolbarRef} className="header-util-toolbar">
             {toolbarSlots}
             {utilSlot(webFeedToolbarToggle)}
           </div>

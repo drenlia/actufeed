@@ -392,6 +392,15 @@ export const HelpModal = ({
             </section>
           )}
         </div>
+        <p className="help-modal__icons8-attribution">
+          <a target="_blank" rel="noopener noreferrer" href="https://icons8.com/icon/8174/table">
+            Table
+          </a>{' '}
+          icon by{' '}
+          <a target="_blank" rel="noopener noreferrer" href="https://icons8.com">
+            Icons8
+          </a>
+        </p>
       </div>
     </div>
   )

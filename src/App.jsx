@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import './App.css'
-import { translations } from './constants/translations'
 import { useNews } from './hooks/useNews'
 import { useCategories } from './hooks/useCategories'
 import { getCombinedCategories, getAvailableCategories } from './utils/categoryCombiner'
@@ -15,7 +14,22 @@ import { HelpModal } from './components/HelpModal'
 import { ToastProvider } from './contexts/ToastContext'
 import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, saveTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
 import { loadSettingsPreferences, saveSettingsPreferences } from './utils/settingsStorage'
+import {
+  resolveFeedLayout,
+  clampFeedDescriptionFontScale,
+  FEED_DESC_FONT_SCALE_MIN,
+  FEED_DESC_FONT_SCALE_MAX,
+  FEED_DESC_FONT_SCALE_STEP,
+} from './utils/feedLayoutPrefs'
+import { useWindowWidth } from './hooks/useWindowWidth'
 import { countExpandableDescriptionItems } from './utils/newsDescriptionExpand'
+import {
+  loadReadLaterList,
+  addReadLaterFromNewsItem,
+  removeReadLater,
+  savedArticleToNewsItem,
+} from './utils/readLaterStorage'
+import { translations } from './constants/translations'
 
 // Inner App component that uses hooks (must be inside ToastProvider)
 function AppContent() {
@@ -45,6 +59,21 @@ function AppContent() {
   const [feedHeaderWebShrunk, setFeedHeaderWebShrunk] = useState(
     () => loadSettingsPreferences().feedHeaderWebShrunk
   )
+  const [feedLayoutPreference, setFeedLayoutPreference] = useState(
+    () => loadSettingsPreferences().feedLayoutPreference ?? 'auto'
+  )
+  const [feedDescriptionFontScale, setFeedDescriptionFontScale] = useState(() =>
+    clampFeedDescriptionFontScale(loadSettingsPreferences().feedDescriptionFontScale ?? 1)
+  )
+  const [feedView, setFeedView] = useState('feed')
+  const [readLaterItems, setReadLaterItems] = useState(() => loadReadLaterList())
+  const viewportWidth = useWindowWidth()
+
+  const reloadReadLater = useCallback(() => {
+    setReadLaterItems(loadReadLaterList())
+  }, [])
+
+  const emptyNewItemIds = useMemo(() => new Set(), [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorMode
@@ -66,6 +95,42 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
+  const handleTitleClick = useCallback(() => {
+    if (feedView === 'saved') {
+      setFeedView('feed')
+    }
+    scrollToTop()
+  }, [feedView, scrollToTop])
+
+  const handleSavedArticlesNav = useCallback(() => {
+    setFeedView((v) => (v === 'saved' ? 'feed' : 'saved'))
+  }, [])
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [feedView])
+
+  const handleToggleSavedArticle = useCallback(
+    (item) => {
+      const id = item.id
+      if (readLaterItems.some((i) => i.id === id)) {
+        removeReadLater(id)
+      } else {
+        addReadLaterFromNewsItem(item)
+      }
+      reloadReadLater()
+    },
+    [readLaterItems, reloadReadLater]
+  )
+
+  const handleRemoveSavedArticle = useCallback(
+    (id) => {
+      removeReadLater(id)
+      reloadReadLater()
+    },
+    [reloadReadLater]
+  )
+
   const toggleColorMode = useCallback(() => {
     setColorMode((m) => {
       const next = m === 'dark' ? 'light' : 'dark'
@@ -83,6 +148,10 @@ function AppContent() {
     setColorMode(preferences.theme)
     setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
     setFeedHeaderWebShrunk(preferences.feedHeaderWebShrunk)
+    setFeedLayoutPreference(preferences.feedLayoutPreference ?? 'auto')
+    setFeedDescriptionFontScale(
+      clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale ?? 1)
+    )
 
     const loadedTabs = loadTabs()
     setTabs(loadedTabs)
@@ -157,6 +226,10 @@ function AppContent() {
     )
     setMobileHeaderCompactToolbar(preferences.mobileHeaderCompactToolbar)
     setFeedHeaderWebShrunk(preferences.feedHeaderWebShrunk)
+    setFeedLayoutPreference(preferences.feedLayoutPreference ?? 'auto')
+    setFeedDescriptionFontScale(
+      clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale ?? 1)
+    )
 
     const urlParams = new URLSearchParams(window.location.search)
     const tabNameFromUrl = urlParams.get('tab')
@@ -238,6 +311,7 @@ function AppContent() {
 
   // Handle tab change
   const handleTabChange = (tabId) => {
+    setFeedView('feed')
     setActiveTabIdState(tabId)
     setActiveTabId(tabId)
     
@@ -333,15 +407,78 @@ function AppContent() {
   const filteredNews = filterNews(news, filters, combinedCategories)
   const sortedNews = sortNews(filteredNews, sortBy)
 
-  const expandableDescCount = useMemo(
-    () => countExpandableDescriptionItems(sortedNews),
-    [sortedNews]
+  const savedNewsItems = useMemo(
+    () => readLaterItems.map(savedArticleToNewsItem),
+    [readLaterItems]
   )
+  const filteredSavedNews = useMemo(
+    () => filterNews(savedNewsItems, filters, combinedCategories),
+    [savedNewsItems, filters, combinedCategories]
+  )
+  const sortedSavedNews = useMemo(() => sortNews(filteredSavedNews, sortBy), [filteredSavedNews, sortBy])
+
+  const listNews = feedView === 'saved' ? sortedSavedNews : sortedNews
+
+  /** Match actufeed-app FeedTabStrip: no pill while loading or when count is 0. */
+  const headerActiveTabArticleCount = useMemo(() => {
+    if (feedView === 'saved') {
+      return listNews.length > 0 ? listNews.length : undefined
+    }
+    if (loading || listNews.length === 0) return undefined
+    return listNews.length
+  }, [feedView, listNews.length, loading])
+
+  const feedTabCountAriaLabel = useCallback(
+    (tabName, count) => {
+      const t = translations[uiLanguage]
+      const unit = count === 1 ? t.articleCount : t.articlesCount
+      return `${tabName}, ${count} ${unit}`
+    },
+    [uiLanguage]
+  )
+
+  const expandableDescCount = useMemo(
+    () => countExpandableDescriptionItems(listNews),
+    [listNews]
+  )
+
+  const resolvedFeedLayout = useMemo(
+    () => resolveFeedLayout(feedLayoutPreference, viewportWidth),
+    [feedLayoutPreference, viewportWidth]
+  )
+
+  const handleFeedLayoutPreferenceChange = useCallback((value) => {
+    const next =
+      value === 'list' || value === 'columns2' || value === 'columns3' || value === 'auto'
+        ? value
+        : 'auto'
+    setFeedLayoutPreference(next)
+    saveSettingsPreferences({ feedLayoutPreference: next })
+  }, [])
+
+  const handleDescriptionFontSmaller = useCallback(() => {
+    setFeedDescriptionFontScale((prev) => {
+      const n = clampFeedDescriptionFontScale(prev - FEED_DESC_FONT_SCALE_STEP)
+      saveSettingsPreferences({ feedDescriptionFontScale: n })
+      return n
+    })
+  }, [])
+
+  const handleDescriptionFontLarger = useCallback(() => {
+    setFeedDescriptionFontScale((prev) => {
+      const n = clampFeedDescriptionFontScale(prev + FEED_DESC_FONT_SCALE_STEP)
+      saveSettingsPreferences({ feedDescriptionFontScale: n })
+      return n
+    })
+  }, [])
+
+  const fontScaleAtMin = feedDescriptionFontScale <= FEED_DESC_FONT_SCALE_MIN + 1e-6
+  const fontScaleAtMax = feedDescriptionFontScale >= FEED_DESC_FONT_SCALE_MAX - 1e-6
 
   useEffect(() => {
     setDescBulkExpanded(false)
     setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: false }))
-  }, [activeTabId])
+  }, [activeTabId, feedView])
 
   useEffect(() => {
     if (expandableDescCount < 2) setDescBulkExpanded(false)
@@ -356,7 +493,24 @@ function AppContent() {
   }, [])
 
   // Get available categories (only those with matching articles)
-  const availableCategories = getAvailableCategories(news, combinedCategories, filters)
+  const availableCategories = getAvailableCategories(
+    feedView === 'saved' ? savedNewsItems : news,
+    combinedCategories,
+    filters
+  )
+
+  const savedArticleIds = useMemo(
+    () => new Set(readLaterItems.map((i) => i.id)),
+    [readLaterItems]
+  )
+
+  const handleFeedOrSavedRefresh = useCallback(() => {
+    if (feedView === 'saved') {
+      reloadReadLater()
+    } else {
+      refreshNews()
+    }
+  }, [feedView, reloadReadLater, refreshNews])
 
   // Toggle category selection
   const toggleCategory = (categoryName) => {
@@ -384,8 +538,6 @@ function AppContent() {
     setSearchQuery('')
     setSortBy('date')
   }
-
-  const t = translations[uiLanguage]
 
   // Show Splash Screen on first load
   if (showSplash) {
@@ -438,12 +590,12 @@ function AppContent() {
           <Header
             uiLanguage={uiLanguage}
             onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
-            articleCount={sortedNews.length}
-            totalCount={news.length}
             onSettingsClick={() => setShowSettings(true)}
-            showArticleCount={true}
             isSettingsPage={false}
-            onTitleClick={scrollToTop}
+            onTitleClick={handleTitleClick}
+            savedArticlesCount={readLaterItems.length}
+            isSavedArticlesView={feedView === 'saved'}
+            onSavedArticlesClick={handleSavedArticlesNav}
             colorMode={colorMode}
             onColorModeToggle={toggleColorMode}
             filtersCollapsed={subheaderCollapsed}
@@ -469,6 +621,13 @@ function AppContent() {
               setFeedHeaderWebShrunk(next)
               saveSettingsPreferences({ feedHeaderWebShrunk: next })
             }}
+            feedLayoutPreference={feedLayoutPreference}
+            onFeedLayoutPreferenceChange={handleFeedLayoutPreferenceChange}
+            resolvedFeedLayout={resolvedFeedLayout}
+            onDescriptionFontSmaller={handleDescriptionFontSmaller}
+            onDescriptionFontLarger={handleDescriptionFontLarger}
+            fontScaleAtMin={fontScaleAtMin}
+            fontScaleAtMax={fontScaleAtMax}
             headerTabsSlot={
               tabs.length > 1 ? (
                 <TabNavigation
@@ -476,6 +635,8 @@ function AppContent() {
                   activeTabId={activeTabId}
                   onTabClick={handleTabChange}
                   onTabRename={handleTabRename}
+                  activeTabArticleCount={headerActiveTabArticleCount}
+                  activeTabCountAriaLabel={feedTabCountAriaLabel}
                 />
               ) : null
             }
@@ -495,8 +656,8 @@ function AppContent() {
             onHighlyRatedToggle={() => setShowHighlyRated(!showHighlyRated)}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            onRefresh={refreshNews}
-            loading={loading}
+            onRefresh={handleFeedOrSavedRefresh}
+            loading={feedView === 'saved' ? false : loading}
             autoRefresh={autoRefresh}
             onAutoRefreshChange={setAutoRefresh}
             collapsed={subheaderCollapsed}
@@ -505,14 +666,20 @@ function AppContent() {
 
         <main className="main">
           <NewsList
-            news={sortedNews}
+            news={listNews}
             uiLanguage={uiLanguage}
-            loading={loading}
-            error={error}
-            newItemIds={newItemIds}
+            loading={feedView === 'saved' ? false : loading}
+            error={feedView === 'saved' ? null : error}
+            newItemIds={feedView === 'saved' ? emptyNewItemIds : newItemIds}
             combinedCategories={combinedCategories}
             onCategoryClick={toggleCategory}
             expandAllSignal={descExpandAllSignal}
+            feedLayout={resolvedFeedLayout}
+            descriptionFontScale={feedDescriptionFontScale}
+            readLaterVariant={feedView === 'saved' ? 'saved' : 'feed'}
+            savedArticleIds={savedArticleIds}
+            onToggleSavedArticle={handleToggleSavedArticle}
+            onRemoveSavedArticle={handleRemoveSavedArticle}
           />
         </main>
         <HelpModal

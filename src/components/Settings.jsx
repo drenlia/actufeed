@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { translations } from '../constants/translations'
 import {
   searchSources,
@@ -32,8 +32,15 @@ import {
   updateTabSources,
   reorderTabs,
   getActiveTabId,
-  setActiveTabId
+  setActiveTabId,
+  upsertDefaultTab,
 } from '../utils/tabsStorage'
+import {
+  classifyDefaultTab,
+  sourcesForDefaultTab,
+  DEFAULT_TAB_NAMES,
+  sourcesMatchDefaults,
+} from '../constants/defaultSources'
 
 export const Settings = ({
   uiLanguage,
@@ -75,6 +82,7 @@ export const Settings = ({
 
   /** Collapsed by default so the catalog / sources list stays visible above the fold. */
   const [manualFeedExpanded, setManualFeedExpanded] = useState(false)
+  const [restoreModal, setRestoreModal] = useState(null)
 
   // Load tabs and configuration on mount
   useEffect(() => {
@@ -203,6 +211,74 @@ export const Settings = ({
   
   // Get active tab
   const activeTab = tabs.find(t => t.id === activeTabId)
+
+  const closeRestoreModal = useCallback(() => setRestoreModal(null), [])
+
+  useEffect(() => {
+    if (!restoreModal) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setRestoreModal(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [restoreModal])
+
+  const applyUpsertBuiltInTab = useCallback(
+    (key) => {
+      const norm = (s) =>
+        String(s || '')
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+      const displayName = DEFAULT_TAB_NAMES[key]
+      const nextSources = sourcesForDefaultTab(key)
+      const n = norm(displayName)
+      const existing = tabs.find((t) => norm(t.name) === n)
+      if (existing && sourcesMatchDefaults(existing.sources, nextSources)) {
+        setRestoreModal({ mode: 'already-default' })
+        return
+      }
+      const { nextTabs, targetTabId } = upsertDefaultTab(tabs, displayName, nextSources)
+      setTabs(nextTabs)
+      saveTabs(nextTabs)
+      setActiveTabId(targetTabId)
+      setActiveTabIdState(targetTabId)
+      clearCachedNews(targetTabId)
+      setRestoreModal(null)
+      success(t.restoreDefaultsDone)
+    },
+    [tabs, t, success]
+  )
+
+  const executeRestoreCurrentBuiltInTab = useCallback(() => {
+    if (!restoreModal || restoreModal.mode !== 'confirm' || !activeTabId || !config) return
+    const key = restoreModal.key
+    const nextSources = sourcesForDefaultTab(key)
+    const updatedTabs = updateTabSources(tabs, activeTabId, nextSources)
+    setTabs(updatedTabs)
+    saveTabs(updatedTabs)
+    setConfig({ ...config, sources: nextSources })
+    clearCachedNews(activeTabId)
+    setRestoreModal(null)
+    success(t.restoreDefaultsDone)
+  }, [restoreModal, activeTabId, config, tabs, t, success])
+
+  const openRestoreDefaultSourcesFlow = useCallback(() => {
+    if (!activeTabId || !config) return
+    const tab = tabs.find((x) => x.id === activeTabId)
+    const builtInKey = classifyDefaultTab(tab?.name ?? '')
+    if (builtInKey) {
+      const nextSources = sourcesForDefaultTab(builtInKey)
+      if (sourcesMatchDefaults(tab?.sources, nextSources)) {
+        setRestoreModal({ mode: 'already-default' })
+        return
+      }
+      setRestoreModal({ mode: 'confirm', key: builtInKey })
+      return
+    }
+    setRestoreModal({ mode: 'picker' })
+  }, [activeTabId, config, tabs])
 
   // Toggle source selection in available sources list
   const toggleAvailableSourceSelection = (sourceUrl) => {
@@ -636,7 +712,6 @@ export const Settings = ({
           uiLanguage={uiLanguage}
           onLanguageToggle={onLanguageToggle}
           onSettingsClick={onExitSettings}
-          showArticleCount={false}
           isSettingsPage
           onTitleClick={onExitSettings}
           onHelpClick={onHelpClick}
@@ -661,6 +736,7 @@ export const Settings = ({
                 onCreateTab={handleCreateTab}
                 createTabLabel={t.createTab}
                 tabsListAriaLabel={t.tabsListAria}
+                tabSourcesCountAria={(n) => t.settingsTabSourcesCountA11y.replace('{n}', String(n))}
               />
             ) : null
           }
@@ -669,9 +745,13 @@ export const Settings = ({
       <div className="settings-page">
         <div className="settings-tabs-section">
           <div className="settings-tabs-meta-row">
-            <div className="settings-cache-notice" role="note">
-              <strong>ℹ️ {t.note}</strong> {t.cacheNotice}
-            </div>
+            <button
+              type="button"
+              className="settings-restore-defaults-btn"
+              onClick={openRestoreDefaultSourcesFlow}
+            >
+              {t.restoreDefaultSources}
+            </button>
             <div className="toast-toggle-container">
               <label className="settings-toast-toggle-label" htmlFor="settings-fetch-toasts-switch">
                 {t.showToastMessages || 'Show fetch banners'}
@@ -1216,6 +1296,114 @@ export const Settings = ({
         </div>
         </div>
       </div>
+
+      {restoreModal ? (
+        <div
+          className="settings-restore-built-in-overlay"
+          role="presentation"
+          onClick={closeRestoreModal}
+        >
+          <div
+            className="settings-restore-built-in-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-restore-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {restoreModal.mode === 'already-default' ? (
+              <>
+                <h3 id="settings-restore-modal-title" className="settings-restore-built-in-title">
+                  {t.restoreDefaultsAlreadyTitle}
+                </h3>
+                <p className="settings-restore-built-in-text">{t.restoreDefaultsAlreadyMessage}</p>
+                <div className="settings-restore-built-in-footer settings-restore-built-in-footer--single">
+                  <button
+                    type="button"
+                    className="settings-restore-built-in-primary"
+                    onClick={closeRestoreModal}
+                  >
+                    {t.restoreDefaultsAlreadyOk}
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            {restoreModal.mode === 'confirm' ? (
+              <>
+                <h3 id="settings-restore-modal-title" className="settings-restore-built-in-title">
+                  {t.restoreDefaultTitle}
+                </h3>
+                <p className="settings-restore-built-in-text">
+                  {(() => {
+                    const key = restoreModal.key
+                    const hasSources = (activeTab?.sources?.length ?? 0) > 0
+                    if (key === 'montreal') {
+                      return hasSources
+                        ? t.restoreDefaultMessageHasSources
+                        : t.restoreDefaultMessageEmptyTab
+                    }
+                    if (key === 'canada') {
+                      return hasSources
+                        ? t.restoreDefaultMessageHasSourcesCanada
+                        : t.restoreDefaultMessageEmptyTabCanada
+                    }
+                    return hasSources
+                      ? t.restoreDefaultMessageHasSourcesTech
+                      : t.restoreDefaultMessageEmptyTabTech
+                  })()}
+                </p>
+                <div className="settings-restore-built-in-footer">
+                  <button type="button" className="settings-restore-built-in-secondary" onClick={closeRestoreModal}>
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-restore-built-in-primary"
+                    onClick={executeRestoreCurrentBuiltInTab}
+                  >
+                    {t.restore}
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            {restoreModal.mode === 'picker' ? (
+              <>
+                <h3 id="settings-restore-modal-title" className="settings-restore-built-in-title">
+                  {t.restoreUnknownTabTitle}
+                </h3>
+                <p className="settings-restore-built-in-text">{t.restoreUnknownTabMessage}</p>
+                <div className="settings-restore-built-in-actions">
+                  <button
+                    type="button"
+                    className="settings-restore-built-in-choice"
+                    onClick={() => applyUpsertBuiltInTab('montreal')}
+                  >
+                    {t.restoreMontrealTab}
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-restore-built-in-choice"
+                    onClick={() => applyUpsertBuiltInTab('canada')}
+                  >
+                    {t.restoreCanadaTab}
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-restore-built-in-choice"
+                    onClick={() => applyUpsertBuiltInTab('tech')}
+                  >
+                    {t.restoreTechTab}
+                  </button>
+                </div>
+                <button type="button" className="settings-restore-built-in-cancel" onClick={closeRestoreModal}>
+                  {t.cancel}
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }

@@ -1,4 +1,6 @@
 // Utilities for storing settings preferences (like selected country filters)
+import { clampFeedDescriptionFontScale } from './feedLayoutPrefs'
+
 const SETTINGS_STORAGE_KEY = 'newsfeed-settings-preferences'
 
 /** Filters panel hidden until the user opens it; explicit false/true in storage overrides. */
@@ -15,6 +17,11 @@ export const loadSettingsPreferences = () => {
           : typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
             ? 'dark'
             : 'light'
+      const layoutPref = parsed.feedLayoutPreference
+      const feedLayoutPreference =
+        layoutPref === 'list' || layoutPref === 'columns2' || layoutPref === 'columns3' || layoutPref === 'auto'
+          ? layoutPref
+          : 'auto'
       return {
         selectedCountries: new Set(parsed.selectedCountries || []),
         subheaderCollapsed:
@@ -25,6 +32,10 @@ export const loadSettingsPreferences = () => {
         feedHeaderWebShrunk:
           typeof parsed.feedHeaderWebShrunk === 'boolean' ? parsed.feedHeaderWebShrunk : false,
         theme,
+        feedLayoutPreference,
+        feedDescriptionFontScale: clampFeedDescriptionFontScale(
+          typeof parsed.feedDescriptionFontScale === 'number' ? parsed.feedDescriptionFontScale : 1
+        ),
       }
     }
   } catch (error) {
@@ -43,6 +54,8 @@ export const loadSettingsPreferences = () => {
     mobileHeaderCompactToolbar: true,
     feedHeaderWebShrunk: false,
     theme,
+    feedLayoutPreference: 'auto',
+    feedDescriptionFontScale: 1,
   }
 }
 
@@ -68,6 +81,14 @@ export const saveSettingsPreferences = (preferences) => {
           ? preferences.feedHeaderWebShrunk
           : stored.feedHeaderWebShrunk,
       theme: preferences.theme !== undefined ? preferences.theme : stored.theme,
+      feedLayoutPreference:
+        preferences.feedLayoutPreference !== undefined
+          ? preferences.feedLayoutPreference
+          : stored.feedLayoutPreference,
+      feedDescriptionFontScale:
+        preferences.feedDescriptionFontScale !== undefined
+          ? clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale)
+          : stored.feedDescriptionFontScale,
     }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toStore))
     return true

@@ -30,6 +30,12 @@ export const TabBar = ({
   createTabLabel = '+',
   tabsListAriaLabel = 'Tabs',
   deleteTabTitle = 'Delete tab',
+  /** Active tab only: list length when > 0 (omit while loading or when count is 0). */
+  activeTabArticleCount,
+  /** (tabName, count) => accessible name when the count pill is shown */
+  activeTabCountAriaLabel,
+  /** Settings tabs: (n) => phrase for screen readers, e.g. "{n} sources" with {n} replaced */
+  tabSourcesCountAria,
 }) => {
   const [editingTabId, setEditingTabId] = useState(null)
   const [editValue, setEditValue] = useState('')
@@ -146,13 +152,18 @@ export const TabBar = ({
     const showClose = allowDelete && tabs.length > 1
 
     if (!extended) {
+      const showCountPill =
+        isActive &&
+        activeTabArticleCount !== undefined &&
+        activeTabArticleCount > 0
+
       if (isEditing) {
         return (
           <input
             key={tab.id}
             ref={inputRef}
             type="text"
-            className="tab-nav-item tab-nav-item-editing"
+            className="tab-nav-item tab-nav-item--pill tab-nav-item-editing"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, tab.id)}
@@ -169,18 +180,32 @@ export const TabBar = ({
         <button
           key={tab.id}
           type="button"
-          className={`tab-nav-item ${isActive ? 'active' : ''}`}
+          className={`tab-nav-item tab-nav-item--pill ${isActive ? 'active' : ''}`}
           onClick={() => handleTabActivate(tab.id)}
           onDoubleClick={(e) => handleDoubleClick(tab.id, tab.name, e)}
+          aria-label={
+            showCountPill
+              ? activeTabCountAriaLabel?.(tab.name, activeTabArticleCount) ??
+                `${tab.name}, ${activeTabArticleCount}`
+              : undefined
+          }
         >
-          {tab.name}
+          <span className="tab-nav-item__label">{tab.name}</span>
+          {showCountPill ? (
+            <span className="tab-nav-item__count-pill" aria-hidden="true">
+              {activeTabArticleCount}
+            </span>
+          ) : null}
         </button>
       )
     }
 
     if (isEditing) {
       return (
-        <div key={tab.id} className="tab-nav-item-group tab-nav-item-group--editing">
+        <div
+          key={tab.id}
+          className="tab-nav-item-group tab-nav-item-group--editing tab-nav-item-group--settings"
+        >
           <input
             ref={inputRef}
             type="text"
@@ -199,10 +224,15 @@ export const TabBar = ({
       )
     }
 
+    const sourceCount = Array.isArray(tab.sources) ? tab.sources.length : 0
+    const showSettingsSourcePill = sourceCount > 0
+
     return (
       <div
         key={tab.id}
-        className={`tab-nav-item-group ${isActive ? 'active' : ''} ${draggedTabIndex === index ? 'dragging' : ''}`}
+        className={`tab-nav-item-group tab-nav-item-group--settings ${isActive ? 'active' : ''} ${
+          draggedTabIndex === index ? 'dragging' : ''
+        }`}
         draggable={canDrag}
         onDragStart={(e) => handleDragStart(e, index)}
         onDragOver={(e) => handleDragOver(e, index)}
@@ -211,11 +241,21 @@ export const TabBar = ({
       >
         <button
           type="button"
-          className="tab-nav-item tab-nav-item--segment"
+          className="tab-nav-item tab-nav-item--segment tab-nav-item--settings-main"
           onClick={() => handleTabActivate(tab.id)}
           onDoubleClick={(e) => handleDoubleClick(tab.id, tab.name, e)}
+          aria-label={
+            showSettingsSourcePill
+              ? `${tab.name}, ${tabSourcesCountAria ? tabSourcesCountAria(sourceCount) : sourceCount}`
+              : undefined
+          }
         >
-          {tab.name}
+          <span className="tab-nav-item__label">{tab.name}</span>
+          {showSettingsSourcePill ? (
+            <span className="tab-nav-item__source-count-pill" aria-hidden="true">
+              {sourceCount}
+            </span>
+          ) : null}
         </button>
         {showClose && (
           <button

@@ -1,15 +1,23 @@
 import { translations } from '../constants/translations'
 import { NewsItem } from './NewsItem'
 
-export const NewsList = ({ 
-  news, 
-  uiLanguage, 
-  loading, 
-  error, 
+export const NewsList = ({
+  news,
+  uiLanguage,
+  loading,
+  error,
   newItemIds,
   combinedCategories,
   onCategoryClick,
   expandAllSignal = null,
+  /** 'list' | 'columns2' | 'columns3' */
+  feedLayout = 'list',
+  descriptionFontScale = 1,
+  /** 'feed' = save/unsave on image; 'saved' = remove from saved */
+  readLaterVariant = null,
+  savedArticleIds = null,
+  onToggleSavedArticle = null,
+  onRemoveSavedArticle = null,
 }) => {
   const t = translations[uiLanguage]
 
@@ -22,11 +30,28 @@ export const NewsList = ({
   }
 
   if (news.length === 0) {
+    if (readLaterVariant === 'saved') {
+      return (
+        <div className="news-saved-empty">
+          <span className="news-saved-empty__icon" aria-hidden>
+            🔖
+          </span>
+          <p className="news-saved-empty__title">{t.savedArticlesEmptyTitle}</p>
+          <p className="news-saved-empty__hint">{t.savedArticlesEmptyHint}</p>
+        </div>
+      )
+    }
     return <div className="no-news">{t.noNews}</div>
   }
 
+  const layoutClass =
+    feedLayout === 'columns2' || feedLayout === 'columns3' ? feedLayout : 'list'
+
   return (
-    <div className="news-list">
+    <div
+      className={`news-list news-list--layout-${layoutClass}`}
+      style={{ '--news-desc-scale': String(descriptionFontScale) }}
+    >
       {news.map((item) => (
         <NewsItem
           key={item.id || `${item.link}-${item.title}`}
@@ -36,6 +61,12 @@ export const NewsList = ({
           combinedCategories={combinedCategories}
           onCategoryClick={onCategoryClick}
           expandAllSignal={expandAllSignal}
+          readLaterVariant={readLaterVariant}
+          readLaterSaved={
+            readLaterVariant === 'feed' ? Boolean(savedArticleIds?.has(item.id)) : false
+          }
+          onToggleSavedArticle={onToggleSavedArticle}
+          onRemoveSavedArticle={onRemoveSavedArticle}
         />
       ))}
     </div>
