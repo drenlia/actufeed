@@ -6,6 +6,8 @@ export const NewsList = ({
   uiLanguage,
   loading,
   error,
+  /** Feed tab: fetch failed and there is no usable local cache (distinct from “no articles”). */
+  feedUnavailableEmpty = false,
   newItemIds,
   combinedCategories,
   onCategoryClick,
@@ -38,6 +40,14 @@ export const NewsList = ({
           </span>
           <p className="news-saved-empty__title">{t.savedArticlesEmptyTitle}</p>
           <p className="news-saved-empty__hint">{t.savedArticlesEmptyHint}</p>
+        </div>
+      )
+    }
+    if (feedUnavailableEmpty) {
+      return (
+        <div className="feed-unavailable-empty" role="status">
+          <p className="feed-unavailable-empty__title">{t.feedUnavailableEmptyTitle}</p>
+          <p className="feed-unavailable-empty__hint">{t.feedUnavailableEmptyHint}</p>
         </div>
       )
     }

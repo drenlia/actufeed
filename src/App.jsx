@@ -363,7 +363,11 @@ function AppContent() {
     return [...sources]
   }, [tabs, activeTabId])
   
-  const { news, loading, error, newItemIds, fetchNews, refreshNews } = useNews(tabSources, activeTabId, showToastMessages)
+  const { news, loading, error, feedFetchHadFailures, newItemIds, fetchNews, refreshNews } = useNews(
+    tabSources,
+    activeTabId,
+    showToastMessages
+  )
   
   // Store refreshNews in a ref so it's available in the Settings onClose callback
   const refreshNewsRef = useRef(refreshNews)
@@ -670,6 +674,9 @@ function AppContent() {
             uiLanguage={uiLanguage}
             loading={feedView === 'saved' ? false : loading}
             error={feedView === 'saved' ? null : error}
+            feedUnavailableEmpty={
+              feedView === 'feed' && news.length === 0 && feedFetchHadFailures
+            }
             newItemIds={feedView === 'saved' ? emptyNewItemIds : newItemIds}
             combinedCategories={combinedCategories}
             onCategoryClick={toggleCategory}

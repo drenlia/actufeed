@@ -9,6 +9,8 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
   const [news, setNews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  /** True after a completed fetch when every source failed and the list is still empty (no usable cache). */
+  const [feedFetchHadFailures, setFeedFetchHadFailures] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [newItemIds, setNewItemIds] = useState(new Set())
   const previousNewsIdsRef = useRef(new Set())
@@ -63,7 +65,8 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
     }
     
     isFetchingRef.current = true
-    
+    setFeedFetchHadFailures(false)
+
     if (!useCache) {
       setError(null)
     } else {
@@ -75,12 +78,14 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
 
     try {
       const allNews = []
-      
+      let diskCacheForFailure = null
+
       // Use tab sources if provided, otherwise fall back to config
       const sourcesToFetch = currentTabSources && currentTabSources.length > 0 ? currentTabSources : loadNewsConfig().sources
       
       if (sourcesToFetch.length === 0) {
         setNews([])
+        setFeedFetchHadFailures(false)
         setLoading(false)
         setIsInitialLoad(false)
         isFetchingRef.current = false
@@ -205,7 +210,18 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
           }
         }
       })
-      
+
+      const sourcesForCacheLookup =
+        tabSourcesRef.current && tabSourcesRef.current.length > 0
+          ? tabSourcesRef.current
+          : sourcesToFetch
+      if (allNews.length === 0 && failedFeeds.length > 0) {
+        const disk = loadCachedNews(sourcesForCacheLookup, currentTabId)
+        if (disk && disk.length > 0) {
+          diskCacheForFailure = disk
+        }
+      }
+
       // Respect the user's preference for showing toast messages
       const shouldShowToast = showToast && showToastMessagesRef.current
       
@@ -221,50 +237,56 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
         const now = Date.now()
         // Only show toast if it's been at least 2 seconds since last toast
         if (now - lastToastTimeRef.current > 2000) {
-          const statusText = (status) => {
-            if (status === 403) return '403 error'
-            if (status === 404) return '404 error'
-            if (status === 504) return 'timeout'
-            return `${status} error`
-          }
-          
-          const failedList = failedFeeds.map(f => `• ${f.name}: ${statusText(f.status)}`).join('\n')
-          const successfulList = successfulFeeds
-            .filter(f => f.articleCount > 0)
-            .map(f => `• ${f.name}: ${f.articleCount} articles`)
-            .join('\n')
-          const zeroArticleList = successfulFeeds
-            .filter(f => f.articleCount === 0)
-            .map(f => `• ${f.name}: no recent articles`)
-            .join('\n')
-          
-          // Show success toast first (if there are successful feeds or zero-article feeds)
-          if (successfulList || zeroArticleList) {
-            let successMessage = ''
-            if (successfulList) {
-              successMessage = `Successfully fetched:\n${successfulList}`
-              if (zeroArticleList) {
-                successMessage += `\n\nNo recent articles (last 24h):\n${zeroArticleList}`
+          if (hasFailures && diskCacheForFailure) {
+            lastToastTimeRef.current = now
+            toastRef.current.warning(
+              'Could not refresh feeds. Showing saved articles from this tab.',
+              8000
+            )
+          } else {
+            const statusText = (status) => {
+              if (status === 403) return '403 error'
+              if (status === 404) return '404 error'
+              if (status === 504) return 'timeout'
+              return `${status} error`
+            }
+
+            const failedList = failedFeeds.map(f => `• ${f.name}: ${statusText(f.status)}`).join('\n')
+            const successfulList = successfulFeeds
+              .filter(f => f.articleCount > 0)
+              .map(f => `• ${f.name}: ${f.articleCount} articles`)
+              .join('\n')
+            const zeroArticleList = successfulFeeds
+              .filter(f => f.articleCount === 0)
+              .map(f => `• ${f.name}: no recent articles`)
+              .join('\n')
+
+            // Show success toast first (if there are successful feeds or zero-article feeds)
+            if (successfulList || zeroArticleList) {
+              let successMessage = ''
+              if (successfulList) {
+                successMessage = `Successfully fetched:\n${successfulList}`
+                if (zeroArticleList) {
+                  successMessage += `\n\nNo recent articles (last 24h):\n${zeroArticleList}`
+                }
+              } else if (zeroArticleList) {
+                successMessage = `No recent articles (last 24h):\n${zeroArticleList}`
               }
-            } else if (zeroArticleList) {
-              successMessage = `No recent articles (last 24h):\n${zeroArticleList}`
+
+              if (successMessage) {
+                lastToastTimeRef.current = now
+                toastRef.current.success(successMessage, 10000)
+              }
             }
-            
-            if (successMessage) {
-              lastToastTimeRef.current = now
-              toastRef.current.success(successMessage, 10000)
+
+            // Show failure toast separately (if there are failures)
+            if (failedList) {
+              const failureMessage = `Unable to fetch:\n${failedList}`
+              setTimeout(() => {
+                toastRef.current.error(failureMessage, 10000)
+              }, 500)
             }
           }
-          
-          // Show failure toast separately (if there are failures)
-          if (failedList) {
-            const failureMessage = `Unable to fetch:\n${failedList}`
-            // Use a small delay to show the error toast after the success toast
-            setTimeout(() => {
-              toastRef.current.error(failureMessage, 10000)
-            }, 500)
-          }
-          
         }
       }
       
@@ -348,34 +370,52 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
             filteredFinalNews = []
           }
         }
-        
+
+        let newsToShow = filteredFinalNews
+        if (
+          filteredFinalNews.length === 0 &&
+          failedFeeds.length > 0 &&
+          diskCacheForFailure
+        ) {
+          newsToShow = diskCacheForFailure
+        }
+
         // Completely replace news (no merging with previous tab's news)
-        setNews(filteredFinalNews)
-        
+        setNews(newsToShow)
+
         // Only show new items that are actually new (not in previous set)
-        // Filter newIds to only include items that are in filteredFinalNews
         const filteredNewIds = new Set()
-        filteredFinalNews.forEach(item => {
+        newsToShow.forEach(item => {
           if (newIds.has(item.id)) {
             filteredNewIds.add(item.id)
           }
         })
-        
+
         if (filteredNewIds.size > 0) {
           setNewItemIds(filteredNewIds)
           setTimeout(() => {
             setNewItemIds(new Set())
           }, 3000)
         }
-        
+
         // Update previousNewsIdsRef AFTER we've determined what's new
-        previousNewsIdsRef.current = new Set(filteredFinalNews.map(item => item.id))
-        // Use currentTabId from ref to ensure we save to the correct tab's cache
-        saveNewsToCache(filteredFinalNews, currentTabId)
+        previousNewsIdsRef.current = new Set(newsToShow.map(item => item.id))
+        // Do not overwrite a good on-disk cache with [] when refresh failed (matches mobile).
+        if (failedFeeds.length === 0 || filteredFinalNews.length > 0) {
+          saveNewsToCache(
+            filteredFinalNews.length > 0 ? filteredFinalNews : [],
+            currentTabId
+          )
+        }
+
+        setFeedFetchHadFailures(
+          newsToShow.length === 0 && failedFeeds.length > 0
+        )
       }
-      
+
       setIsInitialLoad(false)
     } catch (err) {
+      setFeedFetchHadFailures(false)
       setError(err.message)
       console.error('Error fetching news:', err)
       setIsInitialLoad(false)
@@ -478,89 +518,75 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
   
   // Initial fetch - re-fetch when tabSources or tabId change
   useEffect(() => {
-    const sourcesChanged = previousTabSourcesKeyRef.current !== tabSourcesKey
     const isInitialMount = previousTabSourcesKeyRef.current === null
-    
-    // Update previous key
-    previousTabSourcesKeyRef.current = tabSourcesKey
-    
-    // Refs are already updated by the previous useEffect, but ensure they're current
-    // (The previous useEffect runs first due to React's effect ordering)
-    
-    // Clear news immediately when tab or sources change
-    setNews([])
-    setLoading(true)
-    setIsInitialLoad(isInitialMount)
+    // First run: ref is null — do not treat as "sources changed" (that skipped cache on every load).
+    const sourcesChanged =
+      !isInitialMount && previousTabSourcesKeyRef.current !== tabSourcesKey
+
     setError(null)
-    // Reset fetching flag
     isFetchingRef.current = false
-    
-    // CRITICAL: Don't fetch if we don't know which tab we're on yet
-    // This prevents fetching with default sources when the active tab hasn't been determined yet
-    // On page refresh, we need to wait for the active tab to be determined from URL/localStorage
+
     if (isInitialMount && tabId === null) {
+      previousTabSourcesKeyRef.current = tabSourcesKey
+      setFeedFetchHadFailures(false)
+      setNews([])
       setLoading(false)
       setIsInitialLoad(false)
-      return // Don't fetch yet - wait for tab to be set
+      return
     }
-    
-    // Now we know which tab we're on (tabId is set)
-    // Determine which sources to use:
-    // - If tabSources is provided and has items, use those
-    // - If tabSources is an empty array (tab exists but has no sources), show empty state
-    // - Only use default sources if tabSources is null/undefined AND we're not on initial mount
-    //   (this handles edge cases, but should rarely happen)
+
     const hasTabSources = tabSources && Array.isArray(tabSources)
     const hasSources = hasTabSources && tabSources.length > 0
-    
+
     let sourcesToUse = null
     if (hasSources) {
-      // Tab has sources - use them
       sourcesToUse = tabSources
     } else if (hasTabSources && tabSources.length === 0) {
-      // Tab exists but has no sources - show empty state
+      previousTabSourcesKeyRef.current = tabSourcesKey
+      setFeedFetchHadFailures(false)
       setNews([])
       setLoading(false)
       setIsInitialLoad(false)
       saveNewsToCache([], tabId)
       return
     } else {
-      // tabSources is null/undefined - this shouldn't happen if tabId is set, but handle it
       console.warn('[News Feed] tabSources is null/undefined but tabId is set. TabId:', tabId)
       console.warn('[News Feed] This might indicate a timing issue. Waiting...')
+      previousTabSourcesKeyRef.current = tabSourcesKey
+      setFeedFetchHadFailures(false)
       setLoading(false)
       setIsInitialLoad(false)
       return
     }
-    
+
     const cachedNews = loadCachedNews(sourcesToUse, tabId)
-    
-    // If sources changed (added/removed), always force refresh with toast
-    if (sourcesChanged) {
-      // Sources changed - force refresh with toast
-      // Initialize previousNewsIdsRef with cached article IDs before refresh
-      // This ensures we only highlight articles that are truly new
-      if (cachedNews && cachedNews.length > 0) {
-        previousNewsIdsRef.current = loadCachedArticleIds(tabId)
-      }
-      fetchNewsInternal(false, true, true) // forceRefresh=true, showToast=true
-    } else if (cachedNews && cachedNews.length > 0 && !isInitialMount) {
-      // No change, use cache and fetch in background
+    previousTabSourcesKeyRef.current = tabSourcesKey
+
+    const willHydrateFromCache = !sourcesChanged && cachedNews && cachedNews.length > 0
+
+    if (willHydrateFromCache) {
+      setFeedFetchHadFailures(false)
       setNews(cachedNews)
-      // Initialize previousNewsIdsRef with cached article IDs from localStorage
-      // This ensures we can detect truly new articles even after page refresh
       previousNewsIdsRef.current = loadCachedArticleIds(tabId)
       setLoading(false)
       setIsInitialLoad(false)
       setTimeout(() => {
         fetchNewsInternal(false, false, false)
       }, 100)
-    } else {
-      // Initial mount or no cache - fetch with toast
-      // On initial mount, initialize previousNewsIdsRef from cache if available
+      return
+    }
+
+    setFeedFetchHadFailures(false)
+    setNews([])
+    setLoading(true)
+    setIsInitialLoad(isInitialMount)
+
+    if (sourcesChanged) {
       if (cachedNews && cachedNews.length > 0) {
         previousNewsIdsRef.current = loadCachedArticleIds(tabId)
       }
+      fetchNewsInternal(false, true, true)
+    } else {
       fetchNewsInternal(true, false, true)
     }
   }, [tabId, tabSourcesKey, fetchNewsInternal])
@@ -600,6 +626,7 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
     news,
     loading,
     error,
+    feedFetchHadFailures,
     isInitialLoad,
     newItemIds,
     fetchNews,

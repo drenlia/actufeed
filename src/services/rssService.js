@@ -1106,6 +1106,28 @@ export function notifyRssBatchComplete(batchId) {
   }).catch(() => {})
 }
 
+/** Same checks as actufeed-app `proxyFetch` — 200 + HTML/maintenance must not be treated as RSS. */
+const SERVICE_MAY_BE_UNAVAILABLE = 'The service may be down or in maintenance.'
+
+function assertProxyResponseLooksLikeFeedXml(text, contentType) {
+  const ct = (contentType || '').toLowerCase()
+  if (ct.includes('text/html') && !ct.includes('xml')) {
+    throw new Error(SERVICE_MAY_BE_UNAVAILABLE)
+  }
+  const trimmed = text.replace(/^\uFEFF/, '').trimStart()
+  if (/^<!DOCTYPE\s+html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) {
+    throw new Error(SERVICE_MAY_BE_UNAVAILABLE)
+  }
+  const head = text.slice(0, 24000)
+  if (
+    !/<rss[\s>]/i.test(head) &&
+    !/<feed[\s>]/i.test(head) &&
+    !/<RDF[\s>]/i.test(head)
+  ) {
+    throw new Error(SERVICE_MAY_BE_UNAVAILABLE)
+  }
+}
+
 // Fetch RSS feed from a single source with retry logic for rate limiting
 // Returns { news: [], error: { name, message, status } | null }
 export const fetchRssFeed = async (source, { maxRetries = 2, batchId = null } = {}) => {
@@ -1174,24 +1196,24 @@ export const fetchRssFeed = async (source, { maxRetries = 2, batchId = null } = 
           console.warn(`[${source.name}] Backend proxy failed (${error.status}): ${error.message}`)
           return { news: sourceNews, error }
         }
-        
+
+        const contentType = response.headers.get('content-type') ?? ''
         text = await response.text()
-        
-        // Validate it's actually XML/RSS
-        const trimmedText = text.trim()
-        if (!trimmedText.includes('<rss') && 
-            !trimmedText.includes('<feed') && 
-            !trimmedText.includes('<?xml') &&
-            !trimmedText.includes('<RDF')) {
-          console.warn(`[${source.name}] Backend proxy returned non-XML content`)
-          const error = {
-            name: source.name,
-            message: 'Invalid RSS feed format',
-            status: 500
+        try {
+          assertProxyResponseLooksLikeFeedXml(text, contentType)
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          console.warn(`[${source.name}] Backend proxy returned non-feed body: ${msg}`)
+          return {
+            news: sourceNews,
+            error: {
+              name: source.name,
+              message: msg,
+              status: 503,
+            },
           }
-          return { news: sourceNews, error }
         }
-        
+
       } catch (err) {
         // Backend proxy failed - retry if not last attempt
         if (attempt < maxRetries && err.name !== 'AbortError') {

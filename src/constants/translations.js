@@ -11,6 +11,9 @@ export const translations = {
     source: 'Source',
     published: 'Published',
     noNews: 'No news available',
+    feedUnavailableEmptyTitle: 'Can’t load the feed',
+    feedUnavailableEmptyHint:
+      'The feed service couldn’t be reached (for example, you’re offline, the server is down, or the proxy isn’t running). There are no articles saved on this device for this tab yet. Try Refresh when the service is available.',
     newsListLoading: 'Loading...',
     autoRefresh: 'Auto',
     filterByCategory: 'Filter by Category',
@@ -305,6 +308,9 @@ export const translations = {
     source: 'Source',
     published: 'Publié',
     noNews: 'Aucune actualité disponible',
+    feedUnavailableEmptyTitle: 'Impossible de charger le fil',
+    feedUnavailableEmptyHint:
+      'Le service de fils n’a pas pu être joint (par exemple : hors ligne, serveur indisponible ou mandataire inactif). Il n’y a pas encore d’articles enregistrés sur cet appareil pour cet onglet. Réessayez avec Actualiser lorsque le service sera de retour.',
     newsListLoading: 'Chargement…',
     autoRefresh: 'Auto',
     filterByCategory: 'Filtrer par catégorie',
