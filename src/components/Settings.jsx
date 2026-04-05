@@ -15,6 +15,8 @@ import {
 import { loadSettingsPreferences, saveSettingsPreferences } from '../utils/settingsStorage'
 import { clearCachedNews } from '../utils/storageUtils'
 import { validateRssFeed } from '../utils/rssValidator'
+import { buildFirstArticlePreviewFromXml } from '../services/rssService'
+import { FeedPreviewModal } from './FeedPreviewModal'
 import {
   searchYoutubeChannels,
   YOUTUBE_SEARCH_UNAVAILABLE,
@@ -83,6 +85,17 @@ export const Settings = ({
   /** Collapsed by default so the catalog / sources list stays visible above the fold. */
   const [manualFeedExpanded, setManualFeedExpanded] = useState(false)
   const [restoreModal, setRestoreModal] = useState(null)
+
+  const [feedPreviewOpen, setFeedPreviewOpen] = useState(false)
+  const [feedPreviewLoading, setFeedPreviewLoading] = useState(false)
+  const [feedPreviewItem, setFeedPreviewItem] = useState(null)
+  const [feedPreviewError, setFeedPreviewError] = useState(null)
+  const [feedPreviewFeedFormat, setFeedPreviewFeedFormat] = useState('rss2')
+
+  /** Active-sources column: inline rename (double-click name) */
+  const [renamingSourceUrl, setRenamingSourceUrl] = useState(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const renameInputRef = useRef(null)
 
   // Load tabs and configuration on mount
   useEffect(() => {
@@ -450,6 +463,54 @@ export const Settings = ({
     success('Source removed')
   }
 
+  useEffect(() => {
+    if (!renamingSourceUrl) return undefined
+    const id = requestAnimationFrame(() => {
+      renameInputRef.current?.focus()
+      renameInputRef.current?.select()
+    })
+    return () => cancelAnimationFrame(id)
+  }, [renamingSourceUrl])
+
+  const cancelActiveSourceRename = useCallback(() => {
+    setRenamingSourceUrl(null)
+    setRenameDraft('')
+  }, [])
+
+  useEffect(() => {
+    cancelActiveSourceRename()
+  }, [activeTabId, cancelActiveSourceRename])
+
+  const finishActiveSourceRename = useCallback(() => {
+    if (!renamingSourceUrl || !activeTabId || !config) {
+      cancelActiveSourceRename()
+      return
+    }
+    const url = renamingSourceUrl
+    const draft = renameDraft
+    const original = config.sources.find((s) => s.url === url)
+    setRenamingSourceUrl(null)
+    setRenameDraft('')
+    if (!original) return
+    const next = draft.trim() || original.name
+    if (next === original.name) return
+    const updatedSources = config.sources.map((s) => (s.url === url ? { ...s, name: next } : s))
+    const updatedTabs = updateTabSources(tabs, activeTabId, updatedSources)
+    setTabs(updatedTabs)
+    saveTabs(updatedTabs)
+    setConfig({ ...config, sources: updatedSources })
+    success(t.sourceRenamed)
+  }, [
+    renamingSourceUrl,
+    renameDraft,
+    activeTabId,
+    config,
+    tabs,
+    cancelActiveSourceRename,
+    success,
+    t.sourceRenamed,
+  ])
+
   // Copy source URL to clipboard
   const handleCopySourceUrl = async (sourceUrl, sourceName) => {
     try {
@@ -529,23 +590,126 @@ export const Settings = ({
     }
   }
 
+  const closeFeedPreviewModal = useCallback(() => {
+    setFeedPreviewOpen(false)
+    setFeedPreviewLoading(false)
+    setFeedPreviewItem(null)
+    setFeedPreviewError(null)
+    setFeedPreviewFeedFormat('rss2')
+  }, [])
+
+  const commitManualFeed = useCallback(
+    ({
+      feedUrl,
+      resolvedFeedUrl = null,
+      finalTitle,
+      language,
+      feedFormat,
+      closePreview = false,
+    }) => {
+      const resolved = resolvedFeedUrl?.trim()
+      if (
+        config.sources.some(
+          (s) => s.url === feedUrl || (resolved && s.url === resolved)
+        )
+      ) {
+        showError('This feed is already in your sources')
+        return
+      }
+      if (!activeTabId) {
+        showError('No active tab selected')
+        return
+      }
+      const newSource = {
+        name: finalTitle,
+        url: feedUrl,
+        language: language || 'en',
+        region: '',
+        country: '',
+        province: '',
+        feedFormat: feedFormat === 'atom' ? 'atom' : 'rss2',
+      }
+      const updatedSources = [...config.sources, newSource]
+      const updatedTabs = updateTabSources(tabs, activeTabId, updatedSources)
+      setTabs(updatedTabs)
+      saveTabs(updatedTabs)
+      const updatedConfig = { ...config, sources: updatedSources }
+      setConfig(updatedConfig)
+      clearCachedNews(activeTabId)
+      success(t.feedAdded)
+      setManualFeedUrl('')
+      setFeedValidationResult(null)
+      setFeedTitle('')
+      if (closePreview) {
+        closeFeedPreviewModal()
+      }
+    },
+    [activeTabId, config, tabs, setTabs, setConfig, success, showError, t.feedAdded, closeFeedPreviewModal]
+  )
+
   // Validate manual RSS feed
   const handleValidateFeed = async () => {
-    if (!manualFeedUrl.trim()) return
-    
+    const url = manualFeedUrl.trim()
+    if (!url) return
+
+    const normalizedUrl = url.replace(/\/$/, '')
+    const existingSource = config?.sources?.find(
+      (s) => String(s.url).trim().replace(/\/$/, '') === normalizedUrl
+    )
+    if (existingSource) {
+      setFeedValidationResult({
+        feedAlreadyInList: true,
+        existingSourceName: existingSource.name || '',
+      })
+      setFeedTitle('')
+      closeFeedPreviewModal()
+      return
+    }
+
     setValidatingFeed(true)
     setFeedValidationResult(null)
-    setFeedTitle('') // Reset title when validating new feed
-    
+    setFeedTitle('')
+    closeFeedPreviewModal()
+
     try {
-      const result = await validateRssFeed(manualFeedUrl.trim())
+      const result = await validateRssFeed(url)
       setFeedValidationResult(result)
-      // Set initial title from feed validation result
-      if (result.valid && result.channel && result.channel.title) {
+
+      if (result.valid && result.channel?.title) {
+        setFeedTitle(result.channel.title)
+      } else if (result.channel?.title) {
         setFeedTitle(result.channel.title)
       } else {
         setFeedTitle('')
       }
+
+      const previewEligible = Boolean(result.previewEligible && result.xmlText)
+
+      if (previewEligible) {
+        setFeedPreviewOpen(true)
+        setFeedPreviewLoading(true)
+        setFeedPreviewItem(null)
+        setFeedPreviewError(null)
+        try {
+          const built = await buildFirstArticlePreviewFromXml(result.xmlText, {
+            feedUrl: url,
+            channelTitle: result.channel?.title,
+            language: result.channel?.language || 'en',
+          })
+          if (built.error) {
+            setFeedPreviewError(built.error)
+          } else {
+            setFeedPreviewItem(built.item)
+            setFeedPreviewFeedFormat(built.feedFormat || 'rss2')
+          }
+        } catch (e) {
+          setFeedPreviewError(e?.message || String(e))
+        } finally {
+          setFeedPreviewLoading(false)
+        }
+        return
+      }
+
       if (!result.valid && result.errors && result.errors.length > 0) {
         showError(result.errors[0])
       }
@@ -553,7 +717,7 @@ export const Settings = ({
       const errorResult = {
         valid: false,
         errors: [`Validation error: ${error.message}`],
-        warnings: []
+        warnings: [],
       }
       setFeedValidationResult(errorResult)
       setFeedTitle('')
@@ -563,57 +727,43 @@ export const Settings = ({
     }
   }
 
-  // Add validated feed to sources
   const handleAddValidatedFeed = () => {
-    if (!feedValidationResult || !feedValidationResult.valid || !feedValidationResult.channel) {
+    if (!feedValidationResult?.valid || !feedValidationResult.channel) {
       return
     }
-    
     const feedUrl = (feedValidationResult.resolvedFeedUrl || manualFeedUrl).trim()
     const resolved = feedValidationResult.resolvedFeedUrl?.trim()
     const finalTitle = feedTitle.trim() || feedValidationResult.channel.title || 'Untitled Feed'
-    
-    // Check if feed already exists (compare canonical URL for YouTube)
-    if (
-      config.sources.some(
-        (s) => s.url === feedUrl || (resolved && s.url === resolved)
-      )
-    ) {
-      showError('This feed is already in your sources')
-      return
-    }
-    
-    // Create new source from validated feed
-    const newSource = {
-      name: finalTitle,
-      url: feedUrl,
+    commitManualFeed({
+      feedUrl,
+      resolvedFeedUrl: resolved || null,
+      finalTitle,
       language: feedValidationResult.channel.language || 'en',
-      region: '',
-      country: '',
-      province: '',
       feedFormat: feedValidationResult.feedFormat === 'atom' ? 'atom' : 'rss2',
-    }
-    
-    if (!activeTabId) {
-      showError('No active tab selected')
-      return
-    }
-    
-    const updatedSources = [...config.sources, newSource]
-    const updatedTabs = updateTabSources(tabs, activeTabId, updatedSources)
-    setTabs(updatedTabs)
-    saveTabs(updatedTabs)
-    
-    const updatedConfig = { ...config, sources: updatedSources }
-    setConfig(updatedConfig)
-    clearCachedNews(activeTabId) // Clear cache for this tab to force fresh fetch
-    success(t.feedAdded)
-    
-    // Clear form
-    setManualFeedUrl('')
-    setFeedValidationResult(null)
-    setFeedTitle('')
+      closePreview: false,
+    })
   }
+
+  const handleAddAnywayFromPreview = useCallback(() => {
+    if (!feedValidationResult?.channel || !feedPreviewItem) return
+    const feedUrl = manualFeedUrl.trim()
+    const finalTitle = feedTitle.trim() || feedValidationResult.channel.title || 'Untitled Feed'
+    commitManualFeed({
+      feedUrl,
+      resolvedFeedUrl: feedValidationResult.resolvedFeedUrl?.trim() || null,
+      finalTitle,
+      language: feedValidationResult.channel.language || 'en',
+      feedFormat: feedPreviewFeedFormat,
+      closePreview: true,
+    })
+  }, [
+    commitManualFeed,
+    feedValidationResult,
+    feedPreviewItem,
+    feedPreviewFeedFormat,
+    feedTitle,
+    manualFeedUrl,
+  ])
 
   const handleTabRenameForSettings = (tabId, newName) => {
     const updatedTabs = updateTabName(tabs, tabId, newName)
@@ -970,7 +1120,8 @@ export const Settings = ({
                   value={manualFeedUrl}
                   onChange={(e) => {
                     setManualFeedUrl(e.target.value)
-                    setFeedValidationResult(null) // Clear previous results
+                    setFeedValidationResult(null)
+                    closeFeedPreviewModal()
                   }}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && manualFeedUrl.trim()) {
@@ -988,13 +1139,49 @@ export const Settings = ({
               </div>
               
               {feedValidationResult && (
-                <div className={`feed-validation-result ${feedValidationResult.valid ? 'valid' : 'invalid'}`}>
-                  {feedValidationResult.valid ? (
+                <div
+                  className={`feed-validation-result ${
+                    feedValidationResult.feedAlreadyInList
+                      ? 'feed-validation-result--info'
+                      : feedValidationResult.valid
+                        ? 'valid'
+                        : 'invalid'
+                  }`}
+                >
+                  {feedValidationResult.feedAlreadyInList ? (
+                    <div className="feed-validation-already">
+                      <div className="validation-header">
+                        <span className="validation-icon feed-validation-already__icon" aria-hidden>
+                          ℹ
+                        </span>
+                        <strong>{t.feedAlreadyInListTitle}</strong>
+                      </div>
+                      <p className="feed-already-in-list-text">{t.feedAlreadyInListMessage}</p>
+                      {feedValidationResult.existingSourceName ? (
+                        <p className="feed-already-in-list-name">
+                          {t.feedAlreadyInListAsName.replace(
+                            '{name}',
+                            feedValidationResult.existingSourceName
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : feedValidationResult.valid ? (
                     <div className="feed-validation-success">
                       <div className="validation-header">
                         <span className="validation-icon">✓</span>
                         <strong>{t.feedValid}</strong>
                       </div>
+                      {feedValidationResult.warnings && feedValidationResult.warnings.length > 0 && (
+                        <div className="validation-warnings feed-validation-warnings--success">
+                          <strong>{t.feedWarnings}</strong>
+                          <ul>
+                            {feedValidationResult.warnings.map((warning, idx) => (
+                              <li key={idx}>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {feedValidationResult.channel && (
                         <div className="feed-channel-info">
                           <div className="feed-info-row">
@@ -1221,18 +1408,10 @@ export const Settings = ({
                     {config.sources.map((source, idx) => {
                       const isSelected = selectedActiveSources.has(source.url)
                       return (
-                        <div 
-                          key={idx} 
+                        <div
+                          key={source.url || idx}
                           className={`source-item-compact active ${isSelected ? 'selected' : ''}`}
-                          style={{ cursor: 'pointer' }}
-                          onClick={(e) => {
-                            // Don't copy if clicking on checkbox or remove button
-                            if (e.target.type === 'checkbox' || e.target.closest('button')) {
-                              return
-                            }
-                            handleCopySourceUrl(source.url, source.name)
-                          }}
-                          title={`Click to copy URL: ${source.url}`}
+                          title={t.activeSourceRowHint}
                         >
                           <label className="source-checkbox-label-compact">
                             <input
@@ -1243,7 +1422,56 @@ export const Settings = ({
                             />
                             <div className="source-info-compact">
                               <div className="source-name-row">
-                                <span className="source-name">{source.name}</span>
+                                {renamingSourceUrl === source.url ? (
+                                  <input
+                                    ref={renameInputRef}
+                                    type="text"
+                                    className="source-name-rename-input"
+                                    value={renameDraft}
+                                    aria-label={t.feedTitle}
+                                    onChange={(e) => setRenameDraft(e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        finishActiveSourceRename()
+                                      } else if (e.key === 'Escape') {
+                                        e.preventDefault()
+                                        cancelActiveSourceRename()
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      const to = e.relatedTarget
+                                      const row = e.currentTarget.closest('.source-item-compact')
+                                      if (
+                                        to &&
+                                        row &&
+                                        typeof to.closest === 'function' &&
+                                        row.contains(to) &&
+                                        (to.closest('button') ||
+                                          (to instanceof HTMLInputElement && to.type === 'checkbox'))
+                                      ) {
+                                        cancelActiveSourceRename()
+                                        return
+                                      }
+                                      finishActiveSourceRename()
+                                    }}
+                                  />
+                                ) : (
+                                  <span
+                                    className="source-name"
+                                    title={t.sourceNameDoubleClickRename}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onDoubleClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setRenamingSourceUrl(source.url)
+                                      setRenameDraft(source.name)
+                                    }}
+                                  >
+                                    {source.name}
+                                  </span>
+                                )}
                                 <span className="active-badge">✓</span>
                               </div>
                               <div className="source-meta-compact">
@@ -1252,9 +1480,19 @@ export const Settings = ({
                                 )}
                                 <span className="source-language">{source.language}</span>
                               </div>
-                              <div className="source-url-compact" title={source.url}>
+                              <button
+                                type="button"
+                                className="source-url-copy-btn"
+                                title={`${t.activeSourceCopyFeedUrl} — ${source.url}`}
+                                aria-label={`${t.activeSourceCopyFeedUrl}: ${source.url}`}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleCopySourceUrl(source.url, source.name)
+                                }}
+                              >
                                 {source.url.length > 50 ? `${source.url.substring(0, 50)}...` : source.url}
-                              </div>
+                              </button>
                             </div>
                           </label>
                           <button
@@ -1296,6 +1534,22 @@ export const Settings = ({
         </div>
         </div>
       </div>
+
+      <FeedPreviewModal
+        open={feedPreviewOpen}
+        onClose={closeFeedPreviewModal}
+        uiLanguage={uiLanguage}
+        t={t}
+        previewItem={feedPreviewItem}
+        loading={feedPreviewLoading}
+        previewError={feedPreviewError}
+        validationErrors={feedValidationResult?.errors || []}
+        validationWarnings={feedValidationResult?.warnings || []}
+        missingRequiredItemFields={feedValidationResult?.missingRequiredItemFields || []}
+        itemLevelImagesMissing={Boolean(feedValidationResult?.itemLevelImagesMissing)}
+        onAddAnyway={handleAddAnywayFromPreview}
+        addAnywayDisabled={validatingFeed}
+      />
 
       {restoreModal ? (
         <div

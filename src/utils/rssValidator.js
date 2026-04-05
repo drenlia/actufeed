@@ -1,6 +1,8 @@
 // Utility to validate RSS feeds and extract channel metadata
 // Uses backend proxy to avoid CORS issues
 
+import { rssItemEntryHasArticleThumbnail } from '../services/rssService'
+
 const MRSS_NS = 'http://search.yahoo.com/mrss/'
 const ATOM_NS = 'http://www.w3.org/2005/Atom'
 
@@ -294,7 +296,12 @@ export const validateRssFeed = async (feedUrl) => {
 
     const missingFields = []
     if (!requiredFields.title) missingFields.push('title')
-    if (!requiredFields.description) missingFields.push(isAtom ? 'summary or content' : 'description')
+    // Description/summary is optional: Yahoo and others often omit item body text (title + link + date only).
+    if (!requiredFields.description && itemNodes.length > 0 && sampleItems.length > 0) {
+      warnings.push(
+        'Sample entries have no article description or summary; cards may show the headline only (optional)'
+      )
+    }
     if (!requiredFields.pubDate) missingFields.push(isAtom ? 'published or updated' : 'pubDate')
     if (isAtom && !atomHasEntryLink) missingFields.push('entry link (href)')
 
@@ -309,6 +316,17 @@ export const validateRssFeed = async (feedUrl) => {
     }
     if (!hasCategories && itemNodes.length > 0) {
       warnings.push('Feed entries do not contain category information (optional)')
+    }
+
+    let itemLevelImagesMissing = false
+    if (sampleItems.length > 0) {
+      const anyItemThumb = sampleItems.some((node) => rssItemEntryHasArticleThumbnail(node, isAtom))
+      itemLevelImagesMissing = !anyItemThumb
+      if (itemLevelImagesMissing) {
+        warnings.push(
+          'Sample entries have no per-article images; cards may show only the feed logo (optional)'
+        )
+      }
     }
 
     let channelWebLink = normalizedInput
@@ -335,7 +353,11 @@ export const validateRssFeed = async (feedUrl) => {
       return {
         valid: false,
         errors: [`Feed items are missing required fields: ${missingFields.join(', ')}`],
+        missingRequiredItemFields: [...missingFields],
         warnings,
+        itemLevelImagesMissing,
+        previewEligible: true,
+        xmlText,
         channel: {
           title: channelTitle,
           description: channelDescription,
@@ -366,6 +388,7 @@ export const validateRssFeed = async (feedUrl) => {
       channel: channelData,
       errors: [],
       warnings,
+      itemLevelImagesMissing,
     }
     
   } catch (error) {

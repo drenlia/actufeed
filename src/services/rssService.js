@@ -377,6 +377,36 @@ function normalizeRssImgSrcFromHtml(raw, item) {
   return thumbnail
 }
 
+/** True when media:content url is plausibly an image (MRSS often omits type="image/…"). */
+function mediaUrlLooksLikeImage(rawUrl) {
+  const url = String(rawUrl || '').trim()
+  if (!url || url.startsWith('data:')) return false
+  let path
+  try {
+    const abs = url.startsWith('//') ? `https:${url}` : url
+    path = new URL(abs).pathname.toLowerCase()
+  } catch {
+    return false
+  }
+  if (/\.(mp4|m3u8|webm|mp3|m4a|m4v|mov|avi|mkv)(\?|#|$)/i.test(path)) return false
+  if (/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(path)) return true
+  try {
+    const host = new URL(url.startsWith('//') ? `https:${url}` : url).hostname.toLowerCase()
+    if (host.includes('yimg.com')) return true
+  } catch {
+    /* ignore */
+  }
+  return false
+}
+
+function normalizeStandaloneMediaUrl(url) {
+  let t = String(url || '').trim()
+  if (!t || t.startsWith('data:')) return ''
+  if (t.startsWith('//')) t = `https:${t}`
+  if (!/^https?:\/\//i.test(t)) return ''
+  return t
+}
+
 // Extract image/thumbnail from RSS item
 const extractThumbnail = (item, description) => {
   // Try multiple selectors for different RSS formats
@@ -403,7 +433,22 @@ const extractThumbnail = (item, description) => {
     thumbnail = mediaContent.getAttribute('url') || ''
     if (thumbnail) return thumbnail
   }
-  
+
+  // MRSS: Yahoo and others use media:content with url + dimensions but no type, or medium="image"
+  const mediaContents = item.querySelectorAll('media\\:content')
+  for (const mc of mediaContents) {
+    const urlRaw = (mc.getAttribute('url') || '').trim()
+    if (!urlRaw) continue
+    const typeAttr = (mc.getAttribute('type') || '').trim().toLowerCase()
+    const medium = (mc.getAttribute('medium') || '').trim().toLowerCase()
+    if (typeAttr.startsWith('video/') || typeAttr.startsWith('audio/')) continue
+    if (medium === 'video' || medium === 'audio') continue
+    if (medium === 'image' || typeAttr.startsWith('image/') || (!typeAttr && mediaUrlLooksLikeImage(urlRaw))) {
+      const n = normalizeStandaloneMediaUrl(urlRaw)
+      if (n) return n
+    }
+  }
+
   // Try to extract from description HTML (most common source)
   if (description) {
     try {
@@ -676,8 +721,48 @@ const atomElementToPlainAndHtml = (el) => {
   return { plain: decodeHtmlEntities(text.trim()), rawHtml: '' }
 }
 
+/**
+ * Raw HTML passed to extractThumbnail — keep aligned with parseRssItem / parseAtomEntry.
+ * Used by feed validation to detect item-level images without duplicating the full parsers.
+ */
+function thumbnailHtmlBlobForItemNode(item, isAtom) {
+  if (isAtom) {
+    const sum = atomElementToPlainAndHtml(item.querySelector('summary'))
+    const cont = atomElementToPlainAndHtml(item.querySelector('content'))
+    return sum.rawHtml || cont.rawHtml || ''
+  }
+  const descriptionElement = item.querySelector('description')
+  let descriptionRawHtmlForThumb = ''
+  if (descriptionElement) {
+    const descInnerHTML = descriptionElement.innerHTML || ''
+    if (descInnerHTML.includes('<![CDATA[')) {
+      descriptionRawHtmlForThumb = descInnerHTML.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    } else {
+      descriptionRawHtmlForThumb = descInnerHTML
+    }
+  }
+  const contentElement = item.querySelector('content\\:encoded') || item.querySelector('encoded')
+  let contentRawHtml = ''
+  if (contentElement) {
+    const contentInnerHTML = contentElement.innerHTML || ''
+    if (contentInnerHTML.includes('<![CDATA[')) {
+      contentRawHtml = contentInnerHTML.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    } else {
+      contentRawHtml = contentInnerHTML
+    }
+  }
+  return [descriptionRawHtmlForThumb, contentRawHtml].filter((s) => s && String(s).trim()).join('\n')
+}
+
+/** Whether this entry/item has a discoverable per-article image (not only feed logo). */
+export function rssItemEntryHasArticleThumbnail(item, isAtom) {
+  const blob = thumbnailHtmlBlobForItemNode(item, isAtom)
+  const url = extractThumbnail(item, blob)
+  return Boolean(url && String(url).trim())
+}
+
 /** Atom 1.0 <entry> → same article shape as {@link parseRssItem} */
-const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss') => {
+const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss', previewMode = false) => {
   const titleEl = entry.querySelector('title')
   let title = titleEl?.textContent?.trim() || ''
   if (titleEl?.innerHTML && !title) {
@@ -756,13 +841,19 @@ const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss') 
 
   let publishedAt = new Date(pubDate)
   if (isNaN(publishedAt.getTime())) {
-    return null
+    if (previewMode) {
+      publishedAt = new Date()
+    } else {
+      return null
+    }
   }
 
-  const now = new Date()
-  const hoursDiff = (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60)
-  if (hoursDiff > 24 || hoursDiff < 0) {
-    return null
+  if (!previewMode) {
+    const now = new Date()
+    const hoursDiff = (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60)
+    if (hoursDiff > 24 || hoursDiff < 0) {
+      return null
+    }
   }
 
   if (!link) {
@@ -805,7 +896,7 @@ const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss') 
 }
 
 // Parse RSS item into news article object
-const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => {
+const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss', previewMode = false) => {
   // Get title - try multiple methods
   // Some feeds (like UOL) don't have title elements, use description as fallback
   const titleElement = item.querySelector('title')
@@ -828,7 +919,9 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
     }
   }
   
-  const link = item.querySelector('link')?.textContent || ''
+  const linkEl = item.querySelector('link')
+  const link =
+    (linkEl?.textContent || '').trim() || (linkEl?.getAttribute?.('href') || '').trim() || ''
   const pubDate = item.querySelector('pubDate')?.textContent || ''
 
   // Full plain text from <description> (never truncated here) + raw HTML for thumbnail discovery
@@ -1024,21 +1117,24 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
   if (isNaN(publishedAt.getTime())) {
     publishedAt = new Date(pubDate.replace(/(\d{4})-(\d{2})-(\d{2})/, '$1/$2/$3'))
     if (isNaN(publishedAt.getTime())) {
-      return null // Invalid date, skip this item
+      if (previewMode) {
+        publishedAt = new Date()
+      } else {
+        return null // Invalid date, skip this item
+      }
     }
   }
-  
-  // Filter to only recent news (last 24 hours instead of strict "today")
-  // This is more flexible and accounts for timezone differences
-  const now = new Date()
-  const articleDate = new Date(publishedAt)
-  const hoursDiff = (now.getTime() - articleDate.getTime()) / (1000 * 60 * 60)
-  
-  // Only show articles from the last 24 hours
-  if (hoursDiff > 24 || hoursDiff < 0) {
-    return null // Too old or future date, skip
+
+  if (!previewMode) {
+    // Filter to only recent news (last 24 hours instead of strict "today")
+    const now = new Date()
+    const articleDate = new Date(publishedAt)
+    const hoursDiff = (now.getTime() - articleDate.getTime()) / (1000 * 60 * 60)
+    if (hoursDiff > 24 || hoursDiff < 0) {
+      return null // Too old or future date, skip
+    }
   }
-  
+
   const itemId = guid || `${link}-${title}`
   
   // Normalize language code (e.g., 'fr-FR' -> 'fr', 'en-US' -> 'en')
@@ -1074,6 +1170,88 @@ const parseRssItem = (item, source, feedImageUrl = '', feedLogoTier = 'rss') => 
     shareCount: parseInt(shareCount) || 0,
     syndicationFormat: 'rss2',
   }
+}
+
+/**
+ * Parse the first RSS/Atom item from raw XML for Settings preview (same logo/thumbnail path as live fetch; skips 24h window).
+ * @returns {{ item: object, feedFormat: 'rss2' | 'atom' } | { error: string }}
+ */
+export async function buildFirstArticlePreviewFromXml(xmlText, { feedUrl, channelTitle, language = 'en' }) {
+  if (!xmlText || !String(xmlText).trim()) {
+    return { error: 'Empty feed body' }
+  }
+  const provisional = {
+    name: (channelTitle || 'Feed').trim() || 'Feed',
+    url: feedUrl,
+    language: language || 'en',
+    region: '',
+  }
+  let normalized = xmlText
+  if (normalized.trim().startsWith('<?xml')) {
+    normalized = normalized.replace(
+      /<\?xml\s+version=["']([^"']+)["'](\s+encoding=["'][^"']+["'])?/i,
+      '<?xml version="$1" encoding="UTF-8"'
+    )
+  } else {
+    normalized = '<?xml version="1.0" encoding="UTF-8"?>\n' + normalized
+  }
+  const parser = new DOMParser()
+  const xmlDoc = parser.parseFromString(normalized, 'text/xml')
+  const parseErr = xmlDoc.querySelector('parsererror')
+  if (parseErr) {
+    const itemCount = xmlDoc.querySelectorAll('item').length
+    const entryCount = xmlDoc.querySelectorAll('entry').length
+    if (itemCount === 0 && entryCount === 0) {
+      return { error: 'Could not parse feed XML' }
+    }
+  }
+
+  const rssRoot = xmlDoc.querySelector('rss')
+  const atomRoot = xmlDoc.querySelector('feed')
+  const rdfRoot = xmlDoc.querySelector('RDF')
+  const useAtom = Boolean(atomRoot && !rssRoot)
+
+  const channelSiteUrl = extractChannelSiteUrlFromXmlDoc(xmlDoc)
+  const rssChannelImage = extractFeedImageFromDoc(xmlDoc)
+  const pinnedFeedLogo = getPermanentFeedLogoUrl(feedUrl)
+  let feedImageUrl = ''
+  let feedLogoTier = 'none'
+  if (pinnedFeedLogo) {
+    feedImageUrl = pinnedFeedLogo
+    feedLogoTier = 'pinned'
+  } else if (rssChannelImage) {
+    feedImageUrl = rssChannelImage
+    feedLogoTier = 'rss'
+  } else {
+    const resolved = await resolveFallbackFeedLogo(provisional, channelSiteUrl)
+    feedImageUrl = resolved.url || ''
+    feedLogoTier = resolved.tier || 'none'
+  }
+
+  let firstNode = null
+  let feedFormat = 'rss2'
+  if (useAtom) {
+    firstNode = atomRoot.querySelector('entry')
+    feedFormat = 'atom'
+  } else {
+    const channelEl = rssRoot?.querySelector('channel') || rdfRoot?.querySelector('channel')
+    if (channelEl) {
+      firstNode = channelEl.querySelector('item')
+    }
+  }
+
+  if (!firstNode) {
+    return { error: 'No articles found in feed' }
+  }
+
+  const parsed = useAtom
+    ? parseAtomEntry(firstNode, provisional, feedImageUrl, feedLogoTier, true)
+    : parseRssItem(firstNode, provisional, feedImageUrl, feedLogoTier, true)
+
+  if (!parsed) {
+    return { error: 'Could not render a preview from the first item' }
+  }
+  return { item: parsed, feedFormat }
 }
 
 /** UUID v4 for RSS batch correlation; avoids crypto.randomUUID (missing in some browsers / HTTP contexts). */
