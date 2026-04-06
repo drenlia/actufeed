@@ -377,6 +377,24 @@ function normalizeRssImgSrcFromHtml(raw, item) {
   return thumbnail
 }
 
+/** Media RSS namespace — use getElementsByTagNameNS; querySelector('media:…') only matches prefix `media`. */
+const MRSS_NS = 'http://search.yahoo.com/mrss/'
+
+function firstMrssThumbnailUrl(item) {
+  const els = item.getElementsByTagNameNS(MRSS_NS, 'thumbnail')
+  for (let i = 0; i < els.length; i++) {
+    const u = els[i].getAttribute('url')
+    if (u && u.trim()) return u.trim()
+  }
+  return item.querySelector('media\\:thumbnail')?.getAttribute('url')?.trim() || ''
+}
+
+function allMrssContentElements(item) {
+  const byNs = item.getElementsByTagNameNS(MRSS_NS, 'content')
+  if (byNs && byNs.length > 0) return Array.from(byNs)
+  return Array.from(item.querySelectorAll('media\\:content'))
+}
+
 /** True when media:content url is plausibly an image (MRSS often omits type="image/…"). */
 function mediaUrlLooksLikeImage(rawUrl) {
   const url = String(rawUrl || '').trim()
@@ -392,7 +410,8 @@ function mediaUrlLooksLikeImage(rawUrl) {
   if (/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(path)) return true
   try {
     const host = new URL(url.startsWith('//') ? `https:${url}` : url).hostname.toLowerCase()
-    if (host.includes('yimg.com')) return true
+    // Yahoo News RSS: media:content often has no type=; art is on media.zenfs.com (not yimg.com).
+    if (host.includes('yimg.com') || host.includes('zenfs.com')) return true
   } catch {
     /* ignore */
   }
@@ -412,31 +431,34 @@ const extractThumbnail = (item, description) => {
   // Try multiple selectors for different RSS formats
   let thumbnail = ''
   
-  // Media RSS (YouTube, etc.)
-  thumbnail = item.querySelector('media\\:thumbnail')?.getAttribute('url') || ''
+  // Media RSS thumbnail (namespace URI — Yahoo may use a prefix other than `media`)
+  thumbnail = firstMrssThumbnailUrl(item)
   if (thumbnail) return thumbnail
-  
+
   // Standard thumbnail element
   thumbnail = item.querySelector('thumbnail')?.getAttribute('url') || ''
   if (thumbnail) return thumbnail
-  
+
   // Enclosure with image type
   const enclosure = item.querySelector('enclosure[type^="image"]')
   if (enclosure) {
     thumbnail = enclosure.getAttribute('url') || ''
     if (thumbnail) return thumbnail
   }
-  
-  // Media content
-  const mediaContent = item.querySelector('media\\:content[type^="image"]')
-  if (mediaContent) {
-    thumbnail = mediaContent.getAttribute('url') || ''
-    if (thumbnail) return thumbnail
+
+  const mrssContents = allMrssContentElements(item)
+
+  // Media content with explicit image type
+  for (const mc of mrssContents) {
+    const typeAttr = (mc.getAttribute('type') || '').trim().toLowerCase()
+    if (typeAttr.startsWith('image/')) {
+      thumbnail = mc.getAttribute('url') || ''
+      if (thumbnail) return thumbnail
+    }
   }
 
   // MRSS: Yahoo and others use media:content with url + dimensions but no type, or medium="image"
-  const mediaContents = item.querySelectorAll('media\\:content')
-  for (const mc of mediaContents) {
+  for (const mc of mrssContents) {
     const urlRaw = (mc.getAttribute('url') || '').trim()
     if (!urlRaw) continue
     const typeAttr = (mc.getAttribute('type') || '').trim().toLowerCase()
@@ -729,7 +751,7 @@ function thumbnailHtmlBlobForItemNode(item, isAtom) {
   if (isAtom) {
     const sum = atomElementToPlainAndHtml(item.querySelector('summary'))
     const cont = atomElementToPlainAndHtml(item.querySelector('content'))
-    return sum.rawHtml || cont.rawHtml || ''
+    return [sum.rawHtml, cont.rawHtml].filter((s) => s && String(s).trim()).join('\n')
   }
   const descriptionElement = item.querySelector('description')
   let descriptionRawHtmlForThumb = ''
@@ -786,7 +808,12 @@ const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss', 
   if (mediaDescPlain) {
     descriptionPlainFull = longerPlainFragment(descriptionPlainFull, mediaDescPlain)
   }
-  const descriptionRawHtmlForThumb = sum.rawHtml || cont.rawHtml || ''
+  // Merge summary + content HTML for thumbnails (like RSS description + content:encoded).
+  // The Verge and others put the hero <img> only in <content>; <summary> is often teaser-only HTML,
+  // so `sum.rawHtml || cont.rawHtml` would skip the full body and miss images.
+  const descriptionRawHtmlForThumb = [sum.rawHtml, cont.rawHtml]
+    .filter((s) => s && String(s).trim())
+    .join('\n')
   const content = cont.plain.length >= sum.plain.length ? cont.plain : sum.plain
 
   if (!descriptionPlainFull && content) {

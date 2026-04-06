@@ -9,9 +9,6 @@ import {
 import { translations } from '../constants/translations'
 import { itemNeedsDescriptionExpand } from '../utils/newsDescriptionExpand'
 
-/** Longest edge below this ⇒ RSS “thumb” is usually a wire logo; upscaling looks soft — use feed logo instead. */
-const MIN_ARTICLE_THUMB_LONG_EDGE_PX = 220
-
 const DESCRIPTION_STRIP_REGEX = [
   /<img[^>]*>/gi,
   /<figure[^>]*>.*?<\/figure>/gi,
@@ -97,16 +94,6 @@ export const NewsItem = ({
     else setImageHidden(true)
   }
 
-  const handleImageLoad = (e) => {
-    if (!useThumbnail || !item.thumbnail) return
-    const el = e?.currentTarget
-    const nw = el?.naturalWidth ?? 0
-    const nh = el?.naturalHeight ?? 0
-    if (nw > 0 && nh > 0 && Math.max(nw, nh) < MIN_ARTICLE_THUMB_LONG_EDGE_PX && item.feedLogo) {
-      setThumbLoadFailed(true)
-    }
-  }
-
   const fullText = useMemo(
     () => (item.descriptionFull || item.content || item.description || '').trim(),
     [item.descriptionFull, item.content, item.description]
@@ -154,7 +141,6 @@ export const NewsItem = ({
                 alt={item.title || item.source || 'Article'}
                 className={`news-image ${isFaviconLogo ? 'news-image--favicon' : ''} ${isFeedLogoOnly && !isFaviconLogo ? 'news-image--logo' : ''}`}
                 onError={handleImageError}
-                onLoad={handleImageLoad}
                 decoding="async"
               />
             </a>
