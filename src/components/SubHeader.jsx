@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { translations } from '../constants/translations'
 import { CategoryDropdown } from './CategoryDropdown'
 import { HighlyRatedToggle } from './HighlyRatedToggle'
@@ -6,6 +6,150 @@ import { RefreshIconButton } from './RefreshIconButton'
 import { SortBySegmented } from './SortBySegmented'
 
 const SHOW_FILTER_KEYS = ['all', 'fr', 'en']
+
+const MAX_SEARCH_CHIP_LEN = 36
+
+function categoryLabelForNormalized(normalized, availableCategories) {
+  const g = availableCategories.find((c) => c.normalized === normalized)
+  return g?.displayName || normalized
+}
+
+function SubHeaderCollapsedActiveBar({
+  t,
+  newsFilter,
+  onNewsFilterChange,
+  selectedCategories,
+  availableCategories,
+  onToggleCategory,
+  sortBy,
+  onSortChange,
+  showHighlyRated,
+  onHighlyRatedToggle,
+  searchQuery,
+  onSearchChange,
+  sourceNameFilter,
+  minPopularityScore,
+  onClearSourceFilter,
+  onClearMinRankFilter,
+  onRequestExpandFilters,
+}) {
+  const searchTrim = searchQuery.trim()
+  const searchChipText =
+    searchTrim.length > MAX_SEARCH_CHIP_LEN
+      ? `${searchTrim.slice(0, MAX_SEARCH_CHIP_LEN)}…`
+      : searchTrim
+
+  const sortedCategoryKeys = useMemo(
+    () => Array.from(selectedCategories).sort((a, b) => a.localeCompare(b)),
+    [selectedCategories]
+  )
+
+  return (
+    <div className="sub-header sub-header--collapsed-active" role="region" aria-label={t.filterCollapsedSummaryAria}>
+      <div className="sub-header__toolbar sub-header__toolbar--collapsed-active">
+        <div className="sub-header__collapsed-active-scroll">
+          {newsFilter === 'fr' ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={() => onNewsFilterChange('all')}
+              title={t.filterFromArticleLangClearTitle}
+            >
+              {t.filterSegmentFrench} ×
+            </button>
+          ) : null}
+          {newsFilter === 'en' ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={() => onNewsFilterChange('all')}
+              title={t.filterFromArticleLangClearTitle}
+            >
+              {t.filterSegmentEnglish} ×
+            </button>
+          ) : null}
+          {sortBy === 'popularity' ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={() => onSortChange('date')}
+              title={t.clearFilters}
+            >
+              {t.sortPopularity} ×
+            </button>
+          ) : null}
+          {showHighlyRated ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={onHighlyRatedToggle}
+              title={t.clearFilters}
+            >
+              {t.highlyRated} ×
+            </button>
+          ) : null}
+          {searchTrim ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={() => onSearchChange('')}
+              title={t.clearFilters}
+            >
+              {t.filterChipSearch.replace('{q}', searchChipText)} ×
+            </button>
+          ) : null}
+          {sortedCategoryKeys.map((key) => {
+            const label = categoryLabelForNormalized(key, availableCategories)
+            return (
+              <button
+                key={key}
+                type="button"
+                className="filter-quick-chip"
+                onClick={() => onToggleCategory(key)}
+                title={t.filterFromArticleCategoryClearTitle}
+                aria-label={t.filterFromArticleCategoryClearA11y.replace('{cat}', label)}
+              >
+                {label} ×
+              </button>
+            )
+          })}
+          {sourceNameFilter?.trim() ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={onClearSourceFilter}
+              title={t.clearFilters}
+            >
+              {t.filterChipSource.replace('{name}', sourceNameFilter.trim())} ×
+            </button>
+          ) : null}
+          {minPopularityScore != null ? (
+            <button
+              type="button"
+              className="filter-quick-chip"
+              onClick={onClearMinRankFilter}
+              title={t.clearFilters}
+            >
+              {t.filterChipMinRank.replace('{n}', String(minPopularityScore))} ×
+            </button>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="sub-header__collapsed-active-expand"
+          onClick={onRequestExpandFilters}
+          title={t.showFilters}
+          aria-label={t.showFilters}
+        >
+          <svg className="sub-header__collapsed-active-expand-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+          </svg>
+          <span className="sub-header__collapsed-active-expand-text">{t.showFilters}</span>
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export const SubHeader = ({
   uiLanguage,
@@ -31,6 +175,9 @@ export const SubHeader = ({
   autoRefresh,
   onAutoRefreshChange,
   collapsed,
+  feedView = 'feed',
+  hasActiveArticleFilters = false,
+  onRequestExpandFilters,
 }) => {
   const t = translations[uiLanguage]
   const segmentedRef = useRef(null)
@@ -70,7 +217,30 @@ export const SubHeader = ({
   }
 
   if (collapsed) {
-    return null
+    if (feedView !== 'feed' || !hasActiveArticleFilters || !onRequestExpandFilters) {
+      return null
+    }
+    return (
+      <SubHeaderCollapsedActiveBar
+        t={t}
+        newsFilter={newsFilter}
+        onNewsFilterChange={onNewsFilterChange}
+        selectedCategories={selectedCategories}
+        availableCategories={availableCategories}
+        onToggleCategory={onToggleCategory}
+        sortBy={sortBy}
+        onSortChange={onSortChange}
+        showHighlyRated={showHighlyRated}
+        onHighlyRatedToggle={onHighlyRatedToggle}
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
+        sourceNameFilter={sourceNameFilter}
+        minPopularityScore={minPopularityScore}
+        onClearSourceFilter={onClearSourceFilter}
+        onClearMinRankFilter={onClearMinRankFilter}
+        onRequestExpandFilters={onRequestExpandFilters}
+      />
+    )
   }
 
   return (

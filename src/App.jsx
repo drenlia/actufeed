@@ -765,6 +765,12 @@ function AppContent() {
             autoRefresh={autoRefresh}
             onAutoRefreshChange={setAutoRefresh}
             collapsed={subheaderCollapsed}
+            feedView={feedView}
+            hasActiveArticleFilters={hasNarrowingFilters}
+            onRequestExpandFilters={() => {
+              setSubheaderCollapsed(false)
+              saveSettingsPreferences({ subheaderCollapsed: false })
+            }}
           />
         </div>
 
