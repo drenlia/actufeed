@@ -4021,8 +4021,34 @@ button.news-source.news-meta-filter-hit.news-source-link:hover {
   min-height: 200px;
 }
 
-.settings-manual-inline .manual-feed-container {
+/* Manual add feed modal (same overlay pattern as preset catalog) */
+.manual-feed-add-dialog.preset-browse-dialog {
+  max-width: min(640px, calc(100vw - 32px));
+}
+
+.manual-feed-add-body {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.manual-feed-add-body .manual-feed-container {
   margin-top: 0;
+}
+
+.manual-feed-modal-header__lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.manual-feed-modal-header__lead .preset-browse-title {
+  flex: 1;
+  min-width: 0;
 }
 
 .settings-back-to-active-link {
@@ -5174,6 +5200,29 @@ button.news-source.news-meta-filter-hit.news-source-link:hover {
   gap: 10px;
   margin-bottom: 15px;
   font-size: 1.05em;
+}
+
+.validation-header__lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.validation-header--with-action {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.validation-header--with-action .validation-header__lead {
+  flex: 1 1 auto;
+}
+
+.validation-header--with-action .add-validated-feed-btn--header {
+  margin-top: 0;
+  flex-shrink: 0;
 }
 
 .validation-icon {

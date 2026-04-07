@@ -3,6 +3,7 @@
 
 import { rssItemEntryHasArticleThumbnail } from '../services/rssService'
 import { apiUrl } from './apiBase'
+import { translations } from '../constants/translations'
 
 const MRSS_NS = 'http://search.yahoo.com/mrss/'
 const ATOM_NS = 'http://www.w3.org/2005/Atom'
@@ -36,9 +37,11 @@ function normalizeYoutubeManualUrl(input) {
 /**
  * Validates an RSS feed URL and extracts channel metadata
  * @param {string} feedUrl - The RSS feed URL to validate
+ * @param {string} [uiLanguage='en'] - UI language for server-error messages (YouTube resolve path)
  * @returns {Promise<{valid: boolean, channel?: Object, errors?: Array<string>, warnings?: Array<string>, resolvedFeedUrl?: string, feedFormat?: string}>}
  */
-export const validateRssFeed = async (feedUrl) => {
+export const validateRssFeed = async (feedUrl, uiLanguage = 'en') => {
+  const t = translations[uiLanguage] || translations.en
   const warnings = []
   const normalizedInput = normalizeYoutubeManualUrl(feedUrl)
 
@@ -60,14 +63,25 @@ export const validateRssFeed = async (feedUrl) => {
       const timeoutId = setTimeout(() => controller.abort(), 25000)
       const response = await fetch(resolveUrl, { signal: controller.signal })
       clearTimeout(timeoutId)
+      const rawText = await response.text()
       let data = {}
       try {
-        data = await response.json()
+        data = rawText ? JSON.parse(rawText) : {}
       } catch {
         data = {}
       }
       if (!response.ok || !data.valid) {
-        const errs = data.errors || [data.error || `YouTube check failed (${response.status})`]
+        let errs = data.errors
+        if (data.error && (!errs || !errs.length)) {
+          errs = [data.error]
+        }
+        if (!errs || !errs.length) {
+          errs = [
+            response.status === 502 || response.status === 503
+              ? t.youtubeResolveBadGateway
+              : `YouTube check failed (${response.status})`,
+          ]
+        }
         return {
           valid: false,
           errors: Array.isArray(errs) ? errs : [String(errs)],

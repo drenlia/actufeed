@@ -4,6 +4,7 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createServer } from 'http';
+import { setDefaultResultOrder } from 'node:dns';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import iconv from 'iconv-lite';
@@ -15,10 +16,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Load .env from the directory containing this file (reliable when cwd ≠ project root).
 dotenv.config({ path: join(__dirname, '.env') });
+// Prefer IPv4 when resolving hostnames — some CDNs (incl. YouTube) behave differently on IPv6 vs IPv4.
+setDefaultResultOrder('ipv4first');
 if (process.env.NODE_ENV === 'development') {
   const ytOk = Boolean(process.env.YOUTUBE_DATA_API_KEY?.trim());
   console.log(
-    `[actufeed] API .env: ${join(__dirname, '.env')} | YOUTUBE_DATA_API_KEY ${ytOk ? 'loaded' : 'missing (channel search returns 503)'}`
+    `[actufeed] API .env: ${join(__dirname, '.env')} | YOUTUBE_DATA_API_KEY ${ytOk ? 'loaded (channel search + YouTube resolve without Atom fetch when possible)' : 'missing (channel search 503; YouTube resolve needs Atom probe)'}`
   );
   console.log(
     '[actufeed] YouTube search logs: prefix [YouTube channel-search]. If the UI shows HTML/JSON errors but no "request" line when you search, traffic is not reaching this API (Vite proxy / BACKEND_PROXY_TARGET / port).'
@@ -439,6 +442,61 @@ async function readHttpResponseBodyBounded(response, options = {}) {
   };
 }
 
+function isYoutubeFeedsVideosXmlUrl(feedUrl) {
+  try {
+    const u = new URL(feedUrl);
+    const h = u.hostname.replace(/^www\./i, '').toLowerCase();
+    return h === 'youtube.com' && u.pathname.replace(/\/+$/, '') === '/feeds/videos.xml';
+  } catch {
+    return false;
+  }
+}
+
+/** `feeds/videos.xml?channel_id=UC…` only (after normalization away from playlist_id). */
+function extractYoutubeChannelIdFromFeedsVideosUrl(feedUrlString) {
+  try {
+    if (!isYoutubeFeedsVideosXmlUrl(feedUrlString)) return null;
+    const u = new URL(feedUrlString);
+    const id = u.searchParams.get('channel_id');
+    if (id && /^UC[a-zA-Z0-9_-]{10,}$/i.test(id.trim())) return id.trim();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * YouTube’s feed origin often returns 404/500 for some client fingerprints while browsers (or another UA) get 200.
+ * Try several realistic clients in order; do not random-pick a single Chrome UA for these URLs.
+ */
+const YOUTUBE_ATOM_FEED_USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0',
+  'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+];
+
+const MAX_FORWARDED_CLIENT_UA_LENGTH = 512;
+
+/** Strip CR/LF/NUL and cap length so the inbound UA cannot inject extra headers. */
+function sanitizeForwardedUserAgent(raw) {
+  if (raw == null || typeof raw !== 'string') return '';
+  const s = raw.trim().replace(/[\r\n\x00]/g, '');
+  return s.length <= MAX_FORWARDED_CLIENT_UA_LENGTH ? s : s.slice(0, MAX_FORWARDED_CLIENT_UA_LENGTH);
+}
+
+/**
+ * Prefer the browser’s User-Agent (from the request to our API) for YouTube Atom fetches so behavior
+ * matches “open this feed URL in my browser”; fall back to built-ins if YouTube still rejects.
+ */
+function buildYoutubeAtomFeedUserAgentList(clientUa) {
+  const cleaned = sanitizeForwardedUserAgent(clientUa);
+  if (!cleaned) return [...YOUTUBE_ATOM_FEED_USER_AGENTS];
+  const rest = YOUTUBE_ATOM_FEED_USER_AGENTS.filter((ua) => ua !== cleaned);
+  return [cleaned, ...rest];
+}
+
 // Helper function to fetch with retries (generic, no feed-specific logic)
 async function fetchWithRetry(feedUrl, retries = 2, fetchOptions = {}) {
   const maxAttempts = retries + 1;
@@ -459,32 +517,71 @@ async function fetchWithRetry(feedUrl, retries = 2, fetchOptions = {}) {
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      // Rotate User-Agent to appear more like different browsers
-      const userAgents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
+
+      const tryYoutube = isYoutubeFeedsVideosXmlUrl(feedUrl);
+      const genericPool = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
       ];
-      const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-      
-      const response = await fetch(feedUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': userAgent,
-          'Accept': 'application/rss+xml, application/xml, text/xml, application/atom+xml, */*',
-          'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,fr-CA;q=0.7',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Referer': new URL(feedUrl).origin + '/',
-          'Cache-Control': 'no-cache',
-          'DNT': '1',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
-        },
-        redirect: 'follow' // Follow up to 20 redirects (default)
-      });
-      
+      const uaList = tryYoutube
+        ? buildYoutubeAtomFeedUserAgentList(fetchOptions.clientUserAgent)
+        : [genericPool[Math.floor(Math.random() * genericPool.length)]];
+
+      let response = null;
+      for (let uaIdx = 0; uaIdx < uaList.length; uaIdx++) {
+        const userAgent = uaList[uaIdx];
+        const headers = tryYoutube
+          ? {
+              'User-Agent': userAgent,
+              Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+              'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+            }
+          : {
+              'User-Agent': userAgent,
+              Accept: 'application/rss+xml, application/xml, text/xml, application/atom+xml, */*',
+              'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,fr-CA;q=0.7',
+              'Accept-Encoding': 'gzip, deflate, br',
+              Referer: `${new URL(feedUrl).origin}/`,
+              'Cache-Control': 'no-cache',
+              DNT: '1',
+              Connection: 'keep-alive',
+              'Upgrade-Insecure-Requests': '1',
+            };
+
+        response = await fetch(feedUrl, {
+          signal: controller.signal,
+          headers,
+          redirect: 'follow',
+        });
+
+        if (response.ok) {
+          if (tryYoutube && uaIdx > 0) {
+            console.log(
+              `[RSS Proxy] YouTube feed OK after alternate User-Agent (${uaIdx + 1}/${uaList.length})`
+            );
+          } else if (tryYoutube && uaIdx === 0 && sanitizeForwardedUserAgent(fetchOptions.clientUserAgent)) {
+            console.log('[RSS Proxy] YouTube feed OK using forwarded client User-Agent');
+          }
+          break;
+        }
+
+        const st = response.status;
+        if (
+          tryYoutube &&
+          (st === 404 || st === 500 || st === 503) &&
+          uaIdx < uaList.length - 1
+        ) {
+          console.log(
+            `[RSS Proxy] YouTube feed HTTP ${st} (UA ${uaIdx + 1}/${uaList.length}), trying next fingerprint…`
+          );
+        } else {
+          break;
+        }
+      }
+
       clearTimeout(timeoutId);
       
       if (response.ok) {
@@ -650,14 +747,25 @@ async function fetchWithRetry(feedUrl, retries = 2, fetchOptions = {}) {
         const error = new Error(`HTTP ${status} ${response.statusText}`);
         console.log(`[RSS Proxy] Attempt ${attemptNumber} failed: ${error.message}`);
         lastError = error;
-        
-        // For 403/404, don't retry (these are permanent failures)
-        if (status === 403 || status === 404) {
-          console.log(`[RSS Proxy] Permanent failure (${status}), not retrying`);
+
+        if (status === 403) {
+          console.log(`[RSS Proxy] Permanent failure (403), not retrying`);
           throw error;
         }
-        
-        // Other errors - retry if attempts remain
+        // Non-YouTube 404: permanent. YouTube feeds: 404/500/503 often flip between edges — retry.
+        if (status === 404 && !tryYoutube) {
+          console.log(`[RSS Proxy] Permanent failure (404), not retrying`);
+          throw error;
+        }
+        if (
+          tryYoutube &&
+          (status === 404 || status === 500 || status === 503) &&
+          attempt < retries
+        ) {
+          console.log(`[RSS Proxy] YouTube HTTP ${status}, backing off and retrying attempt…`);
+          continue;
+        }
+
         if (attempt < retries) {
           continue;
         }
@@ -678,8 +786,11 @@ async function fetchWithRetry(feedUrl, retries = 2, fetchOptions = {}) {
         throw timeoutError;
       }
       
-      // For 403/404, don't retry (these are permanent failures)
-      if (error.message.includes('HTTP 403') || error.message.includes('HTTP 404')) {
+      if (error.message.includes('HTTP 403')) {
+        console.log(`[RSS Proxy] ✗ Permanent failure on attempt ${attemptNumber}, not retrying: ${error.message}`);
+        throw error;
+      }
+      if (error.message.includes('HTTP 404') && !isYoutubeFeedsVideosXmlUrl(feedUrl)) {
         console.log(`[RSS Proxy] ✗ Permanent failure on attempt ${attemptNumber}, not retrying: ${error.message}`);
         throw error;
       }
@@ -1059,6 +1170,33 @@ function isYoutubeHost(hostname) {
   return h === 'youtube.com' || h === 'm.youtube.com';
 }
 
+/**
+ * Data API `relatedPlaylists.uploads` is a playlist id `UU…` (same suffix as `UC…` channel id).
+ * YouTube often returns HTTP 404 for `feeds/videos.xml?playlist_id=UU…` when fetched from a server,
+ * while `feeds/videos.xml?channel_id=UC…` still serves the same upload feed.
+ */
+function normalizeYoutubeVideosFeedUrlToChannelForm(urlString) {
+  let u;
+  try {
+    u = new URL(String(urlString).trim());
+  } catch {
+    return urlString;
+  }
+  if (!isYoutubeHost(u.hostname)) return urlString;
+  const path = (u.pathname || '/').replace(/\/+$/, '') || '/';
+  if (path !== '/feeds/videos.xml') return urlString;
+  const playlistId = u.searchParams.get('playlist_id');
+  if (!playlistId || !/^UU[a-zA-Z0-9_-]{10,}$/i.test(playlistId.trim())) {
+    return urlString;
+  }
+  const channelId = `UC${playlistId.trim().slice(2)}`;
+  u.protocol = 'https:';
+  u.hostname = 'www.youtube.com';
+  u.searchParams.delete('playlist_id');
+  u.searchParams.set('channel_id', channelId);
+  return u.toString();
+}
+
 function normalizeYoutubeBrowseUrl(inputUrl) {
   let u;
   try {
@@ -1089,6 +1227,10 @@ function syncExtractYoutubeChannelId(inputUrl) {
   if (feedsPath === '/feeds/videos.xml') {
     const id = u.searchParams.get('channel_id');
     if (id && /^UC[a-zA-Z0-9_-]{10,}$/i.test(id.trim())) return id.trim();
+    const pl = u.searchParams.get('playlist_id');
+    if (pl && /^UU[a-zA-Z0-9_-]{10,}$/i.test(pl.trim())) {
+      return `UC${pl.trim().slice(2)}`;
+    }
     return null;
   }
 
@@ -1241,7 +1383,128 @@ async function tryYoutubeOembedChannelId(pageUrl) {
 }
 
 /**
- * @returns {Promise<{ feedUrl: string | null, channelId: string | null, channelPageUrl: string | null, browseHtml: string | null, error: string | null }>}
+ * channelId (UC…) → cached channels.list snapshot (feed URL + metadata). Reduces Data API calls on refresh.
+ */
+const youtubePlaylistAtomCache = new Map();
+const YOUTUBE_PLAYLIST_ATOM_CACHE_MS = 6 * 60 * 60 * 1000;
+
+function normalizeYoutubeApiLanguage(code) {
+  if (!code || typeof code !== 'string') return 'en';
+  const c = code.trim().toLowerCase();
+  const two = c.slice(0, 2);
+  if (/^[a-z]{2}$/.test(two)) return two;
+  return 'en';
+}
+
+/**
+ * One `channels.list` (snippet + contentDetails + statistics): metadata + canonical `feeds/videos.xml?channel_id=…`
+ * URL (not `playlist_id=` — uploads id often 404s from server fetches). Used for /api/youtube/resolve without Atom/HTML.
+ */
+async function fetchYoutubeChannelSnapshotFromDataApi(channelId, fallbackFeedUrl) {
+  const apiKey = process.env.YOUTUBE_DATA_API_KEY?.trim();
+  if (!apiKey || !channelId || !/^UC[a-zA-Z0-9_-]{10,}$/i.test(channelId)) {
+    return null;
+  }
+
+  const cacheKey = channelId.trim();
+  const hit = youtubePlaylistAtomCache.get(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) {
+    return {
+      atomFeedUrl: normalizeYoutubeVideosFeedUrlToChannelForm(hit.feedUrl),
+      title: hit.title,
+      description: hit.description,
+      defaultLanguage: hit.defaultLanguage,
+      videoCount: hit.videoCount,
+      thumbnailUrl: hit.thumbnailUrl,
+    };
+  }
+
+  try {
+    const apiUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+    apiUrl.searchParams.set('part', 'snippet,contentDetails,statistics');
+    apiUrl.searchParams.set('id', channelId);
+    apiUrl.searchParams.set('key', apiKey);
+
+    const r = await fetch(apiUrl.toString(), {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const bodyText = await r.text();
+    let json = {};
+    try {
+      json = bodyText ? JSON.parse(bodyText) : {};
+    } catch {
+      return null;
+    }
+    if (!r.ok) {
+      const msg = json?.error?.message || r.statusText;
+      console.warn(`[YouTube Data API] channels.list HTTP ${r.status} for ${channelId}: ${msg}`);
+      return null;
+    }
+    const item = json.items?.[0];
+    if (!item) return null;
+
+    // Always use ?channel_id=UC… for the public Atom URL (see normalizeYoutubeVideosFeedUrlToChannelForm).
+    const atomFeedUrl = fallbackFeedUrl;
+
+    const sn = item.snippet || {};
+    const st = item.statistics || {};
+    const rawLang = sn.defaultLanguage || sn.defaultAudioLanguage || 'en';
+    const vcRaw = st.videoCount;
+    let videoCount = null;
+    if (vcRaw !== undefined && vcRaw !== null && String(vcRaw).length > 0) {
+      const n = parseInt(String(vcRaw), 10);
+      if (Number.isFinite(n) && n >= 0) videoCount = n;
+    }
+
+    const thumbnailUrl =
+      sn.thumbnails?.high?.url ||
+      sn.thumbnails?.medium?.url ||
+      sn.thumbnails?.default?.url ||
+      '';
+
+    const snap = {
+      atomFeedUrl,
+      title: typeof sn.title === 'string' ? sn.title : '',
+      description: typeof sn.description === 'string' ? sn.description : '',
+      defaultLanguage: normalizeYoutubeApiLanguage(rawLang),
+      videoCount,
+      thumbnailUrl,
+    };
+
+    youtubePlaylistAtomCache.set(cacheKey, {
+      feedUrl: snap.atomFeedUrl,
+      expiresAt: Date.now() + YOUTUBE_PLAYLIST_ATOM_CACHE_MS,
+      title: snap.title,
+      description: snap.description,
+      defaultLanguage: snap.defaultLanguage,
+      videoCount: snap.videoCount,
+      thumbnailUrl: snap.thumbnailUrl,
+    });
+
+    console.log(`[YouTube Data API] channels.list snapshot for ${channelId.slice(0, 12)}… (Atom + metadata)`);
+    return snap;
+  } catch (e) {
+    console.warn(`[YouTube Data API] channels.list failed: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * @returns {Promise<{
+ *   feedUrl: string | null,
+ *   channelId: string | null,
+ *   channelPageUrl: string | null,
+ *   browseHtml: string | null,
+ *   error: string | null,
+ *   dataApiChannel: null | {
+ *     title: string,
+ *     description: string,
+ *     defaultLanguage: string,
+ *     videoCount: number | null,
+ *     thumbnailUrl: string,
+ *   },
+ * }>}
  */
 async function resolveYoutubeInputToFeedUrl(inputUrl) {
   const shortHost = (() => {
@@ -1287,14 +1550,28 @@ async function resolveYoutubeInputToFeedUrl(inputUrl) {
 
   const syncId = syncExtractYoutubeChannelId(normalizedPage);
   if (syncId) {
-    const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(syncId)}`;
-    console.log(`[YouTube] resolved via URL (no HTML fetch) channel_id=${syncId}`);
+    const fallbackFeed = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(syncId)}`;
+    const snap = await fetchYoutubeChannelSnapshotFromDataApi(syncId, fallbackFeed);
+    const feedUrl = snap?.atomFeedUrl || fallbackFeed;
+    const dataApiChannel = snap?.title
+      ? {
+          title: snap.title,
+          description: snap.description,
+          defaultLanguage: snap.defaultLanguage,
+          videoCount: snap.videoCount,
+          thumbnailUrl: snap.thumbnailUrl,
+        }
+      : null;
+    console.log(
+      `[YouTube] resolved via URL (no HTML fetch) channel_id=${syncId}${dataApiChannel ? ' + Data API metadata' : ''}`
+    );
     return {
       feedUrl,
       channelId: syncId,
       channelPageUrl: `https://www.youtube.com/channel/${syncId}`,
       browseHtml: null,
       error: null,
+      dataApiChannel,
     };
   }
 
@@ -1355,15 +1632,220 @@ async function resolveYoutubeInputToFeedUrl(inputUrl) {
     };
   }
 
-  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
-  console.log(`[YouTube] resolved browse URL → channel_id=${channelId} feed OK path`);
+  const fallbackFeed = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+  const snap = await fetchYoutubeChannelSnapshotFromDataApi(channelId, fallbackFeed);
+  const feedUrl = snap?.atomFeedUrl || fallbackFeed;
+  const dataApiChannel = snap?.title
+    ? {
+        title: snap.title,
+        description: snap.description,
+        defaultLanguage: snap.defaultLanguage,
+        videoCount: snap.videoCount,
+        thumbnailUrl: snap.thumbnailUrl,
+      }
+    : null;
+  console.log(
+    `[YouTube] resolved browse URL → channel_id=${channelId}${dataApiChannel ? ' + Data API metadata' : ''}`
+  );
   return {
     feedUrl,
     channelId,
     channelPageUrl: `https://www.youtube.com/channel/${channelId}`,
     browseHtml: html,
     error: null,
+    dataApiChannel,
   };
+}
+
+/** Short TTL: many parallel /api/proxy/rss calls per refresh; playlistItems.list costs 1 unit per page. */
+const youtubePlaylistItemsFeedXmlCache = new Map();
+const YOUTUBE_PLAYLIST_ITEMS_FEED_XML_TTL_MS = 120_000;
+
+function escapeXmlText(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+async function fetchYoutubePlaylistItemsPage(apiKey, playlistId, pageToken, isRetry = false) {
+  const url = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+  url.searchParams.set('part', 'snippet,contentDetails');
+  url.searchParams.set('playlistId', playlistId);
+  url.searchParams.set('maxResults', '50');
+  url.searchParams.set('key', apiKey);
+  if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+  try {
+    const r = await fetch(url.toString(), {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(12_000),
+    });
+    const bodyText = await r.text();
+    let json = {};
+    try {
+      json = bodyText ? JSON.parse(bodyText) : {};
+    } catch {
+      return { ok: false, items: [], error: 'Invalid JSON from YouTube API', nextPageToken: null };
+    }
+
+    if ((r.status === 429 || r.status === 503) && !isRetry) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      return fetchYoutubePlaylistItemsPage(apiKey, playlistId, pageToken, true);
+    }
+
+    if (!r.ok) {
+      const msg = json?.error?.message || r.statusText || String(r.status);
+      return { ok: false, items: [], error: msg, nextPageToken: null, status: r.status };
+    }
+
+    return {
+      ok: true,
+      items: Array.isArray(json.items) ? json.items : [],
+      nextPageToken: json.nextPageToken || null,
+    };
+  } catch (e) {
+    return { ok: false, items: [], error: e.message || 'network error', nextPageToken: null };
+  }
+}
+
+async function fetchYoutubeChannelSnippetTitleOnly(apiKey, channelId) {
+  try {
+    const apiUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+    apiUrl.searchParams.set('part', 'snippet');
+    apiUrl.searchParams.set('id', channelId);
+    apiUrl.searchParams.set('key', apiKey);
+    const r = await fetch(apiUrl.toString(), {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    const bodyText = await r.text();
+    let json = {};
+    try {
+      json = bodyText ? JSON.parse(bodyText) : {};
+    } catch {
+      return null;
+    }
+    if (!r.ok) return null;
+    const t = json.items?.[0]?.snippet?.title;
+    return typeof t === 'string' ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildYoutubePlaylistItemAtomEntry(it, defaultChannelTitle) {
+  const vid = it.contentDetails?.videoId || it.snippet?.resourceId?.videoId;
+  if (!vid || typeof vid !== 'string') return '';
+  const sn = it.snippet || {};
+  const title = sn.title || '';
+  const desc = sn.description || '';
+  const published = sn.publishedAt || '';
+  const thumb =
+    sn.thumbnails?.high?.url ||
+    sn.thumbnails?.medium?.url ||
+    sn.thumbnails?.default?.url ||
+    '';
+  const authorName = sn.channelTitle || defaultChannelTitle || 'YouTube';
+  const watchUrl = `https://www.youtube.com/watch?v=${vid}`;
+
+  const thumbLine = thumb
+    ? `      <media:thumbnail url="${escapeXmlText(thumb)}" width="480" height="360"/>\n`
+    : '';
+
+  return (
+    `  <entry>\n` +
+    `    <id>yt:video:${escapeXmlText(vid)}</id>\n` +
+    `    <yt:videoId>${escapeXmlText(vid)}</yt:videoId>\n` +
+    `    <title>${escapeXmlText(title)}</title>\n` +
+    `    <link rel="alternate" href="${escapeXmlText(watchUrl)}"/>\n` +
+    `    <author><name>${escapeXmlText(authorName)}</name></author>\n` +
+    `    <published>${escapeXmlText(published)}</published>\n` +
+    `    <updated>${escapeXmlText(published)}</updated>\n` +
+    `    <media:group>\n` +
+    thumbLine +
+    `      <media:description>${escapeXmlText(desc)}</media:description>\n` +
+    `    </media:group>\n` +
+    `    <content type="text">${escapeXmlText(desc)}</content>\n` +
+    `  </entry>\n`
+  );
+}
+
+/**
+ * Official Data API playlistItems.list (1 unit/page) → Atom XML compatible with the web/app RSS parser.
+ * Avoids flaky youtube.com/feeds/videos.xml when YOUTUBE_DATA_API_KEY is set.
+ */
+async function buildYoutubeAtomFeedXmlFromPlaylistItems(channelId) {
+  const apiKey = process.env.YOUTUBE_DATA_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const cid = String(channelId || '').trim();
+  if (!/^UC[a-zA-Z0-9_-]{10,}$/i.test(cid)) return null;
+
+  const uploadsPlaylistId = `UU${cid.slice(2)}`;
+  const now = Date.now();
+  const cached = youtubePlaylistItemsFeedXmlCache.get(uploadsPlaylistId);
+  if (cached && cached.expiresAt > now) {
+    return cached.xml;
+  }
+
+  let allItems = [];
+  let pageToken = null;
+  let gotSuccessfulPage = false;
+  let lastError = null;
+
+  for (let page = 0; page < 2; page++) {
+    const batch = await fetchYoutubePlaylistItemsPage(apiKey, uploadsPlaylistId, pageToken);
+    if (!batch.ok) {
+      lastError = batch.error;
+      break;
+    }
+    gotSuccessfulPage = true;
+    allItems = allItems.concat(batch.items);
+    pageToken = batch.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  if (!gotSuccessfulPage) {
+    console.warn(
+      `[YouTube Data API] playlistItems failed for ${uploadsPlaylistId}: ${lastError || 'unknown'}`
+    );
+    return null;
+  }
+
+  let channelTitle =
+    allItems[0]?.snippet?.channelTitle ||
+    (await fetchYoutubeChannelSnippetTitleOnly(apiKey, cid)) ||
+    'YouTube';
+
+  let entriesXml = '';
+  for (const it of allItems) {
+    entriesXml += buildYoutubePlaylistItemAtomEntry(it, channelTitle);
+  }
+
+  const selfHref = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(cid)}`;
+  const feedUpdated = allItems[0]?.snippet?.publishedAt || new Date().toISOString();
+
+  const xml =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xmlns:yt="http://www.youtube.com/xml/schemas/v/2015">\n` +
+    `  <title>${escapeXmlText(channelTitle)}</title>\n` +
+    `  <link rel="self" href="${escapeXmlText(selfHref)}"/>\n` +
+    `  <updated>${escapeXmlText(feedUpdated)}</updated>\n` +
+    entriesXml +
+    `</feed>\n`;
+
+  youtubePlaylistItemsFeedXmlCache.set(uploadsPlaylistId, {
+    xml,
+    expiresAt: now + YOUTUBE_PLAYLIST_ITEMS_FEED_XML_TTL_MS,
+  });
+
+  console.log(
+    `[RSS Proxy] YouTube Atom synthesized via playlistItems channel=${cid.slice(0, 12)}… items=${allItems.length}`
+  );
+  return xml;
 }
 
 // RSS Feed Proxy Endpoint
@@ -1371,7 +1853,7 @@ async function resolveYoutubeInputToFeedUrl(inputUrl) {
 app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
   const clientIp = getClientIp(req);
   const batchId = parseRssBatchQueryParam(req);
-  const feedUrl = req.query.url;
+  const feedUrl = normalizeYoutubeVideosFeedUrlToChannelForm(req.query.url);
 
   if (!feedUrl) {
     const body = { error: 'Missing url parameter' };
@@ -1413,8 +1895,23 @@ app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
   }
 
   try {
-    // Fetch with retries (generic, no feed-specific logic)
-    const { text, contentType } = await fetchWithRetry(resolvedFeedUrl);
+    const forwardUa = req.get('user-agent') || '';
+
+    let text = null;
+    let contentType = 'application/atom+xml';
+
+    const ytCh = extractYoutubeChannelIdFromFeedsVideosUrl(resolvedFeedUrl);
+    if (ytCh && process.env.YOUTUBE_DATA_API_KEY?.trim()) {
+      text = await buildYoutubeAtomFeedXmlFromPlaylistItems(ytCh);
+    }
+
+    if (!text) {
+      const got = await fetchWithRetry(resolvedFeedUrl, 2, {
+        clientUserAgent: forwardUa,
+      });
+      text = got.text;
+      contentType = got.contentType || 'application/xml';
+    }
 
     // Ensure UTF-8 encoding is specified in Content-Type
     // This is critical for proper character encoding (especially for non-ASCII characters like Portuguese)
@@ -1491,7 +1988,8 @@ app.post('/api/proxy/batch-complete', apiLimiter, (req, res) => {
 
 /**
  * YouTube Data API v3 channel search (server-side key). Mobile app calls this so the key is not in the client binary.
- * Set YOUTUBE_DATA_API_KEY in .env (see .env.example). Not tamper-proof: anyone who can call your API can use it — use rate limits + optional ACTUFEED_PROXY_CLIENT_KEYS.
+ * Also used to resolve official uploads playlist Atom URLs (more reliable than channel_id= alone).
+ * Not tamper-proof: anyone who can call your API can use it — use rate limits + optional ACTUFEED_PROXY_CLIENT_KEYS.
  */
 app.get('/api/youtube/channel-search', apiLimiter, async (req, res) => {
   const clientIp = getClientIp(req);
@@ -1683,15 +2181,55 @@ app.get('/api/youtube/resolve', apiLimiter, async (req, res) => {
     });
   }
 
+  const dApi = yt.dataApiChannel;
+  if (dApi?.title) {
+    const itemCount = Number.isFinite(dApi.videoCount) ? dApi.videoCount : 0;
+    console.log(
+      `[YouTube Resolve API] OK via Data API only (no Atom fetch) channel_id=${yt.channelId} title=${JSON.stringify(dApi.title).slice(0, 100)} videoCount=${dApi.videoCount ?? 'n/a'}`
+    );
+    return res.json({
+      valid: true,
+      resolvedFeedUrl: yt.feedUrl,
+      channelId: yt.channelId,
+      channelPageUrl: yt.channelPageUrl,
+      inputUrl,
+      feedFormat: 'atom',
+      validatedViaYoutubeDataApi: true,
+      channel: {
+        title: dApi.title,
+        description: dApi.description || '',
+        link: yt.channelPageUrl || yt.feedUrl,
+        language: dApi.defaultLanguage || 'en',
+        itemCount,
+        imageUrl: (dApi.thumbnailUrl || '').trim(),
+      },
+      errors: [],
+      warnings: [],
+    });
+  }
+
   let text;
   try {
-    const got = await fetchWithRetry(yt.feedUrl, 2, { minimalCompleteXml: true });
+    const forwardUa = req.get('user-agent') || '';
+    const got = await fetchWithRetry(yt.feedUrl, 2, {
+      minimalCompleteXml: true,
+      clientUserAgent: forwardUa,
+    });
     text = got.text;
   } catch (e) {
     console.error(`[YouTube Resolve API] Atom feed fetch failed: ${e.message}`);
-    return res.status(502).json({
+    const msg = String(e.message || '');
+    const errors = [`Resolved feed URL but could not load it: ${msg}`];
+    // YouTube often returns 404 for feeds/videos.xml even when /channel/UC… still exists — upstream policy, not Actufeed.
+    if (/\b404\b/.test(msg)) {
+      errors.push(
+        'YouTube returned 404 for the public Atom feed. Some channels no longer expose feeds/videos.xml, or the channel ID no longer has a public upload feed on YouTube’s side. Try another channel or confirm the channel still publishes videos.'
+      );
+    }
+    // 422 = we understood the URL but the feed document is unavailable (vs 502 = proxy/API down).
+    return res.status(422).json({
       valid: false,
-      errors: [`Resolved feed URL but could not load it: ${e.message}`],
+      errors,
       resolvedFeedUrl: yt.feedUrl,
       channelId: yt.channelId,
     });

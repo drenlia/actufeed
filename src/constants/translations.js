@@ -131,6 +131,8 @@ export const translations = {
     feedLanguage: 'Language',
     feedItemCount: 'Items Found',
     feedMissingFields: 'Missing Required Fields',
+    /** Heading for the bullet list when manual feed validation fails (not necessarily “missing fields”). */
+    feedValidationDetails: 'Details',
     feedWarnings: 'Warnings',
     feedAdded: 'Feed added successfully',
     feedAddError: 'Error adding feed',
@@ -146,6 +148,8 @@ export const translations = {
       'YouTube search is not available (server not configured). Use a youtube.com channel link instead.',
     youtubeSearchNetworkError:
       'Cannot reach the app server. Run the backend (e.g. NODE_ENV=development npm run server with Vite, or npm run dev:docker) so /api/youtube is available.',
+    youtubeResolveBadGateway:
+      'Bad gateway (HTTP 502) from /api/youtube/resolve — the Actufeed API server is not reachable or returned non-JSON. With Vite dev, run the Node server (e.g. npm run server on BACKEND_PORT, or npm run dev:all) and check BACKEND_PROXY_TARGET.',
     feedFormatKind: 'Format',
     feedFormatRss2: 'RSS 2.0',
     feedFormatAtom: 'Atom',
@@ -482,6 +486,7 @@ export const translations = {
     feedLanguage: 'Langue',
     feedItemCount: 'Articles trouvés',
     feedMissingFields: 'Champs requis manquants',
+    feedValidationDetails: 'Détails',
     feedWarnings: 'Avertissements',
     feedAdded: 'Flux ajouté avec succès',
     feedAddError: 'Erreur lors de l\'ajout du flux',
@@ -497,6 +502,8 @@ export const translations = {
       'La recherche YouTube n’est pas disponible (serveur non configuré). Utilisez un lien de chaîne youtube.com.',
     youtubeSearchNetworkError:
       'Connexion au serveur impossible. Lancez le serveur (ex. backend avec Vite, ou npm run dev:docker) pour que /api/youtube soit disponible.',
+    youtubeResolveBadGateway:
+      'Passerelle invalide (HTTP 502) sur /api/youtube/resolve — le serveur API Actufeed est injoignable ou a renvoyé autre chose que du JSON. Avec Vite, lancez le serveur Node (ex. npm run server sur BACKEND_PORT, ou npm run dev:all) et vérifiez BACKEND_PROXY_TARGET.',
     feedFormatKind: 'Format',
     feedFormatRss2: 'RSS 2.0',
     feedFormatAtom: 'Atom',

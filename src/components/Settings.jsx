@@ -105,12 +105,28 @@ export const Settings = ({
   const [ytResults, setYtResults] = useState([])
   const [ytError, setYtError] = useState(null)
 
-  /** 'active' = Active sources card; 'manual' = manual RSS / YouTube form. */
-  const [settingsContentMode, setSettingsContentMode] = useState('active')
+  const [manualFeedModalOpen, setManualFeedModalOpen] = useState(false)
   const [presetBrowseOpen, setPresetBrowseOpen] = useState(false)
   const [restoreModal, setRestoreModal] = useState(null)
 
   const closePresetBrowseModal = useCallback(() => setPresetBrowseOpen(false), [])
+  const closeManualFeedModal = useCallback(() => setManualFeedModalOpen(false), [])
+  const manualModalDoneRef = useRef(null)
+  const closeManualFeedModalRef = useRef(closeManualFeedModal)
+  closeManualFeedModalRef.current = closeManualFeedModal
+
+  useEffect(() => {
+    if (!manualFeedModalOpen) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeManualFeedModalRef.current()
+    }
+    document.addEventListener('keydown', onKey)
+    const id = requestAnimationFrame(() => manualModalDoneRef.current?.focus())
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      cancelAnimationFrame(id)
+    }
+  }, [manualFeedModalOpen])
 
   const [feedPreviewOpen, setFeedPreviewOpen] = useState(false)
   const [feedPreviewLoading, setFeedPreviewLoading] = useState(false)
@@ -673,7 +689,6 @@ export const Settings = ({
       setManualFeedUrl('')
       setFeedValidationResult(null)
       setFeedTitle('')
-      setSettingsContentMode('active')
       if (closePreview) {
         closeFeedPreviewModal()
       }
@@ -706,7 +721,7 @@ export const Settings = ({
     closeFeedPreviewModal()
 
     try {
-      const result = await validateRssFeed(url)
+      const result = await validateRssFeed(url, uiLanguage)
       setFeedValidationResult(result)
 
       if (result.valid && result.channel?.title) {
@@ -934,11 +949,11 @@ export const Settings = ({
                 <div className="settings-action-buttons" role="group" aria-label={t.addManualFeed}>
                   <button
                     type="button"
-                    className={`settings-action-buttons__btn${settingsContentMode === 'manual' ? ' is-active' : ''}`}
+                    className={`settings-action-buttons__btn${manualFeedModalOpen ? ' is-active' : ''}`}
                     title={t.addManualFeed}
                     onClick={() => {
                       setPresetBrowseOpen(false)
-                      setSettingsContentMode('manual')
+                      setManualFeedModalOpen(true)
                     }}
                   >
                     <span className="settings-action-buttons__inner">
@@ -951,7 +966,7 @@ export const Settings = ({
                     className="settings-action-buttons__btn settings-action-buttons__btn--browse"
                     title={t.browsePresetFeeds}
                     onClick={() => {
-                      setSettingsContentMode('active')
+                      setManualFeedModalOpen(false)
                       setPresetBrowseOpen(true)
                     }}
                   >
@@ -1008,276 +1023,6 @@ export const Settings = ({
           </div>
 
           <div className="settings-content-card settings-glass-panel">
-            {settingsContentMode === 'manual' ? (
-              <div className="settings-section settings-manual-inline">
-                <div className="settings-manual-feed-heading-row">
-                  <h2 id="manual-feed-heading" className="settings-manual-feed-title">
-                    <span className="settings-manual-feed-title__text">{t.settingsManualFormTitle}</span>
-                  </h2>
-                  {onHelpManualRssClick ? (
-                    <button
-                      type="button"
-                      className="settings-manual-feed-title__help"
-                      onClick={onHelpManualRssClick}
-                      aria-label={t.helpManualRssLinkAria}
-                      title={t.helpManualRssLinkAria}
-                    >
-                      ?
-                    </button>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  className="settings-back-to-active-link"
-                  onClick={() => setSettingsContentMode('active')}
-                >
-                  {t.settingsViewTabFeeds}
-                </button>
-                <div
-                  id="manual-feed-collapsible"
-                  role="region"
-                  aria-labelledby="manual-feed-heading"
-                  className="manual-feed-container"
-                >
-              <div className="yt-channel-search" aria-labelledby="yt-channel-search-heading">
-                <div className="yt-channel-search__header" id="yt-channel-search-heading">
-                  <span className="yt-channel-search__icon" aria-hidden>
-                    <svg
-                      className="yt-channel-search__logo"
-                      viewBox="0 0 24 24"
-                      width="22"
-                      height="22"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <rect width="24" height="24" rx="4" fill="#FF0000" />
-                      <path fill="#fff" d="M10 8.5v7l6-3.5-6-3.5z" />
-                    </svg>
-                  </span>
-                  <span className="yt-channel-search__label">{t.youtubeFindChannel}</span>
-                </div>
-                <form
-                  className="yt-channel-search__form"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    runYoutubeSearch()
-                  }}
-                >
-                  <div className="yt-channel-search__row">
-                    <input
-                      type="search"
-                      className="yt-channel-search__input"
-                      placeholder={t.youtubeSearchPlaceholder}
-                      value={ytQuery}
-                      onChange={(e) => setYtQuery(e.target.value)}
-                      autoComplete="off"
-                      enterKeyHint="search"
-                    />
-                    <button
-                      type="submit"
-                      className="yt-channel-search__btn"
-                      disabled={ytLoading}
-                    >
-                      {ytLoading ? t.youtubeSearching : t.youtubeSearchButton}
-                    </button>
-                  </div>
-                </form>
-                {ytError ? (
-                  <div className="yt-channel-search__msg yt-channel-search__msg--error" role="alert">
-                    {ytError}
-                  </div>
-                ) : null}
-                {ytResults.length > 0 ? (
-                  <ul className="yt-channel-search__results" role="listbox" aria-label={t.youtubeFindChannel}>
-                    {ytResults.map((hit) => (
-                      <li key={hit.channelId}>
-                        <button
-                          type="button"
-                          className="yt-channel-search__hit"
-                          onClick={() => applyYoutubeChannel(hit)}
-                        >
-                          {hit.thumbnailUrl ? (
-                            <img
-                              src={hit.thumbnailUrl}
-                              alt=""
-                              className="yt-channel-search__thumb"
-                              width="40"
-                              height="40"
-                            />
-                          ) : null}
-                          <span className="yt-channel-search__hit-title">{hit.title}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-              <div className="manual-feed-input-group">
-                <input
-                  type="text"
-                  className="manual-feed-input"
-                  placeholder={t.enterFeedUrl}
-                  value={manualFeedUrl}
-                  onChange={(e) => {
-                    setManualFeedUrl(e.target.value)
-                    setFeedValidationResult(null)
-                    closeFeedPreviewModal()
-                  }}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && manualFeedUrl.trim()) {
-                      handleValidateFeed()
-                    }
-                  }}
-                />
-                <button
-                  className="validate-feed-btn"
-                  onClick={handleValidateFeed}
-                  disabled={!manualFeedUrl.trim() || validatingFeed}
-                >
-                  {validatingFeed ? t.validating : t.validateFeed}
-                </button>
-              </div>
-              
-              {feedValidationResult && (
-                <div
-                  className={`feed-validation-result ${
-                    feedValidationResult.feedAlreadyInList
-                      ? 'feed-validation-result--info'
-                      : feedValidationResult.valid
-                        ? 'valid'
-                        : 'invalid'
-                  }`}
-                >
-                  {feedValidationResult.feedAlreadyInList ? (
-                    <div className="feed-validation-already">
-                      <div className="validation-header">
-                        <span className="validation-icon feed-validation-already__icon" aria-hidden>
-                          ℹ
-                        </span>
-                        <strong>{t.feedAlreadyInListTitle}</strong>
-                      </div>
-                      <p className="feed-already-in-list-text">{t.feedAlreadyInListMessage}</p>
-                      {feedValidationResult.existingSourceName ? (
-                        <p className="feed-already-in-list-name">
-                          {t.feedAlreadyInListAsName.replace(
-                            '{name}',
-                            feedValidationResult.existingSourceName
-                          )}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : feedValidationResult.valid ? (
-                    <div className="feed-validation-success">
-                      <div className="validation-header">
-                        <span className="validation-icon">✓</span>
-                        <strong>{t.feedValid}</strong>
-                      </div>
-                      {feedValidationResult.warnings && feedValidationResult.warnings.length > 0 && (
-                        <div className="validation-warnings feed-validation-warnings--success">
-                          <strong>{t.feedWarnings}</strong>
-                          <ul>
-                            {feedValidationResult.warnings.map((warning, idx) => (
-                              <li key={idx}>{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {feedValidationResult.channel && (
-                        <div className="feed-channel-info">
-                          <div className="feed-info-row">
-                            <span className="feed-info-label">{t.feedTitle}:</span>
-                            <input
-                              type="text"
-                              className="feed-title-input"
-                              value={feedTitle}
-                              onChange={(e) => setFeedTitle(e.target.value)}
-                              placeholder={feedValidationResult.channel.title || 'Untitled Feed'}
-                              style={{
-                                flex: 1,
-                                padding: '6px 10px',
-                                border: '1px solid #ddd',
-                                borderRadius: '4px',
-                                fontSize: '14px',
-                                marginLeft: '8px'
-                              }}
-                            />
-                          </div>
-                          {feedValidationResult.channel.description && (
-                            <div className="feed-info-row">
-                              <span className="feed-info-label">{t.feedDescription}:</span>
-                              <span className="feed-info-value">{feedValidationResult.channel.description}</span>
-                            </div>
-                          )}
-                          <div className="feed-info-row">
-                            <span className="feed-info-label">{t.feedLanguage}:</span>
-                            <span className="feed-info-value">{feedValidationResult.channel.language || t.detectingLanguage}</span>
-                          </div>
-                          <div className="feed-info-row">
-                            <span className="feed-info-label">{t.feedFormatKind}:</span>
-                            <span className="feed-info-value">
-                              {feedValidationResult.feedFormat === 'atom' ? t.feedFormatAtom : t.feedFormatRss2}
-                            </span>
-                          </div>
-                          <div className="feed-info-row">
-                            <span className="feed-info-label">{t.feedItemCount}:</span>
-                            <span className="feed-info-value">{feedValidationResult.channel.itemCount || 0}</span>
-                          </div>
-                          <button
-                            className="add-validated-feed-btn"
-                            onClick={handleAddValidatedFeed}
-                          >
-                            {t.addSelected}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="feed-validation-error">
-                      <div className="validation-header">
-                        <span className="validation-icon">✗</span>
-                        <strong>{t.feedInvalid}</strong>
-                      </div>
-                      {feedValidationResult.errors && feedValidationResult.errors.length > 0 && (
-                        <div className="validation-errors">
-                          <strong>{t.feedMissingFields}:</strong>
-                          <ul>
-                            {feedValidationResult.errors.map((error, idx) => (
-                              <li key={idx}>{error}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {feedValidationResult.warnings && feedValidationResult.warnings.length > 0 && (
-                        <div className="validation-warnings">
-                          <strong>{t.feedWarnings}:</strong>
-                          <ul>
-                            {feedValidationResult.warnings.map((warning, idx) => (
-                              <li key={idx}>{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {feedValidationResult.channel && (
-                        <div className="feed-channel-info">
-                          <div className="feed-info-row">
-                            <span className="feed-info-label">{t.feedTitle}:</span>
-                            <span className="feed-info-value">{feedValidationResult.channel.title || 'N/A'}</span>
-                          </div>
-                          {feedValidationResult.channel.description && (
-                            <div className="feed-info-row">
-                              <span className="feed-info-label">{t.feedDescription}:</span>
-                              <span className="feed-info-value">{feedValidationResult.channel.description}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-            ) : (
               <div className="settings-active-panel settings-sources-body settings-main">
                 <p className="settings-active-panel__hint">{t.settingsActiveSourcesHint}</p>
                 <div className="sources-column sources-column--active-full">
@@ -1447,10 +1192,302 @@ export const Settings = ({
                   </div>
                 </div>
               </div>
-            )}
           </div>
         </div>
       </div>
+
+      {manualFeedModalOpen ? (
+        <div
+          className="preset-browse-overlay"
+          role="presentation"
+          onClick={closeManualFeedModal}
+        >
+          <div
+            className="preset-browse-dialog settings-glass-panel manual-feed-add-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manual-feed-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="preset-browse-header">
+              <div className="manual-feed-modal-header__lead">
+                <h2 id="manual-feed-modal-title" className="preset-browse-title">
+                  {t.settingsManualFormTitle}
+                </h2>
+                {onHelpManualRssClick ? (
+                  <button
+                    type="button"
+                    className="settings-manual-feed-title__help"
+                    onClick={onHelpManualRssClick}
+                    aria-label={t.helpManualRssLinkAria}
+                    title={t.helpManualRssLinkAria}
+                  >
+                    ?
+                  </button>
+                ) : null}
+              </div>
+              <button
+                ref={manualModalDoneRef}
+                type="button"
+                className="preset-browse-done-btn"
+                onClick={closeManualFeedModal}
+              >
+                {t.presetBrowseDone}
+              </button>
+            </div>
+            <div className="manual-feed-add-body">
+              <div
+                id="manual-feed-collapsible"
+                role="region"
+                aria-labelledby="manual-feed-modal-title"
+                className="manual-feed-container settings-section"
+              >
+              <div className="yt-channel-search" aria-labelledby="yt-channel-search-heading">
+                <div className="yt-channel-search__header" id="yt-channel-search-heading">
+                  <span className="yt-channel-search__icon" aria-hidden>
+                    <svg
+                      className="yt-channel-search__logo"
+                      viewBox="0 0 24 24"
+                      width="22"
+                      height="22"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect width="24" height="24" rx="4" fill="#FF0000" />
+                      <path fill="#fff" d="M10 8.5v7l6-3.5-6-3.5z" />
+                    </svg>
+                  </span>
+                  <span className="yt-channel-search__label">{t.youtubeFindChannel}</span>
+                </div>
+                <form
+                  className="yt-channel-search__form"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    runYoutubeSearch()
+                  }}
+                >
+                  <div className="yt-channel-search__row">
+                    <input
+                      type="search"
+                      className="yt-channel-search__input"
+                      placeholder={t.youtubeSearchPlaceholder}
+                      value={ytQuery}
+                      onChange={(e) => setYtQuery(e.target.value)}
+                      autoComplete="off"
+                      enterKeyHint="search"
+                    />
+                    <button
+                      type="submit"
+                      className="yt-channel-search__btn"
+                      disabled={ytLoading}
+                    >
+                      {ytLoading ? t.youtubeSearching : t.youtubeSearchButton}
+                    </button>
+                  </div>
+                </form>
+                {ytError ? (
+                  <div className="yt-channel-search__msg yt-channel-search__msg--error" role="alert">
+                    {ytError}
+                  </div>
+                ) : null}
+                {ytResults.length > 0 ? (
+                  <ul className="yt-channel-search__results" role="listbox" aria-label={t.youtubeFindChannel}>
+                    {ytResults.map((hit) => (
+                      <li key={hit.channelId}>
+                        <button
+                          type="button"
+                          className="yt-channel-search__hit"
+                          onClick={() => applyYoutubeChannel(hit)}
+                        >
+                          {hit.thumbnailUrl ? (
+                            <img
+                              src={hit.thumbnailUrl}
+                              alt=""
+                              className="yt-channel-search__thumb"
+                              width="40"
+                              height="40"
+                            />
+                          ) : null}
+                          <span className="yt-channel-search__hit-title">{hit.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              <div className="manual-feed-input-group">
+                <input
+                  type="text"
+                  className="manual-feed-input"
+                  placeholder={t.enterFeedUrl}
+                  value={manualFeedUrl}
+                  onChange={(e) => {
+                    setManualFeedUrl(e.target.value)
+                    setFeedValidationResult(null)
+                    closeFeedPreviewModal()
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && manualFeedUrl.trim()) {
+                      handleValidateFeed()
+                    }
+                  }}
+                />
+                <button
+                  className="validate-feed-btn"
+                  onClick={handleValidateFeed}
+                  disabled={!manualFeedUrl.trim() || validatingFeed}
+                >
+                  {validatingFeed ? t.validating : t.validateFeed}
+                </button>
+              </div>
+              
+              {feedValidationResult && (
+                <div
+                  className={`feed-validation-result ${
+                    feedValidationResult.feedAlreadyInList
+                      ? 'feed-validation-result--info'
+                      : feedValidationResult.valid
+                        ? 'valid'
+                        : 'invalid'
+                  }`}
+                >
+                  {feedValidationResult.feedAlreadyInList ? (
+                    <div className="feed-validation-already">
+                      <div className="validation-header">
+                        <span className="validation-icon feed-validation-already__icon" aria-hidden>
+                          ℹ
+                        </span>
+                        <strong>{t.feedAlreadyInListTitle}</strong>
+                      </div>
+                      <p className="feed-already-in-list-text">{t.feedAlreadyInListMessage}</p>
+                      {feedValidationResult.existingSourceName ? (
+                        <p className="feed-already-in-list-name">
+                          {t.feedAlreadyInListAsName.replace(
+                            '{name}',
+                            feedValidationResult.existingSourceName
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : feedValidationResult.valid ? (
+                    <div className="feed-validation-success">
+                      <div className="validation-header validation-header--with-action">
+                        <div className="validation-header__lead">
+                          <span className="validation-icon">✓</span>
+                          <strong>{t.feedValid}</strong>
+                        </div>
+                        {feedValidationResult.channel ? (
+                          <button
+                            type="button"
+                            className="add-validated-feed-btn add-validated-feed-btn--header"
+                            onClick={handleAddValidatedFeed}
+                          >
+                            {t.addSelected}
+                          </button>
+                        ) : null}
+                      </div>
+                      {feedValidationResult.warnings && feedValidationResult.warnings.length > 0 && (
+                        <div className="validation-warnings feed-validation-warnings--success">
+                          <strong>{t.feedWarnings}</strong>
+                          <ul>
+                            {feedValidationResult.warnings.map((warning, idx) => (
+                              <li key={idx}>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {feedValidationResult.channel && (
+                        <div className="feed-channel-info">
+                          <div className="feed-info-row">
+                            <span className="feed-info-label">{t.feedTitle}:</span>
+                            <input
+                              type="text"
+                              className="feed-title-input"
+                              value={feedTitle}
+                              onChange={(e) => setFeedTitle(e.target.value)}
+                              placeholder={feedValidationResult.channel.title || 'Untitled Feed'}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                marginLeft: '8px'
+                              }}
+                            />
+                          </div>
+                          {feedValidationResult.channel.description && (
+                            <div className="feed-info-row">
+                              <span className="feed-info-label">{t.feedDescription}:</span>
+                              <span className="feed-info-value">{feedValidationResult.channel.description}</span>
+                            </div>
+                          )}
+                          <div className="feed-info-row">
+                            <span className="feed-info-label">{t.feedLanguage}:</span>
+                            <span className="feed-info-value">{feedValidationResult.channel.language || t.detectingLanguage}</span>
+                          </div>
+                          <div className="feed-info-row">
+                            <span className="feed-info-label">{t.feedFormatKind}:</span>
+                            <span className="feed-info-value">
+                              {feedValidationResult.feedFormat === 'atom' ? t.feedFormatAtom : t.feedFormatRss2}
+                            </span>
+                          </div>
+                          <div className="feed-info-row">
+                            <span className="feed-info-label">{t.feedItemCount}:</span>
+                            <span className="feed-info-value">{feedValidationResult.channel.itemCount || 0}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="feed-validation-error">
+                      <div className="validation-header">
+                        <span className="validation-icon">✗</span>
+                        <strong>{t.feedInvalid}</strong>
+                      </div>
+                      {feedValidationResult.errors && feedValidationResult.errors.length > 0 && (
+                        <div className="validation-errors">
+                          <strong>{t.feedValidationDetails}:</strong>
+                          <ul>
+                            {feedValidationResult.errors.map((error, idx) => (
+                              <li key={idx}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {feedValidationResult.warnings && feedValidationResult.warnings.length > 0 && (
+                        <div className="validation-warnings">
+                          <strong>{t.feedWarnings}:</strong>
+                          <ul>
+                            {feedValidationResult.warnings.map((warning, idx) => (
+                              <li key={idx}>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {feedValidationResult.channel && (
+                        <div className="feed-channel-info">
+                          <div className="feed-info-row">
+                            <span className="feed-info-label">{t.feedTitle}:</span>
+                            <span className="feed-info-value">{feedValidationResult.channel.title || 'N/A'}</span>
+                          </div>
+                          {feedValidationResult.channel.description && (
+                            <div className="feed-info-row">
+                              <span className="feed-info-label">{t.feedDescription}:</span>
+                              <span className="feed-info-value">{feedValidationResult.channel.description}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <PresetFeedsBrowseModal
         open={presetBrowseOpen}
