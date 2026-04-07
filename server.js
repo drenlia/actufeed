@@ -287,6 +287,20 @@ function getClientIp(req) {
   return req.socket?.remoteAddress || 'unknown';
 }
 
+/** Apache-style UTC timestamp for logs, e.g. [07/Apr/2026:16:00:48 +0000] */
+function logTimestampUTC(d = new Date()) {
+  const date = d instanceof Date ? d : new Date(d);
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+    date.getUTCMonth()
+  ];
+  const y = date.getUTCFullYear();
+  const hh = String(date.getUTCHours()).padStart(2, '0');
+  const mm = String(date.getUTCMinutes()).padStart(2, '0');
+  const ss = String(date.getUTCSeconds()).padStart(2, '0');
+  return `[${day}/${mon}/${y}:${hh}:${mm}:${ss} +0000]`;
+}
+
 /** Response-body size as sent to the client (JSON), for transfer accounting. */
 function jsonUtf8ByteLength(obj) {
   return Buffer.byteLength(JSON.stringify(obj), 'utf8');
@@ -1974,14 +1988,14 @@ app.post('/api/proxy/batch-complete', apiLimiter, (req, res) => {
   rssBatchStats.delete(id);
   if (!entry) {
     console.log(
-      `[RSS Proxy] Batch complete client=${clientIp} batch=${id} requests=0 transferred=0 B (no recorded /api/proxy/rss responses for this batch)`
+      `${logTimestampUTC()} - [RSS Proxy] Batch complete client=${clientIp} batch=${id} requests=0 transferred=0 B (no recorded /api/proxy/rss responses for this batch)`
     );
     return res.json({ ok: true });
   }
   const bytesStr = entry.bytes.toLocaleString('en-US');
   const human = formatTransferredHumanReadable(entry.bytes);
   console.log(
-    `[RSS Proxy] Batch complete client=${entry.ip} batch=${id} requests=${entry.requests} transferred=${human} (${bytesStr} bytes)`
+    `${logTimestampUTC()} - [RSS Proxy] Batch complete client=${entry.ip} batch=${id} requests=${entry.requests} transferred=${human} (${bytesStr} bytes)`
   );
   res.json({ ok: true });
 });
