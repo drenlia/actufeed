@@ -6,17 +6,13 @@ import {
   getAllCountries,
   CATALOG_BROWSE_LIMIT,
 } from '../services/sourceSearchService'
-import { 
-  loadNewsConfig, 
-  saveNewsConfig, 
-  exportConfig,
-  importConfig
-} from '../utils/newsConfigUtils'
+import { saveNewsConfig, exportConfig, importConfig } from '../utils/newsConfigUtils'
 import { loadSettingsPreferences, saveSettingsPreferences } from '../utils/settingsStorage'
 import { clearCachedNews } from '../utils/storageUtils'
 import { validateRssFeed } from '../utils/rssValidator'
 import { buildFirstArticlePreviewFromXml } from '../services/rssService'
 import { FeedPreviewModal } from './FeedPreviewModal'
+import { PresetFeedsBrowseModal } from './PresetFeedsBrowseModal'
 import {
   searchYoutubeChannels,
   YOUTUBE_SEARCH_UNAVAILABLE,
@@ -43,6 +39,33 @@ import {
   DEFAULT_TAB_NAMES,
   sourcesMatchDefaults,
 } from '../constants/defaultSources'
+
+function SettingsToolbarIconPlus({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function SettingsToolbarIconEarth({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M2 12h20" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path
+        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+    </svg>
+  )
+}
 
 export const Settings = ({
   uiLanguage,
@@ -82,9 +105,12 @@ export const Settings = ({
   const [ytResults, setYtResults] = useState([])
   const [ytError, setYtError] = useState(null)
 
-  /** Collapsed by default so the catalog / sources list stays visible above the fold. */
-  const [manualFeedExpanded, setManualFeedExpanded] = useState(false)
+  /** 'active' = Active sources card; 'manual' = manual RSS / YouTube form. */
+  const [settingsContentMode, setSettingsContentMode] = useState('active')
+  const [presetBrowseOpen, setPresetBrowseOpen] = useState(false)
   const [restoreModal, setRestoreModal] = useState(null)
+
+  const closePresetBrowseModal = useCallback(() => setPresetBrowseOpen(false), [])
 
   const [feedPreviewOpen, setFeedPreviewOpen] = useState(false)
   const [feedPreviewLoading, setFeedPreviewLoading] = useState(false)
@@ -575,14 +601,21 @@ export const Settings = ({
     setYtError(null)
     setYtResults([])
     try {
-      const { items } = await searchYoutubeChannels(q)
+      const res = await searchYoutubeChannels(q)
+      const items = Array.isArray(res?.items) ? res.items : []
       if (items.length === 0) setYtError(t.youtubeNoResults)
       setYtResults(items)
     } catch (e) {
-      if (e.message === YOUTUBE_SEARCH_UNAVAILABLE) {
+      const msg = e && typeof e.message === 'string' ? e.message : ''
+      if (msg === YOUTUBE_SEARCH_UNAVAILABLE) {
         setYtError(t.youtubeSearchNotConfigured)
+      } else if (
+        e instanceof TypeError ||
+        /failed to fetch|networkerror|load failed/i.test(msg)
+      ) {
+        setYtError(t.youtubeSearchNetworkError)
       } else {
-        setYtError(t.youtubeSearchFailed)
+        setYtError(msg ? `${t.youtubeSearchFailed} — ${msg}` : t.youtubeSearchFailed)
       }
       setYtResults([])
     } finally {
@@ -640,6 +673,7 @@ export const Settings = ({
       setManualFeedUrl('')
       setFeedValidationResult(null)
       setFeedTitle('')
+      setSettingsContentMode('active')
       if (closePreview) {
         closeFeedPreviewModal()
       }
@@ -893,156 +927,118 @@ export const Settings = ({
         />
       </div>
       <div className="settings-page">
-        <div className="settings-tabs-section">
-          <div className="settings-tabs-meta-row">
-            <button
-              type="button"
-              className="settings-restore-defaults-btn"
-              onClick={openRestoreDefaultSourcesFlow}
-            >
-              {t.restoreDefaultSources}
-            </button>
-            <div className="toast-toggle-container">
-              <label className="settings-toast-toggle-label" htmlFor="settings-fetch-toasts-switch">
-                {t.showToastMessages || 'Show fetch banners'}
-              </label>
-              <button
-                type="button"
-                id="settings-fetch-toasts-switch"
-                className={`settings-fetch-toast-switch ${showToastMessages ? 'is-on' : ''}`}
-                onClick={toggleShowToastMessages}
-                role="switch"
-                aria-checked={showToastMessages}
-                aria-label={t.showToastMessages || 'Show fetch banners'}
-              >
-                <span className="settings-fetch-toast-switch-knob" aria-hidden />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="settings-layout">
-        {/* Country filters — grid column; on phone: narrow ISO column beside sources */}
-        <aside className="settings-sidebar">
-          <div className="sidebar-section">
-            <h3 className="settings-country-heading">
-              <span className="settings-country-heading__full">{t.filterByCountry}</span>
-              <span className="settings-country-heading__short">{t.filterByCountryShort}</span>
-            </h3>
-            <div className="country-search-container">
-              <input
-                type="text"
-                className="country-search-input"
-                placeholder={t.searchCountriesPlaceholder}
-                value={countrySearchQuery}
-                onChange={(e) => setCountrySearchQuery(e.target.value)}
-              />
-              {countrySearchQuery && (
-                <button
-                  type="button"
-                  className="country-search-clear"
-                  onClick={() => setCountrySearchQuery('')}
-                  title={t.countrySearchClear}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-            <div className="country-pills-vertical">
-              {availableCountries
-                .filter(country => {
-                  if (!countrySearchQuery.trim()) return true
-                  const query = countrySearchQuery.toLowerCase()
-                  return country.name.toLowerCase().includes(query) ||
-                         country.code.toLowerCase().includes(query)
-                })
-                .map(country => {
-                  const isSelected = selectedCountries.has(country.code)
-                  return (
-                    <button
-                      key={country.code}
-                      type="button"
-                      className={`country-pill-vertical ${isSelected ? 'selected' : ''}`}
-                      onClick={() => toggleCountryFilter(country.code)}
-                      title={`${country.name} (${country.count} sources)`}
-                    >
-                      <span className="country-code">{country.code.toUpperCase()}</span>
-                      <span className="country-name">{country.name}</span>
-                      <span className="country-count">({country.count})</span>
-                    </button>
-                  )
-                })}
-            </div>
-            {selectedCountries.size > 0 && (
-              <button
-                type="button"
-                className="clear-country-filters-btn clear-country-filters-btn--after-pills"
-                onClick={clearCountryFilters}
-              >
-                {t.clearFilters}
-              </button>
-            )}
-          </div>
-        </aside>
-
-        <div
-          className={`settings-manual-panel settings-glass-panel${manualFeedExpanded ? '' : ' settings-manual-panel--add-collapsed'}`}
-        >
-          <div className="settings-section">
-            <div className="settings-manual-feed-heading-row">
-              <h2 id="manual-feed-heading" className="settings-manual-feed-title">
-                <button
-                  type="button"
-                  className="settings-manual-feed-disclosure"
-                  aria-expanded={manualFeedExpanded}
-                  aria-controls="manual-feed-collapsible"
-                  title={
-                    manualFeedExpanded ? t.manualFeedSectionHideForm : t.manualFeedSectionShowForm
-                  }
-                  onClick={() => setManualFeedExpanded((v) => !v)}
-                >
-                  <span
-                    className={`settings-manual-feed-chevron${manualFeedExpanded ? ' is-expanded' : ''}`}
-                    aria-hidden
+        <div className="settings-page-stack">
+          <div className="settings-actions-card settings-glass-panel">
+            <div className="settings-actions-card__toolbar">
+              <div className="settings-toolbar-cluster">
+                <div className="settings-action-buttons" role="group" aria-label={t.addManualFeed}>
+                  <button
+                    type="button"
+                    className={`settings-action-buttons__btn${settingsContentMode === 'manual' ? ' is-active' : ''}`}
+                    title={t.addManualFeed}
+                    onClick={() => {
+                      setPresetBrowseOpen(false)
+                      setSettingsContentMode('manual')
+                    }}
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="20"
-                      height="20"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M9 6l6 6-6 6"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                  <span className="settings-manual-feed-title__text">{t.addManualFeed}</span>
-                </button>
-              </h2>
-              {onHelpManualRssClick ? (
+                    <span className="settings-action-buttons__inner">
+                      <SettingsToolbarIconPlus className="settings-action-buttons__icon" />
+                      <span>{t.settingsToolbarManual}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-action-buttons__btn settings-action-buttons__btn--browse"
+                    title={t.browsePresetFeeds}
+                    onClick={() => {
+                      setSettingsContentMode('active')
+                      setPresetBrowseOpen(true)
+                    }}
+                  >
+                    <span className="settings-action-buttons__inner">
+                      <SettingsToolbarIconEarth className="settings-action-buttons__icon settings-action-buttons__icon--earth" />
+                      <span>{t.settingsToolbarBrowse}</span>
+                    </span>
+                  </button>
+                </div>
+                <div
+                  className="settings-toolbar-config settings-toolbar-config--separated"
+                  role="group"
+                  aria-label={t.settingsConfigLabel}
+                >
+                  <button
+                    type="button"
+                    className="settings-toolbar-config__btn"
+                    title={t.exportConfig}
+                    onClick={handleExport}
+                  >
+                    {t.exportVerb}
+                  </button>
+                  <label
+                    className="settings-toolbar-config__btn settings-toolbar-config__btn--import"
+                    title={t.importConfig}
+                  >
+                    {t.importVerb}
+                    <input
+                      type="file"
+                      accept=".json"
+                      className="settings-toolbar-config__file-input"
+                      onChange={handleImport}
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="toast-toggle-container">
+                <label className="settings-toast-toggle-label" htmlFor="settings-fetch-toasts-switch">
+                  {t.showToastMessages || 'Show fetch banners'}
+                </label>
                 <button
                   type="button"
-                  className="settings-manual-feed-title__help"
-                  onClick={onHelpManualRssClick}
-                  aria-label={t.helpManualRssLinkAria}
-                  title={t.helpManualRssLinkAria}
+                  id="settings-fetch-toasts-switch"
+                  className={`settings-fetch-toast-switch ${showToastMessages ? 'is-on' : ''}`}
+                  onClick={toggleShowToastMessages}
+                  role="switch"
+                  aria-checked={showToastMessages}
+                  aria-label={t.showToastMessages || 'Show fetch banners'}
                 >
-                  ?
+                  <span className="settings-fetch-toast-switch-knob" aria-hidden />
                 </button>
-              ) : null}
+              </div>
             </div>
-            <div
-              id="manual-feed-collapsible"
-              role="region"
-              aria-labelledby="manual-feed-heading"
-              hidden={!manualFeedExpanded}
-              className="manual-feed-container"
-            >
+          </div>
+
+          <div className="settings-content-card settings-glass-panel">
+            {settingsContentMode === 'manual' ? (
+              <div className="settings-section settings-manual-inline">
+                <div className="settings-manual-feed-heading-row">
+                  <h2 id="manual-feed-heading" className="settings-manual-feed-title">
+                    <span className="settings-manual-feed-title__text">{t.settingsManualFormTitle}</span>
+                  </h2>
+                  {onHelpManualRssClick ? (
+                    <button
+                      type="button"
+                      className="settings-manual-feed-title__help"
+                      onClick={onHelpManualRssClick}
+                      aria-label={t.helpManualRssLinkAria}
+                      title={t.helpManualRssLinkAria}
+                    >
+                      ?
+                    </button>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="settings-back-to-active-link"
+                  onClick={() => setSettingsContentMode('active')}
+                >
+                  {t.settingsViewTabFeeds}
+                </button>
+                <div
+                  id="manual-feed-collapsible"
+                  role="region"
+                  aria-labelledby="manual-feed-heading"
+                  className="manual-feed-container"
+                >
               <div className="yt-channel-search" aria-labelledby="yt-channel-search-heading">
                 <div className="yt-channel-search__header" id="yt-channel-search-heading">
                   <span className="yt-channel-search__icon" aria-hidden>
@@ -1060,28 +1056,32 @@ export const Settings = ({
                   </span>
                   <span className="yt-channel-search__label">{t.youtubeFindChannel}</span>
                 </div>
-                <div className="yt-channel-search__row">
-                  <input
-                    type="search"
-                    className="yt-channel-search__input"
-                    placeholder={t.youtubeSearchPlaceholder}
-                    value={ytQuery}
-                    onChange={(e) => setYtQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') runYoutubeSearch()
-                    }}
-                    autoComplete="off"
-                    enterKeyHint="search"
-                  />
-                  <button
-                    type="button"
-                    className="yt-channel-search__btn"
-                    onClick={runYoutubeSearch}
-                    disabled={ytLoading}
-                  >
-                    {ytLoading ? t.youtubeSearching : t.youtubeSearchButton}
-                  </button>
-                </div>
+                <form
+                  className="yt-channel-search__form"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    runYoutubeSearch()
+                  }}
+                >
+                  <div className="yt-channel-search__row">
+                    <input
+                      type="search"
+                      className="yt-channel-search__input"
+                      placeholder={t.youtubeSearchPlaceholder}
+                      value={ytQuery}
+                      onChange={(e) => setYtQuery(e.target.value)}
+                      autoComplete="off"
+                      enterKeyHint="search"
+                    />
+                    <button
+                      type="submit"
+                      className="yt-channel-search__btn"
+                      disabled={ytLoading}
+                    >
+                      {ytLoading ? t.youtubeSearching : t.youtubeSearchButton}
+                    </button>
+                  </div>
+                </form>
                 {ytError ? (
                   <div className="yt-channel-search__msg yt-channel-search__msg--error" role="alert">
                     {ytError}
@@ -1277,263 +1277,202 @@ export const Settings = ({
               )}
             </div>
           </div>
-        </div>
-
-        <div className="settings-sources-body settings-main">
-          {/* Search Bar */}
-          <div className="settings-section settings-search-section">
-            <h2>{t.searchSources}</h2>
-            <div className="source-search-container">
-              <input
-                type="text"
-                className="source-search-input"
-                placeholder={t.searchSourcesPlaceholder}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchResults.length > 0 && (
-                <div className="search-results-header">
-                  <span>{t.showingResults} {searchResults.length} {t.results}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Two Column Layout: Available Sources | Enabled Sources */}
-          <div className="sources-two-column">
-            {/* Available Sources */}
-            <div className="sources-column">
-              <div className="column-header">
-                <h3>
-                  <span className="settings-sources-col-heading__full">{t.availableSources}</span>
-                  <span className="settings-sources-col-heading__short">{t.availableSourcesShort}</span>
-                </h3>
-                <div className="header-buttons">
-                  {searchResults.length > 0 && (
-                    <button type="button" className="select-all-btn" onClick={toggleSelectAll}>
-                      {allSelected ? t.deselectAll : t.selectAll}
-                    </button>
-                  )}
-                  {selectedAvailableSources.size > 0 && (
-                    <button type="button" className="add-selected-btn" onClick={handleAddSelected}>
-                      {t.addSelected} ({selectedAvailableSources.size})
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="sources-list-container">
-                {searchResults.length === 0 ? (
-                  <div className="no-results">{t.noResults}</div>
-                ) : (
-                  <div className="sources-list-compact">
-                    {searchResults.map((source, idx) => {
-                      const isActive = activeSourceUrls.has(source.url)
-                      const isSelected = selectedAvailableSources.has(source.url)
-                      
-                      return (
-                        <div 
-                          key={idx} 
-                          className={`source-item-compact ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
-                        >
-                          <label className="source-checkbox-label-compact">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleAvailableSourceSelection(source.url)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <div className="source-info-compact">
-                              <div className="source-name-row">
-                                <span className="source-name">{source.name}</span>
-                                {isActive && (
-                                  <span className="active-badge">✓</span>
-                                )}
-                              </div>
-                              <div className="source-meta-compact">
-                                {source.region && (
-                                  <span className="source-region">{source.region}</span>
-                                )}
-                                <span className="source-language">{source.language}</span>
-                                <span className="source-type">{source.type}</span>
-                              </div>
-                            </div>
-                          </label>
-                          <button
-                            className={`toggle-source-btn-compact ${isActive ? 'remove' : 'add'}`}
-                            onClick={() => handleToggleSource(source)}
-                            title={isActive ? t.disableSource : t.enableSource}
-                          >
-                            {isActive ? '−' : '+'}
-                          </button>
-                        </div>
-                      )
-                    })}
+            ) : (
+              <div className="settings-active-panel settings-sources-body settings-main">
+                <p className="settings-active-panel__hint">{t.settingsActiveSourcesHint}</p>
+                <div className="sources-column sources-column--active-full">
+                  <div className="column-header settings-active-panel__header">
+                    <h2 className="settings-active-panel__title">
+                      <span className="settings-sources-col-heading__full">{t.activeSources}</span>
+                      <span className="settings-sources-col-heading__short">{t.activeSourcesShort}</span>
+                      <span
+                        className="settings-active-panel__count-pill"
+                        title={`${config.sources.length}`}
+                        aria-label={String(config.sources.length)}
+                      >
+                        {config.sources.length}
+                      </span>
+                    </h2>
+                    <div className="header-buttons settings-active-panel__actions">
+                      {config.sources.length > 0 ? (
+                        <button type="button" className="select-all-btn" onClick={toggleSelectAllActive}>
+                          {allActiveSelected ? t.deselectAll : t.selectAll}
+                        </button>
+                      ) : null}
+                      {selectedActiveSources.size > 0 ? (
+                        <button type="button" className="remove-selected-btn" onClick={handleRemoveSelected}>
+                          {t.removeSelected} ({selectedActiveSources.size})
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Enabled Sources */}
-            <div className="sources-column">
-              <div className="column-header">
-                <h3>
-                  <span className="settings-sources-col-heading__full">{t.activeSources}</span>
-                  <span className="settings-sources-col-heading__short">{t.activeSourcesShort}</span>{' '}
-                  ({config.sources.length})
-                </h3>
-                <div className="header-buttons">
-                  {config.sources.length > 0 && (
-                    <button 
-                      className="select-all-btn"
-                      onClick={toggleSelectAllActive}
-                    >
-                      {allActiveSelected ? t.deselectAll : t.selectAll}
-                    </button>
-                  )}
-                  {selectedActiveSources.size > 0 && (
-                    <button 
-                      className="remove-selected-btn"
-                      onClick={handleRemoveSelected}
-                    >
-                      {t.removeSelected} ({selectedActiveSources.size})
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="sources-list-container">
-                {config.sources.length === 0 ? (
-                  <div className="no-results">No active sources</div>
-                ) : (
-                  <div className="sources-list-compact">
-                    {config.sources.map((source, idx) => {
-                      const isSelected = selectedActiveSources.has(source.url)
-                      return (
-                        <div
-                          key={source.url || idx}
-                          className={`source-item-compact active ${isSelected ? 'selected' : ''}`}
-                          title={t.activeSourceRowHint}
-                        >
-                          <label className="source-checkbox-label-compact">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleActiveSourceSelection(source.url)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <div className="source-info-compact">
-                              <div className="source-name-row">
-                                {renamingSourceUrl === source.url ? (
-                                  <input
-                                    ref={renameInputRef}
-                                    type="text"
-                                    className="source-name-rename-input"
-                                    value={renameDraft}
-                                    aria-label={t.feedTitle}
-                                    onChange={(e) => setRenameDraft(e.target.value)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        finishActiveSourceRename()
-                                      } else if (e.key === 'Escape') {
-                                        e.preventDefault()
-                                        cancelActiveSourceRename()
-                                      }
-                                    }}
-                                    onBlur={(e) => {
-                                      const to = e.relatedTarget
-                                      const row = e.currentTarget.closest('.source-item-compact')
-                                      if (
-                                        to &&
-                                        row &&
-                                        typeof to.closest === 'function' &&
-                                        row.contains(to) &&
-                                        (to.closest('button') ||
-                                          (to instanceof HTMLInputElement && to.type === 'checkbox'))
-                                      ) {
-                                        cancelActiveSourceRename()
-                                        return
-                                      }
-                                      finishActiveSourceRename()
-                                    }}
-                                  />
-                                ) : (
-                                  <span
-                                    className="source-name"
-                                    title={t.sourceNameDoubleClickRename}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onDoubleClick={(e) => {
+                  <div className="sources-list-container">
+                    {config.sources.length === 0 ? (
+                      <div className="no-results settings-active-panel__empty">{t.noActiveSourcesYet}</div>
+                    ) : (
+                      <div className="sources-list-compact">
+                        {config.sources.map((source, idx) => {
+                          const isSelected = selectedActiveSources.has(source.url)
+                          return (
+                            <div
+                              key={`${idx}-${source.url || 'source'}`}
+                              className={`source-item-compact active ${isSelected ? 'selected' : ''}`}
+                              title={t.activeSourceRowHint}
+                            >
+                              <label className="source-checkbox-label-compact">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleActiveSourceSelection(source.url)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <div className="source-info-compact">
+                                  <div className="source-item-compact__title-line">
+                                    <div className="source-name-row source-name-row--with-inline-meta">
+                                      <div className="source-title-append">
+                                        {renamingSourceUrl === source.url ? (
+                                          <input
+                                            ref={renameInputRef}
+                                            type="text"
+                                            className="source-name-rename-input"
+                                            value={renameDraft}
+                                            aria-label={t.feedTitle}
+                                            onChange={(e) => setRenameDraft(e.target.value)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault()
+                                                finishActiveSourceRename()
+                                              } else if (e.key === 'Escape') {
+                                                e.preventDefault()
+                                                cancelActiveSourceRename()
+                                              }
+                                            }}
+                                            onBlur={(e) => {
+                                              const to = e.relatedTarget
+                                              const row = e.currentTarget.closest('.source-item-compact')
+                                              if (
+                                                to &&
+                                                row &&
+                                                typeof to.closest === 'function' &&
+                                                row.contains(to) &&
+                                                (to.closest('button') ||
+                                                  (to instanceof HTMLInputElement && to.type === 'checkbox'))
+                                              ) {
+                                                cancelActiveSourceRename()
+                                                return
+                                              }
+                                              finishActiveSourceRename()
+                                            }}
+                                          />
+                                        ) : (
+                                          <span
+                                            className="source-name"
+                                            title={t.sourceNameDoubleClickRename}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onDoubleClick={(e) => {
+                                              e.preventDefault()
+                                              e.stopPropagation()
+                                              setRenamingSourceUrl(source.url)
+                                              setRenameDraft(source.name)
+                                            }}
+                                          >
+                                            {source.name}
+                                          </span>
+                                        )}
+                                        <div className="source-meta-compact source-meta-compact--appended">
+                                          {source.region ? (
+                                            <span className="source-region">{source.region}</span>
+                                          ) : null}
+                                          <span className="source-language">{source.language}</span>
+                                        </div>
+                                      </div>
+                                      <span className="active-badge">✓</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="toggle-source-btn-compact remove source-item-compact__remove-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleRemoveSource(source.url)
+                                      }}
+                                      title={t.removeSource}
+                                      aria-label={t.removeSource}
+                                    >
+                                      <svg
+                                        className="toggle-source-btn-compact__icon"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        aria-hidden="true"
+                                      >
+                                        <path
+                                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                          stroke="currentColor"
+                                          strokeWidth="1.75"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="source-url-copy-btn"
+                                    title={`${t.activeSourceCopyFeedUrl} — ${source.url}`}
+                                    aria-label={`${t.activeSourceCopyFeedUrl}: ${source.url}`}
+                                    onClick={(e) => {
                                       e.preventDefault()
                                       e.stopPropagation()
-                                      setRenamingSourceUrl(source.url)
-                                      setRenameDraft(source.name)
+                                      handleCopySourceUrl(source.url, source.name)
                                     }}
                                   >
-                                    {source.name}
-                                  </span>
-                                )}
-                                <span className="active-badge">✓</span>
-                              </div>
-                              <div className="source-meta-compact">
-                                {source.region && (
-                                  <span className="source-region">{source.region}</span>
-                                )}
-                                <span className="source-language">{source.language}</span>
-                              </div>
-                              <button
-                                type="button"
-                                className="source-url-copy-btn"
-                                title={`${t.activeSourceCopyFeedUrl} — ${source.url}`}
-                                aria-label={`${t.activeSourceCopyFeedUrl}: ${source.url}`}
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  handleCopySourceUrl(source.url, source.name)
-                                }}
-                              >
-                                {source.url.length > 50 ? `${source.url.substring(0, 50)}...` : source.url}
-                              </button>
+                                    {source.url.length > 50 ? `${source.url.substring(0, 50)}...` : source.url}
+                                  </button>
+                                </div>
+                              </label>
                             </div>
-                          </label>
-                          <button
-                            className="toggle-source-btn-compact remove"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleRemoveSource(source.url)
-                            }}
-                            title={t.removeSource}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )
-                    })}
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
+                  <div className="settings-active-sources-footer">
+                    <button
+                      type="button"
+                      className="settings-restore-defaults-btn--list-footer"
+                      onClick={openRestoreDefaultSourcesFlow}
+                    >
+                      {t.restoreDefaultSources}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-
-          {/* Import/Export */}
-          <div className="settings-section">
-            <div className="config-actions">
-              <button className="export-btn" onClick={handleExport}>
-                {t.exportConfig}
-              </button>
-              <label className="import-btn">
-                {t.importConfig}
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImport}
-                  style={{ display: 'none' }}
-                />
-              </label>
-            </div>
-          </div>
-        </div>
         </div>
       </div>
+
+      <PresetFeedsBrowseModal
+        open={presetBrowseOpen}
+        onClose={closePresetBrowseModal}
+        t={t}
+        availableCountries={availableCountries}
+        countrySearchQuery={countrySearchQuery}
+        onCountrySearchChange={setCountrySearchQuery}
+        selectedCountries={selectedCountries}
+        onToggleCountry={toggleCountryFilter}
+        onClearCountryFilters={clearCountryFilters}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        searchResults={searchResults}
+        selectedAvailableSources={selectedAvailableSources}
+        onToggleAvailableSelection={toggleAvailableSourceSelection}
+        onToggleSelectAllAvailable={toggleSelectAll}
+        allAvailableSelected={allSelected}
+        onAddSelected={handleAddSelected}
+        activeSourceUrls={activeSourceUrls}
+        onToggleSource={handleToggleSource}
+      />
 
       <FeedPreviewModal
         open={feedPreviewOpen}

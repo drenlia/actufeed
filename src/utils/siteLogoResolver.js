@@ -4,6 +4,8 @@
  * scores candidates from JSON-LD, apple-touch-icon, favicons, etc.
  */
 
+import { apiUrl } from './apiBase'
+
 const LOGO_PATH_HINT = /logo|brand|wordmark|masthead|lockup|site-icon|apple-touch|favicon/i
 
 const parseLinkSizes = (sizesAttr) => {
@@ -249,7 +251,7 @@ export async function resolveSiteLogoFromMarketingPages(feedUrl, channelSiteUrl)
   const pages = buildMarketingPageCandidates(feedUrl, channelSiteUrl)
   for (const pageUrl of pages) {
     try {
-      const proxyUrl = `/api/proxy/html?url=${encodeURIComponent(pageUrl)}`
+      const proxyUrl = apiUrl(`/api/proxy/html?url=${encodeURIComponent(pageUrl)}`)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 12000)
       const response = await fetch(proxyUrl, {

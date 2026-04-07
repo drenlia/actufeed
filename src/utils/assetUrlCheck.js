@@ -2,13 +2,15 @@
  * Server-backed check that a URL returns image bytes (favicon / logo probe).
  */
 
+import { apiUrl } from './apiBase'
+
 export async function verifyRemoteImageUrl(url) {
   if (!url || typeof url !== 'string') return false
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 8000)
     const response = await fetch(
-      `/api/proxy/asset/check?url=${encodeURIComponent(url)}`,
+      apiUrl(`/api/proxy/asset/check?url=${encodeURIComponent(url)}`),
       {
         signal: controller.signal,
         headers: { Accept: 'application/json' },

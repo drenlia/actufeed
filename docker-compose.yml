@@ -12,7 +12,7 @@ services:
       # HOST and ALLOWED_HOSTS are read from .env file
       # Set HOST to match your nginx server_name (or domain)
       # This tells Vite which host(s) to allow
-      - HOST=${HOST:-localhost}
+      - HOST=${HOST:-127.0.0.1}
       # CORS and HTTPS configuration
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - HTTPS=${HTTPS:-false}
@@ -26,7 +26,7 @@ services:
     cpus: 0.75
     mem_reservation: 128m
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3072', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3072', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -134,7 +134,7 @@ The validation shows:
 
 1. **Go to Settings**: Click the Settings button in the top right
 2. **Scroll to Bottom**: Navigate to the "Import/Export" section at the bottom of the Settings page
-3. **Click "Export Configuration"**: Your browser saves a file such as `newsfeed-backup-YYYY-MM-DD.json` on disk
+3. **Click "Export Configuration"**: Your browser saves a file such as `actufeed-backup-YYYY-MM-DD.json` on disk
 
 **What Gets Exported:**
 - All your custom tabs and their names
@@ -150,7 +150,7 @@ The validation shows:
 1. **Go to Settings**: Click the Settings button in the top right
 2. **Scroll to Bottom**: Navigate to the "Import/Export" section
 3. **Click "Import Configuration"**: This opens a file picker
-4. **Select Your Backup File**: Choose the `newsfeed-backup-*.json` file you previously exported
+4. **Select Your Backup File**: Choose the `actufeed-backup-*.json` file you previously exported
 5. **Wait for Confirmation**: You'll see a success message, and the page will automatically reload after 1 second
 
 **What Gets Restored:**

@@ -8,6 +8,7 @@ import {
 } from '../utils/feedLogoCache'
 import { verifyRemoteImageUrl } from '../utils/assetUrlCheck'
 import { getPermanentFeedLogoUrl } from '../utils/feedLogoPermanent'
+import { apiUrl } from '../utils/apiBase'
 
 // Backend proxy is used instead of CORS proxies
 
@@ -1303,7 +1304,7 @@ export function createRssBatchId() {
 export function notifyRssBatchComplete(batchId) {
   if (!batchId || typeof batchId !== 'string') return
   const body = JSON.stringify({ batchId })
-  fetch('/api/proxy/batch-complete', {
+  fetch(apiUrl('/api/proxy/batch-complete'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,
@@ -1347,7 +1348,7 @@ export const fetchRssFeed = async (source, { maxRetries = 2, batchId = null } = 
       // Use backend proxy to avoid CORS issues
       // The backend server fetches RSS feeds server-side, avoiding browser CORS restrictions
       try {
-        let proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(source.url)}`
+        let proxyUrl = apiUrl(`/api/proxy/rss?url=${encodeURIComponent(source.url)}`)
         if (batchId) {
           proxyUrl += `&batch=${encodeURIComponent(batchId)}`
         }

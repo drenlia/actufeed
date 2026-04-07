@@ -9,7 +9,7 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
   const [news, setNews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  /** True after a completed fetch when every source failed and the list is still empty (no usable cache). */
+  /** True after a completed fetch when no source succeeded and the list is still empty (no usable cache). */
   const [feedFetchHadFailures, setFeedFetchHadFailures] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [newItemIds, setNewItemIds] = useState(new Set())
@@ -408,8 +408,13 @@ export const useNews = (tabSources = null, tabId = null, showToastMessages = tru
           )
         }
 
+        // Only treat as “feed unavailable” when nothing loaded successfully. If at least one
+        // source returned OK (even 0 articles in the last 24h), empty list is normal — do not
+        // imply the proxy/service is down because another source 404’d.
         setFeedFetchHadFailures(
-          newsToShow.length === 0 && failedFeeds.length > 0
+          newsToShow.length === 0 &&
+            failedFeeds.length > 0 &&
+            successfulFeeds.length === 0
         )
       }
 

@@ -1,5 +1,5 @@
 // Backend proxy server for RSS feeds (avoids CORS issues)
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -13,6 +13,17 @@ import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+// Load .env from the directory containing this file (reliable when cwd ≠ project root).
+dotenv.config({ path: join(__dirname, '.env') });
+if (process.env.NODE_ENV === 'development') {
+  const ytOk = Boolean(process.env.YOUTUBE_DATA_API_KEY?.trim());
+  console.log(
+    `[actufeed] API .env: ${join(__dirname, '.env')} | YOUTUBE_DATA_API_KEY ${ytOk ? 'loaded' : 'missing (channel search returns 503)'}`
+  );
+  console.log(
+    '[actufeed] YouTube search logs: prefix [YouTube channel-search]. If the UI shows HTML/JSON errors but no "request" line when you search, traffic is not reaching this API (Vite proxy / BACKEND_PROXY_TARGET / port).'
+  );
+}
 
 const app = express();
 // Ports: set VITE_PORT / BACKEND_PORT / PORT in .env (see .env.example)
@@ -65,10 +76,10 @@ app.use(helmet({
 const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'development') {
     return [
-      `http://localhost:${VITE_PORT}`,
-      `http://localhost:${BACKEND_PORT}`,
       `http://127.0.0.1:${VITE_PORT}`,
       `http://127.0.0.1:${BACKEND_PORT}`,
+      `http://localhost:${VITE_PORT}`,
+      `http://localhost:${BACKEND_PORT}`,
     ];
   }
   
@@ -225,6 +236,13 @@ app.use((req, res, next) => {
     return next();
   }
   if (refererMatchesAllowedOrigin(req.headers.referer)) {
+    return next();
+  }
+  // Vite dev proxy → API sometimes reaches here without Origin/Referer; keys would block the settings UI.
+  if (
+    process.env.NODE_ENV === 'development' &&
+    (req.path === '/api/youtube/channel-search' || req.path === '/api/youtube/resolve')
+  ) {
     return next();
   }
   console.warn(`[Proxy gate] Blocked ${req.method} ${req.path} (no valid client key, untrusted origin)`);
@@ -1476,8 +1494,23 @@ app.post('/api/proxy/batch-complete', apiLimiter, (req, res) => {
  * Set YOUTUBE_DATA_API_KEY in .env (see .env.example). Not tamper-proof: anyone who can call your API can use it — use rate limits + optional ACTUFEED_PROXY_CLIENT_KEYS.
  */
 app.get('/api/youtube/channel-search', apiLimiter, async (req, res) => {
+  const clientIp = getClientIp(req);
+  const qForLog =
+    typeof req.query.q === 'string'
+      ? req.query.q.trim().slice(0, 120)
+      : req.query.q != null
+        ? String(req.query.q).slice(0, 120)
+        : '';
+  const refHead = (req.headers.referer || '').slice(0, 160).replace(/\s+/g, ' ');
+  console.log(
+    `[YouTube channel-search] request client=${clientIp} origin=${req.headers.origin || '(none)'} referer=${refHead || '(none)'} q=${JSON.stringify(qForLog)}`
+  );
+
   const apiKey = process.env.YOUTUBE_DATA_API_KEY?.trim();
   if (!apiKey) {
+    console.error(
+      `[YouTube channel-search] client=${clientIp} error=503 YOUTUBE_DATA_API_KEY missing (channel search disabled)`
+    );
     return res.status(503).json({
       error: 'YouTube channel search is not configured',
       code: 'YOUTUBE_SEARCH_DISABLED',
@@ -1486,10 +1519,12 @@ app.get('/api/youtube/channel-search', apiLimiter, async (req, res) => {
 
   const rawQ = req.query.q;
   if (!rawQ || typeof rawQ !== 'string') {
+    console.error(`[YouTube channel-search] client=${clientIp} error=400 missing_or_invalid_q`);
     return res.status(400).json({ error: 'Missing q parameter' });
   }
   const q = rawQ.trim().slice(0, 200);
   if (q.length < 2) {
+    console.error(`[YouTube channel-search] client=${clientIp} error=400 query_too_short len=${q.length}`);
     return res.status(400).json({ error: 'Query too short' });
   }
 
@@ -1505,17 +1540,67 @@ app.get('/api/youtube/channel-search', apiLimiter, async (req, res) => {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(12_000),
     });
-    const json = await r.json().catch(() => ({}));
+    const bodyText = await r.text();
+    const trimmed = bodyText.trim();
+    let json = {};
+    if (trimmed) {
+      try {
+        json = JSON.parse(trimmed);
+      } catch (parseErr) {
+        const snip = trimmed.slice(0, 400).replace(/\s+/g, ' ');
+        console.error(
+          `[YouTube channel-search] client=${clientIp} error=502 YouTube response not JSON http=${r.status} parse=${parseErr.message} body_snip=${snip}${trimmed.length > 400 ? '…' : ''}`
+        );
+        return res.status(502).json({ error: 'YouTube API returned non-JSON' });
+      }
+    }
     if (!r.ok) {
       const msg = json?.error?.message || `YouTube API HTTP ${r.status}`;
-      console.warn(`[YouTube channel-search] ${msg}`);
+      console.error(
+        `[YouTube channel-search] client=${clientIp} error=502 upstream_http=${r.status} message=${msg}`
+      );
       return res.status(502).json({ error: msg });
     }
+    if (json.error && !Array.isArray(json.items)) {
+      const msg = json.error.message || 'YouTube API returned an error object';
+      console.error(`[YouTube channel-search] client=${clientIp} error=502 youtube_error_object message=${msg}`);
+      return res.status(502).json({ error: msg });
+    }
+    const rawItems = Array.isArray(json.items) ? json.items : [];
+    if (rawItems.length === 0) {
+      const totalResults =
+        json.pageInfo != null && typeof json.pageInfo.totalResults === 'number'
+          ? json.pageInfo.totalResults
+          : null;
+      console.warn(
+        `[YouTube channel-search] client=${clientIp} q=${JSON.stringify(q)} rows=0 pageInfo.totalResults=${String(totalResults)}`
+      );
+      if (totalResults != null && totalResults > 0) {
+        console.error(
+          `[YouTube channel-search] client=${clientIp} error=502 youtube_totalResults_gt_0_but_no_items totalResults=${totalResults}`
+        );
+        return res.status(502).json({
+          error:
+            'YouTube reported matches but returned no rows. Check API key restrictions and that YouTube Data API v3 is enabled for this key.',
+        });
+      }
+      res.setHeader('Cache-Control', 'private, max-age=120');
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      console.log(`[YouTube channel-search] client=${clientIp} ok items=0 (empty result set)`);
+      return res.json({ items: [] });
+    }
     const items = [];
-    for (const it of json.items || []) {
-      const channelId = it?.id?.channelId;
-      if (!channelId) continue;
+    for (const it of rawItems) {
+      const idObj = it?.id;
       const sn = it.snippet || {};
+      const fromId =
+        typeof idObj === 'object' && idObj !== null && idObj.channelId != null
+          ? String(idObj.channelId).trim()
+          : '';
+      const fromSn =
+        typeof sn.channelId === 'string' ? sn.channelId.trim() : '';
+      const channelId = fromId || fromSn || null;
+      if (!channelId) continue;
       const thumbs = sn.thumbnails || {};
       items.push({
         channelId,
@@ -1524,10 +1609,24 @@ app.get('/api/youtube/channel-search', apiLimiter, async (req, res) => {
         thumbnailUrl: thumbs.medium?.url || thumbs.default?.url || null,
       });
     }
+    if (rawItems.length > 0 && items.length === 0) {
+      const sample = JSON.stringify(rawItems[0]).slice(0, 500);
+      console.error(
+        `[YouTube channel-search] client=${clientIp} error=502 no_usable_channel_id rawRows=${rawItems.length} sample=${sample}`
+      );
+      return res.status(502).json({
+        error:
+          'YouTube returned search results in an unexpected format (no channel id). Check server logs or update the parser.',
+      });
+    }
     res.setHeader('Cache-Control', 'private, max-age=120');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    console.log(`[YouTube channel-search] client=${clientIp} ok items=${items.length} rawRows=${rawItems.length}`);
     return res.json({ items });
   } catch (e) {
-    console.warn(`[YouTube channel-search] ${e.message}`);
+    console.error(
+      `[YouTube channel-search] client=${clientIp} error=502 exception name=${e?.name || '?'} message=${e?.message || e}`
+    );
     return res.status(502).json({ error: 'YouTube search request failed' });
   }
 });

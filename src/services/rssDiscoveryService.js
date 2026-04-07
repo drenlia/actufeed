@@ -1,6 +1,8 @@
 // Service to discover RSS feeds for a given city
 // Backend proxy is used instead of CORS proxies
 
+import { apiUrl } from '../utils/apiBase'
+
 // Known news sources by country/region (can be expanded)
 const KNOWN_NEWS_DOMAINS = {
   'CA': [
@@ -53,7 +55,7 @@ const tryDiscoverRss = async (baseUrl, sourceName) => {
       
       // Use backend proxy to avoid CORS issues
       try {
-        const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(testUrl)}`
+        const proxyUrl = apiUrl(`/api/proxy/rss?url=${encodeURIComponent(testUrl)}`)
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 5000)
         
@@ -223,7 +225,7 @@ export const validateRssFeed = async (url) => {
     
     // Use backend proxy to avoid CORS issues
     try {
-      const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(url)}`
+      const proxyUrl = apiUrl(`/api/proxy/rss?url=${encodeURIComponent(url)}`)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 5000)
       

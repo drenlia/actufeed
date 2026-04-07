@@ -32,7 +32,7 @@ This project is containerized using Docker Compose v2.
 ## Access the Application
 
 Once the container is running, access the application at:
-- **URL:** http://localhost:3072
+- **URL:** http://127.0.0.1:3072
 
 ## Configuration
 

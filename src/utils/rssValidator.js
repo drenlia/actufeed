@@ -2,6 +2,7 @@
 // Uses backend proxy to avoid CORS issues
 
 import { rssItemEntryHasArticleThumbnail } from '../services/rssService'
+import { apiUrl } from './apiBase'
 
 const MRSS_NS = 'http://search.yahoo.com/mrss/'
 const ATOM_NS = 'http://www.w3.org/2005/Atom'
@@ -54,7 +55,7 @@ export const validateRssFeed = async (feedUrl) => {
 
   if (isYoutubeManualChannelUrl(normalizedInput)) {
     try {
-      const resolveUrl = `/api/youtube/resolve?url=${encodeURIComponent(normalizedInput)}`
+      const resolveUrl = apiUrl(`/api/youtube/resolve?url=${encodeURIComponent(normalizedInput)}`)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 25000)
       const response = await fetch(resolveUrl, { signal: controller.signal })
@@ -103,7 +104,7 @@ export const validateRssFeed = async (feedUrl) => {
   
   // Try to fetch the feed using backend proxy
   try {
-    const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(normalizedInput)}`
+    const proxyUrl = apiUrl(`/api/proxy/rss?url=${encodeURIComponent(normalizedInput)}`)
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)
     

@@ -6,7 +6,7 @@ export const NewsList = ({
   uiLanguage,
   loading,
   error,
-  /** Feed tab: fetch failed and there is no usable local cache (distinct from “no articles”). */
+  /** Feed tab: every source failed to load and there is no usable local cache (distinct from “no recent articles”). */
   feedUnavailableEmpty = false,
   newItemIds,
   combinedCategories,

@@ -35,7 +35,7 @@ docker-compose -f docker-compose.dev.yml up -d --build
 
 ## Accessing the App
 
-- **Local**: http://localhost:3072
+- **Local**: http://127.0.0.1:3072
 - **Via nginx proxy**: Use the same nginx config as production (port 3072) - no changes needed!
 
 ## Switching Back to Production

@@ -4,13 +4,15 @@
  * (https://commons.wikimedia.org/wiki/File:Montreal_gazette_logo.svg).
  */
 
+import { apiUrl } from './apiBase'
+
 export async function resolveLogoViaWikimediaCommons(sourceName) {
   if (!sourceName || !String(sourceName).trim()) return ''
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 12000)
     const response = await fetch(
-      `/api/wikimedia/logo?source=${encodeURIComponent(String(sourceName).trim())}`,
+      apiUrl(`/api/wikimedia/logo?source=${encodeURIComponent(String(sourceName).trim())}`),
       {
         signal: controller.signal,
         headers: { Accept: 'application/json' },

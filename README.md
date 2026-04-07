@@ -46,7 +46,7 @@ The easiest way to run this application is using Docker. Make sure you have Dock
    ```
    
    Edit the `.env` file and set the `HOST` variable:
-   - For local development: `HOST=localhost` (default)
+   - For local development: `HOST=127.0.0.1` (default; avoids IPv6 `localhost` / `::1` quirks)
    - For production: Set `HOST` to your domain name (e.g., `HOST=news.example.com`)
    
    If you need to allow multiple hosts, use `ALLOWED_HOSTS` instead (comma-separated):
@@ -67,7 +67,7 @@ The easiest way to run this application is using Docker. Make sure you have Dock
 4. **Access the application:**
    Open your web browser and navigate to:
    ```
-   http://localhost:3072
+   http://127.0.0.1:3072
    ```
    (Or use your configured domain if you set HOST to a domain name)
 

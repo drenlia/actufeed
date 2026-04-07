@@ -4,6 +4,8 @@
 // - https://morerss.com/opml_en.html (extensive English feeds)
 // - Various community-shared OPML files
 
+import { apiUrl } from './apiBase'
+
 /**
  * Parse an OPML file (XML format) and extract RSS feeds
  * @param {string} opmlText - The OPML file content as text
@@ -139,7 +141,7 @@ const detectType = (title, category) => {
 export const fetchAndParseOPML = async (url) => {
   try {
     // Use backend proxy to avoid CORS issues
-    const proxyUrl = `/api/proxy/rss?url=${encodeURIComponent(url)}`
+    const proxyUrl = apiUrl(`/api/proxy/rss?url=${encodeURIComponent(url)}`)
     const response = await fetch(proxyUrl, {
       headers: {
         'Accept': 'application/xml, text/xml, */*'
