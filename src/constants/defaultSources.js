@@ -23,10 +23,10 @@ export const MONTREAL_DEFAULT_SOURCES = [
     region: 'Montreal',
   },
   {
-    name: 'CTV News Montreal',
-    url: 'https://montreal.ctvnews.ca/rss/ctv-montreal-news-1.822294',
-    language: 'en',
-    region: 'Montreal',
+    "name": "Global News Montreal",
+    "url": "https://globalnews.ca/montreal/feed/",
+    "language": "en",
+    "region": "Montreal",
   },
   {
     name: 'Montreal Gazette',
@@ -37,6 +37,12 @@ export const MONTREAL_DEFAULT_SOURCES = [
   {
     name: 'Radio-Canada En-bref',
     url: 'https://ici.radio-canada.ca/info/rss/info/en-bref',
+    language: 'fr',
+    region: 'Montreal',
+  },
+  {
+    name: 'La Presse',
+    url: 'https://www.lapresse.ca/actualites/rss',
     language: 'fr',
     region: 'Montreal',
   },
@@ -52,12 +58,6 @@ export const CANADA_DEFAULT_SOURCES = [
   {
     name: 'CBC Top Stories',
     url: 'https://www.cbc.ca/cmlink/rss-topstories',
-    language: 'en',
-    region: 'Canada',
-  },
-  {
-    name: 'CTV News',
-    url: 'https://www.ctvnews.ca/rss/ctvnews-ca-top-stories-public-rss-1.822009',
     language: 'en',
     region: 'Canada',
   },
