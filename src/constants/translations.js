@@ -41,6 +41,10 @@ export const translations = {
     feedLayoutOptionList: 'List layout',
     feedLayoutOption2: 'Two columns',
     feedLayoutOption3: 'Three columns',
+    feedLayoutTriggerTooltip:
+      'Open the layout menu: list, two columns, or three columns. Choose the same layout again to follow window width automatically.',
+    headerLangSwitchToEn: 'Switch interface to English',
+    headerLangSwitchToFr: 'Passer l’interface en français',
     feedFontSmaller: 'Smaller description text',
     feedFontLarger: 'Larger description text',
     feedFontScaleGroupAria: 'Description text size',
@@ -175,6 +179,11 @@ export const translations = {
     settingsTabSourcesCountA11y: '{n} sources',
     createTab: 'Create Tab',
     showToastMessages: 'Show fetch banners',
+    showToastMessagesTooltip:
+      'When enabled, short status messages appear after a feed refresh (for example success or partial errors). You can dismiss a banner by dragging it away.',
+    openArticleInReaderLabel: 'Open article in Actufeed reader',
+    openArticleInReaderTooltip:
+      'When on, the article title and image open the in-app reader; use the globe icon in the reader to open the publisher site in a new tab. When off, the title and image open the article in a new tab right away.',
     restoreDefaultSources: 'Restore default sources',
     restoreDefaultTitle: 'Restore default sources?',
     restoreDefaultMessageHasSources:
@@ -240,6 +249,24 @@ export const translations = {
     showFilters: 'Show filters',
     hideFilters: 'Hide filters',
     openArticle: 'Open article',
+    articleReaderLoading: 'Loading full article…',
+    articleReaderUntitled: 'Untitled article',
+    articleReaderBackA11y: 'Back to feed',
+    articleReaderCloseA11y: 'Close article',
+    articleReaderShareA11y: 'Share article link',
+    articleReaderShareModalTitle: 'Share Article',
+    articleReaderShareModalUrlLabel: 'Link',
+    articleReaderShareModalCopy: 'Copy link',
+    articleReaderShareModalDevice: 'Share…',
+    articleReaderShareModalCopyFailed: 'Could not copy automatically. Select the link above and copy it.',
+    articleReaderShareModalCopiedShort: 'Copied',
+    articleReaderOpenPublisherA11y: 'Open article on publisher website',
+    articleReaderErrorGeneric: 'Couldn’t load full article text.',
+    articleReaderOpenInNewTab: 'Open in new tab',
+    articleReaderPaywallHint:
+      'Membership or a subscription may be required to read the full article on the publisher’s site.',
+    articleReaderLinkCopied: 'Link copied to clipboard',
+    articleReaderCopyPrompt: 'Copy this link',
     themeSwitchToDark: 'Switch to dark mode',
     themeSwitchToLight: 'Switch to light mode',
     helpModalTitle: 'Quick help',
@@ -258,6 +285,20 @@ export const translations = {
     helpModalLangGroupAria: 'Help language',
     helpModalLangShowFr: 'Show help in French',
     helpModalLangShowEn: 'Show help in English',
+    helpAboutButton: 'About',
+    helpAboutJumpTooltip: 'Jump to the About section (project story and links)',
+    helpAboutTitle: 'About ActuFeed',
+    helpAboutP1:
+      'ActuFeed was built to spend less time scrolling and more time on what matters: quick highlights from sources you trust—RSS feeds, news sites, and blogs—without noise, ads, or algorithmic feeds.',
+    helpAboutP2:
+      'The web app runs almost entirely in your browser: feed fetching, filters, tabs, languages, and caching are handled client-side, with a small optional server for CORS. Your preferences stay on this device. The project is open source so you can self-host (for example with Docker) or contribute on GitHub.',
+    helpAboutP3: 'You can read the longer story of how ActuFeed came to life on DEV.',
+    helpAboutDevCta: 'Read the story on DEV',
+    helpAboutGithubCta: 'View source on GitHub',
+    helpAboutGithubIconLabel: 'GitHub',
+    helpAboutGithubA11y: 'Open the ActuFeed repository on GitHub',
+    helpAboutDevUrl: 'https://dev.to/daniel_d_484c01351b91fc5b/i-built-actufeed-get-news-highlights-in-minutes-4f0h',
+    helpAboutGithubUrl: 'https://github.com/drenlia/actufeed',
     helpSectionFeed: 'Feed',
     helpSectionSettings: 'Settings',
     helpSectionManualRss: 'Finding a feed URL',
@@ -333,7 +374,8 @@ export const translations = {
       },
       {
         group: 'Articles',
-        text: 'Title → full story in a new tab. “more…” → longer text. New rows stay highlighted briefly.',
+        text:
+          'Title or image opens the in-app reader with full text when available. Reader header: share icon opens Share Article (copy link or use the device share sheet); globe opens the original page on the publisher’s site in a new tab; ‹ or × closes the reader. “more…” expands the teaser. New rows stay highlighted briefly.',
       },
       {
         group: 'Banners',
@@ -351,6 +393,10 @@ export const translations = {
       {
         group: 'Backup',
         text: 'Export / Import: tabs and outlets only (not cached article bodies). If you use more than one phone or computer, export your configuration on one device and import it on another to copy the same tabs and sources without setting everything up again.',
+      },
+      {
+        group: 'Reader',
+        text: 'When “Open article in Actufeed reader” is on, the title and image open the in-app reader; use the globe icon there to open the publisher site in a new tab. When off, the title and image open the article in a new tab directly.',
       },
     ],
   },
@@ -396,6 +442,10 @@ export const translations = {
     feedLayoutOptionList: 'Affichage liste',
     feedLayoutOption2: 'Deux colonnes',
     feedLayoutOption3: 'Trois colonnes',
+    feedLayoutTriggerTooltip:
+      'Ouvrir le menu de disposition : liste, deux ou trois colonnes. Choisir la même disposition à nouveau pour suivre automatiquement la largeur de la fenêtre.',
+    headerLangSwitchToEn: 'Passer l’interface en anglais',
+    headerLangSwitchToFr: 'Passer l’interface en français',
     feedFontSmaller: 'Texte de description plus petit',
     feedFontLarger: 'Texte de description plus grand',
     feedFontScaleGroupAria: 'Taille du texte des descriptions',
@@ -528,6 +578,11 @@ export const translations = {
     settingsTabSourcesCountA11y: '{n} sources',
     createTab: 'Créer un onglet',
     showToastMessages: 'Afficher les bannières de récupération',
+    showToastMessagesTooltip:
+      'Si cette option est activée, de courts messages d’état s’affichent après l’actualisation du fil (succès ou erreurs partielles, par exemple). Vous pouvez fermer une bannière en la faisant glisser.',
+    openArticleInReaderLabel: 'Ouvrir l’article dans le lecteur Actufeed',
+    openArticleInReaderTooltip:
+      'Si l’option est activée, le titre et l’image ouvrent le lecteur intégré ; l’icône globe dans le lecteur ouvre le site du média dans un nouvel onglet. Sinon, le titre et l’image ouvrent l’article directement dans un nouvel onglet.',
     restoreDefaultSources: 'Rétablir les sources par défaut',
     restoreDefaultTitle: 'Rétablir les sources par défaut ?',
     restoreDefaultMessageHasSources:
@@ -593,6 +648,24 @@ export const translations = {
     showFilters: 'Afficher les filtres',
     hideFilters: 'Masquer les filtres',
     openArticle: 'Ouvrir l\'article',
+    articleReaderLoading: 'Chargement de l’article complet…',
+    articleReaderUntitled: 'Article sans titre',
+    articleReaderBackA11y: 'Retour au fil',
+    articleReaderCloseA11y: 'Fermer l’article',
+    articleReaderShareA11y: 'Partager le lien de l’article',
+    articleReaderShareModalTitle: 'Partager l’article',
+    articleReaderShareModalUrlLabel: 'Lien',
+    articleReaderShareModalCopy: 'Copier le lien',
+    articleReaderShareModalDevice: 'Partager…',
+    articleReaderShareModalCopyFailed: 'Copie impossible. Sélectionnez le lien ci-dessus et copiez-le.',
+    articleReaderShareModalCopiedShort: 'Copié',
+    articleReaderOpenPublisherA11y: 'Ouvrir l’article sur le site du média',
+    articleReaderErrorGeneric: 'Impossible de charger le texte complet de l’article.',
+    articleReaderOpenInNewTab: 'Ouvrir dans un nouvel onglet',
+    articleReaderPaywallHint:
+      'Un abonnement peut être nécessaire pour lire l’article au complet sur le site du média.',
+    articleReaderLinkCopied: 'Lien copié dans le presse-papiers',
+    articleReaderCopyPrompt: 'Copier ce lien',
     themeSwitchToDark: 'Passer en mode sombre',
     themeSwitchToLight: 'Passer en mode clair',
     helpModalTitle: 'Aide rapide',
@@ -611,6 +684,20 @@ export const translations = {
     helpModalLangGroupAria: 'Langue de l’aide',
     helpModalLangShowFr: 'Afficher l’aide en français',
     helpModalLangShowEn: 'Afficher l’aide en anglais',
+    helpAboutButton: 'À propos',
+    helpAboutJumpTooltip: 'Aller à la section À propos (histoire du projet et liens)',
+    helpAboutTitle: 'À propos d’ActuFeed',
+    helpAboutP1:
+      'ActuFeed a été créé pour passer moins de temps à défiler et plus de temps sur l’essentiel : des points saillants tirés de sources de confiance—flux RSS, sites d’actualités, blogs—sans bruit, sans pub ni fil algorithmique.',
+    helpAboutP2:
+      'L’application web s’exécute presque entièrement dans le navigateur : récupération des flux, filtres, onglets, langues et mise en cache côté client, avec un petit serveur optionnel pour le CORS. Vos préférences restent sur cet appareil. Le projet est ouvert : vous pouvez l’auto-héberger (par ex. avec Docker) ou contribuer sur GitHub.',
+    helpAboutP3: 'Le récit plus détaillé de la genèse d’ActuFeed est sur DEV.',
+    helpAboutDevCta: 'Lire le récit sur DEV',
+    helpAboutGithubCta: 'Voir le code sur GitHub',
+    helpAboutGithubIconLabel: 'GitHub',
+    helpAboutGithubA11y: 'Ouvrir le dépôt ActuFeed sur GitHub',
+    helpAboutDevUrl: 'https://dev.to/daniel_d_484c01351b91fc5b/i-built-actufeed-get-news-highlights-in-minutes-4f0h',
+    helpAboutGithubUrl: 'https://github.com/drenlia/actufeed',
     helpSectionFeed: 'Fil d’actualités',
     helpSectionSettings: 'Paramètres',
     helpSectionManualRss: 'Trouver l’adresse d’un flux',
@@ -686,7 +773,8 @@ export const translations = {
       },
       {
         group: 'Articles',
-        text: 'Titre → article complet dans un nouvel onglet. « plus… » → texte plus long. Les nouvelles lignes restent mises en évidence un moment.',
+        text:
+          'Le titre ou l’image ouvre le lecteur intégré avec le texte complet lorsque c’est possible. En-tête du lecteur : l’icône de partage ouvre Partager l’article (copier le lien ou le menu Partager du système) ; le globe ouvre la page d’origine sur le site du média dans un nouvel onglet ; ‹ ou × ferme le lecteur. « plus… » développe l’accroche. Les nouvelles lignes restent mises en évidence un moment.',
       },
       {
         group: 'Bannières',
@@ -704,6 +792,10 @@ export const translations = {
       {
         group: 'Sauvegarde',
         text: 'Exporter / Importer : onglets et médias seulement (pas le corps des articles en cache). Avec plusieurs téléphones ou ordinateurs, exportez la configuration sur un appareil et importez-la sur un autre pour retrouver les mêmes onglets et sources sans tout reconfigurer.',
+      },
+      {
+        group: 'Lecteur',
+        text: 'Si « Ouvrir l’article dans le lecteur Actufeed » est activé, le titre et l’image ouvrent le lecteur intégré ; l’icône globe ouvre le site de l’éditeur dans un nouvel onglet. Sinon, le titre et l’image ouvrent l’article directement dans un nouvel onglet.',
       },
     ],
   },

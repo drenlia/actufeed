@@ -19,6 +19,7 @@ import {
   youtubeChannelPageUrl,
 } from '../services/youtubeChannelSearch'
 import { useToastContext } from '../contexts/ToastContext'
+import { copyTextToClipboard } from '../utils/copyToClipboard'
 import { Header } from './Header'
 import { TabBar } from './TabBar'
 import {
@@ -91,6 +92,7 @@ export const Settings = ({
   const [availableCountries, setAvailableCountries] = useState([])
   const [countrySearchQuery, setCountrySearchQuery] = useState('')
   const [showToastMessages, setShowToastMessages] = useState(false)
+  const [openArticleInReader, setOpenArticleInReader] = useState(true)
   const searchTimeoutRef = useRef(null)
   const { success, error: showError, warning } = useToastContext()
   
@@ -191,6 +193,7 @@ export const Settings = ({
     // Load country filters from storage
     const preferences = loadSettingsPreferences()
     setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : false)
+    setOpenArticleInReader(preferences.openArticleInReader !== false)
     setSelectedCountries(preferences.selectedCountries)
     
     // Load available countries
@@ -555,24 +558,11 @@ export const Settings = ({
 
   // Copy source URL to clipboard
   const handleCopySourceUrl = async (sourceUrl, sourceName) => {
-    try {
-      await navigator.clipboard.writeText(sourceUrl)
+    const ok = await copyTextToClipboard(sourceUrl)
+    if (ok) {
       success(`Copied ${sourceName} URL to clipboard`)
-    } catch (err) {
-      // Fallback for older browsers
-      try {
-        const textArea = document.createElement('textarea')
-        textArea.value = sourceUrl
-        textArea.style.position = 'fixed'
-        textArea.style.opacity = '0'
-        document.body.appendChild(textArea)
-        textArea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textArea)
-        success(`Copied ${sourceName} URL to clipboard`)
-      } catch (fallbackErr) {
-        showError('Failed to copy URL to clipboard')
-      }
+    } else {
+      showError('Failed to copy URL to clipboard')
     }
   }
 
@@ -904,6 +894,12 @@ export const Settings = ({
     saveSettingsPreferences({ showToastMessages: newValue })
   }
 
+  const toggleOpenArticleInReader = () => {
+    const newValue = !openArticleInReader
+    setOpenArticleInReader(newValue)
+    saveSettingsPreferences({ openArticleInReader: newValue })
+  }
+
   return (
     <>
       <div className="settings-chrome">
@@ -1003,7 +999,13 @@ export const Settings = ({
                   </label>
                 </div>
               </div>
-              <div className="toast-toggle-container">
+              <div
+                className="toast-toggle-container toast-toggle-container--fetch-banners-only"
+                title={t.showToastMessagesTooltip}
+              >
+                <span id="settings-fetch-banners-desc" className="settings-toggle-tooltip-desc">
+                  {t.showToastMessagesTooltip}
+                </span>
                 <label className="settings-toast-toggle-label" htmlFor="settings-fetch-toasts-switch">
                   {t.showToastMessages || 'Show fetch banners'}
                 </label>
@@ -1015,6 +1017,27 @@ export const Settings = ({
                   role="switch"
                   aria-checked={showToastMessages}
                   aria-label={t.showToastMessages || 'Show fetch banners'}
+                  aria-describedby="settings-fetch-banners-desc"
+                >
+                  <span className="settings-fetch-toast-switch-knob" aria-hidden />
+                </button>
+              </div>
+              <div className="toast-toggle-container" title={t.openArticleInReaderTooltip}>
+                <span id="settings-open-reader-desc" className="settings-toggle-tooltip-desc">
+                  {t.openArticleInReaderTooltip}
+                </span>
+                <label className="settings-toast-toggle-label" htmlFor="settings-open-article-reader-switch">
+                  {t.openArticleInReaderLabel}
+                </label>
+                <button
+                  type="button"
+                  id="settings-open-article-reader-switch"
+                  className={`settings-fetch-toast-switch ${openArticleInReader ? 'is-on' : ''}`}
+                  onClick={toggleOpenArticleInReader}
+                  role="switch"
+                  aria-checked={openArticleInReader}
+                  aria-label={t.openArticleInReaderLabel}
+                  aria-describedby="settings-open-reader-desc"
                 >
                   <span className="settings-fetch-toast-switch-knob" aria-hidden />
                 </button>

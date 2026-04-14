@@ -113,6 +113,7 @@ export const exportConfig = (config) => {
         typeof settingsPreferences.feedHeaderWebShrunk === 'boolean'
           ? settingsPreferences.feedHeaderWebShrunk
           : false,
+      openArticleInReader: settingsPreferences.openArticleInReader !== false,
     }
   }
   
@@ -183,6 +184,10 @@ export const importConfig = (file) => {
                 typeof data.settings.feedHeaderWebShrunk === 'boolean'
                   ? data.settings.feedHeaderWebShrunk
                   : false,
+              openArticleInReader:
+                data.settings.openArticleInReader !== undefined
+                  ? data.settings.openArticleInReader === true
+                  : true,
             }
             saveSettingsPreferences(preferences)
           }

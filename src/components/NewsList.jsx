@@ -24,6 +24,7 @@ export const NewsList = ({
   savedArticleIds = null,
   onToggleSavedArticle = null,
   onRemoveSavedArticle = null,
+  onOpenArticleReader = null,
 }) => {
   const t = translations[uiLanguage]
 
@@ -83,6 +84,7 @@ export const NewsList = ({
           }
           onToggleSavedArticle={onToggleSavedArticle}
           onRemoveSavedArticle={onRemoveSavedArticle}
+          onOpenArticleReader={onOpenArticleReader}
         />
       ))}
     </div>

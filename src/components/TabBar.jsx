@@ -30,10 +30,12 @@ export const TabBar = ({
   createTabLabel = '+',
   tabsListAriaLabel = 'Tabs',
   deleteTabTitle = 'Delete tab',
-  /** Active tab only: list length when > 0 (omit while loading or when count is 0). */
+  /** @deprecated Prefer tabCountsById — active tab count for a11y fallback */
   activeTabArticleCount,
   /** (tabName, count) => accessible name when the count pill is shown */
   activeTabCountAriaLabel,
+  /** Per-tab filtered article counts (omit or 0 = no pill; never show 0). */
+  tabCountsById = null,
   /** Settings tabs: (n) => phrase for screen readers, e.g. "{n} sources" with {n} replaced */
   tabSourcesCountAria,
 }) => {
@@ -152,10 +154,15 @@ export const TabBar = ({
     const showClose = allowDelete && tabs.length > 1
 
     if (!extended) {
-      const showCountPill =
-        isActive &&
-        activeTabArticleCount !== undefined &&
-        activeTabArticleCount > 0
+      const countFromMap =
+        tabCountsById && typeof tabCountsById[tab.id] === 'number' ? tabCountsById[tab.id] : undefined
+      const count =
+        countFromMap !== undefined
+          ? countFromMap
+          : isActive && activeTabArticleCount !== undefined
+            ? activeTabArticleCount
+            : undefined
+      const showCountPill = typeof count === 'number' && count > 0
 
       if (isEditing) {
         return (
@@ -185,15 +192,14 @@ export const TabBar = ({
           onDoubleClick={(e) => handleDoubleClick(tab.id, tab.name, e)}
           aria-label={
             showCountPill
-              ? activeTabCountAriaLabel?.(tab.name, activeTabArticleCount) ??
-                `${tab.name}, ${activeTabArticleCount}`
+              ? activeTabCountAriaLabel?.(tab.name, count) ?? `${tab.name}, ${count}`
               : undefined
           }
         >
           <span className="tab-nav-item__label">{tab.name}</span>
           {showCountPill ? (
             <span className="tab-nav-item__count-pill" aria-hidden="true">
-              {activeTabArticleCount}
+              {count}
             </span>
           ) : null}
         </button>

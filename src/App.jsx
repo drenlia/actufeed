@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import './App.css'
-import { useNews } from './hooks/useNews'
+import { useMultiTabNews } from './hooks/useMultiTabNews'
 import { useCategories } from './hooks/useCategories'
 import { getCombinedCategories, getAvailableCategories } from './utils/categoryCombiner'
 import { filterNews, sortNews } from './utils/newsFilters'
@@ -11,9 +11,14 @@ import { Settings } from './components/Settings'
 import { TabNavigation } from './components/TabNavigation'
 import { SplashScreen } from './components/SplashScreen'
 import { HelpModal } from './components/HelpModal'
+import { ArticleReaderModal } from './components/ArticleReaderModal'
 import { ToastProvider } from './contexts/ToastContext'
-import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, saveTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
-import { loadSettingsPreferences, saveSettingsPreferences } from './utils/settingsStorage'
+import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
+import {
+  loadSettingsPreferences,
+  saveSettingsPreferences,
+  defaultGlobalFeedFilters,
+} from './utils/settingsStorage'
 import {
   resolveFeedLayout,
   clampFeedDescriptionFontScale,
@@ -75,8 +80,12 @@ function AppContent() {
   const [feedDescriptionFontScale, setFeedDescriptionFontScale] = useState(() =>
     clampFeedDescriptionFontScale(loadSettingsPreferences().feedDescriptionFontScale ?? 1)
   )
+  const [openArticleInReader, setOpenArticleInReader] = useState(
+    () => loadSettingsPreferences().openArticleInReader !== false
+  )
   const [feedView, setFeedView] = useState('feed')
   const [readLaterItems, setReadLaterItems] = useState(() => loadReadLaterList())
+  const [articleReaderItem, setArticleReaderItem] = useState(null)
   const viewportWidth = useWindowWidth()
 
   const reloadReadLater = useCallback(() => {
@@ -162,6 +171,7 @@ function AppContent() {
     setFeedDescriptionFontScale(
       clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale ?? 1)
     )
+    setOpenArticleInReader(preferences.openArticleInReader !== false)
 
     const loadedTabs = loadTabs()
     setTabs(loadedTabs)
@@ -211,23 +221,45 @@ function AppContent() {
       setActiveTabId(currentActiveTabId)
       setActiveTabIdState(currentActiveTabId)
     }
-    
-    // Load filters for active tab
-    if (currentActiveTabId) {
-      const savedFilters = getTabFilters(currentActiveTabId)
-      if (savedFilters) {
-        setNewsFilter(savedFilters.newsFilter || 'all')
-        setSelectedCategories(new Set(savedFilters.selectedCategories || []))
-        setSortBy(savedFilters.sortBy || 'date')
-        setShowHighlyRated(savedFilters.showHighlyRated || false)
-        setSearchQuery(savedFilters.searchQuery || '')
-        setSourceNameFilter(typeof savedFilters.sourceNameFilter === 'string' ? savedFilters.sourceNameFilter : '')
-        const minP = savedFilters.minPopularityScore
-        setMinPopularityScore(
-          typeof minP === 'number' && minP > 0 && Number.isFinite(minP) ? Math.min(99, Math.floor(minP)) : null
-        )
+
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('newsfeed-global-feed-migrated') !== '1') {
+        const legacy = currentActiveTabId ? getTabFilters(currentActiveTabId) : null
+        if (legacy) {
+          saveSettingsPreferences({
+            feedGlobalFilters: {
+              ...defaultGlobalFeedFilters(),
+              newsFilter: legacy.newsFilter || 'all',
+              selectedCategories: Array.isArray(legacy.selectedCategories) ? legacy.selectedCategories : [],
+              sortBy: legacy.sortBy || 'date',
+              showHighlyRated: !!legacy.showHighlyRated,
+              searchQuery: typeof legacy.searchQuery === 'string' ? legacy.searchQuery : '',
+              sourceNameFilter: typeof legacy.sourceNameFilter === 'string' ? legacy.sourceNameFilter : '',
+              minPopularityScore:
+                typeof legacy.minPopularityScore === 'number' && legacy.minPopularityScore > 0
+                  ? Math.min(99, Math.floor(legacy.minPopularityScore))
+                  : null,
+            },
+          })
+        }
+        localStorage.setItem('newsfeed-global-feed-migrated', '1')
       }
+    } catch {
+      /* ignore */
     }
+
+    const prefsAfter = loadSettingsPreferences()
+    const gf = prefsAfter.feedGlobalFilters || defaultGlobalFeedFilters()
+    setNewsFilter(gf.newsFilter || 'all')
+    setSelectedCategories(new Set(gf.selectedCategories || []))
+    setSortBy(gf.sortBy || 'date')
+    setShowHighlyRated(!!gf.showHighlyRated)
+    setSearchQuery(typeof gf.searchQuery === 'string' ? gf.searchQuery : '')
+    setSourceNameFilter(typeof gf.sourceNameFilter === 'string' ? gf.sourceNameFilter : '')
+    const minG = gf.minPopularityScore
+    setMinPopularityScore(
+      typeof minG === 'number' && minG > 0 && Number.isFinite(minG) ? Math.min(99, Math.floor(minG)) : null
+    )
   }, [])
 
   // Apply localStorage + URL before leaving Settings so the feed's first paint matches saved sources
@@ -245,6 +277,7 @@ function AppContent() {
     setFeedDescriptionFontScale(
       clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale ?? 1)
     )
+    setOpenArticleInReader(preferences.openArticleInReader !== false)
 
     const urlParams = new URLSearchParams(window.location.search)
     const tabNameFromUrl = urlParams.get('tab')
@@ -311,10 +344,10 @@ function AppContent() {
     window.history.replaceState({}, '', url.toString())
   }, [getTabNameFromId])
 
-  // Save filters when they change (per tab)
+  // Shared feed filters (all tabs)
   useEffect(() => {
-    if (activeTabId) {
-      saveTabFilters(activeTabId, {
+    saveSettingsPreferences({
+      feedGlobalFilters: {
         newsFilter,
         selectedCategories: Array.from(selectedCategories),
         sortBy,
@@ -322,10 +355,9 @@ function AppContent() {
         searchQuery,
         sourceNameFilter,
         minPopularityScore,
-      })
-    }
+      },
+    })
   }, [
-    activeTabId,
     newsFilter,
     selectedCategories,
     sortBy,
@@ -335,41 +367,12 @@ function AppContent() {
     minPopularityScore,
   ])
 
-  // Handle tab change
+  // Handle tab change (filters stay shared across tabs)
   const handleTabChange = (tabId) => {
     setFeedView('feed')
     setActiveTabIdState(tabId)
     setActiveTabId(tabId)
-    
-    // Update URL with new tab ID
     updateUrlWithTab(tabId)
-    
-    // Load filters for the new tab
-    const savedFilters = getTabFilters(tabId)
-    if (savedFilters) {
-      setNewsFilter(savedFilters.newsFilter || 'all')
-      setSelectedCategories(new Set(savedFilters.selectedCategories || []))
-      setSortBy(savedFilters.sortBy || 'date')
-      setShowHighlyRated(savedFilters.showHighlyRated || false)
-      setSearchQuery(savedFilters.searchQuery || '')
-      setSourceNameFilter(typeof savedFilters.sourceNameFilter === 'string' ? savedFilters.sourceNameFilter : '')
-      const minP = savedFilters.minPopularityScore
-      setMinPopularityScore(
-        typeof minP === 'number' && minP > 0 && Number.isFinite(minP) ? Math.min(99, Math.floor(minP)) : null
-      )
-    } else {
-      // Reset to defaults if no saved filters
-      setNewsFilter('all')
-      setSelectedCategories(new Set())
-      setSortBy('date')
-      setShowHighlyRated(false)
-      setSearchQuery('')
-      setSourceNameFilter('')
-      setMinPopularityScore(null)
-    }
-    
-    // Force refresh news for the new tab
-    // The useNews hook will automatically re-fetch when tabId changes
   }
 
   // Handle tab rename
@@ -396,18 +399,27 @@ function AppContent() {
     return [...sources]
   }, [tabs, activeTabId])
   
-  const { news, loading, error, feedFetchHadFailures, newItemIds, fetchNews, refreshNews } = useNews(
-    tabSources,
-    activeTabId,
-    showToastMessages
-  )
+  const {
+    news,
+    newsByTabId,
+    loading,
+    error,
+    feedFetchHadFailures,
+    newItemIds,
+    fetchNews,
+    refreshNews,
+  } = useMultiTabNews(tabs, activeTabId, showToastMessages)
   
   // Store refreshNews in a ref so it's available in the Settings onClose callback
   const refreshNewsRef = useRef(refreshNews)
   useEffect(() => {
     refreshNewsRef.current = refreshNews
   }, [refreshNews])
-  const categories = useCategories(news)
+  const allNewsUnion = useMemo(
+    () => (tabs || []).flatMap((t) => newsByTabId[t.id] ?? []),
+    [tabs, newsByTabId]
+  )
+  const categories = useCategories(allNewsUnion)
 
   // Detect browser language on mount
   useEffect(() => {
@@ -416,17 +428,14 @@ function AppContent() {
     setUiLanguage(detectedLang)
   }, [])
 
-  // Auto-refresh every 5 minutes
-  const fetchNewsRef = useRef(fetchNews)
-  fetchNewsRef.current = fetchNews
-
+  // Auto-refresh every 5 minutes (all tabs)
   useEffect(() => {
     if (!autoRefresh) return
-    
+
     const interval = setInterval(() => {
-      fetchNewsRef.current(false, false) // Background refresh
-    }, 5 * 60 * 1000) // 5 minutes
-    
+      refreshNewsRef.current()
+    }, 5 * 60 * 1000)
+
     return () => clearInterval(interval)
   }, [autoRefresh])
 
@@ -446,6 +455,15 @@ function AppContent() {
   const filteredNews = filterNews(news, filters, combinedCategories)
   const sortedNews = sortNews(filteredNews, sortBy)
 
+  const tabCountsByTabId = useMemo(() => {
+    const out = {}
+    for (const tab of tabs) {
+      const raw = newsByTabId[tab.id] ?? []
+      out[tab.id] = sortNews(filterNews(raw, filters, combinedCategories), sortBy).length
+    }
+    return out
+  }, [tabs, newsByTabId, filters, combinedCategories, sortBy])
+
   const savedNewsItems = useMemo(
     () => readLaterItems.map(savedArticleToNewsItem),
     [readLaterItems]
@@ -458,14 +476,16 @@ function AppContent() {
 
   const listNews = feedView === 'saved' ? sortedSavedNews : sortedNews
 
-  /** Match actufeed-app FeedTabStrip: no pill while loading or when count is 0. */
+  /** Active tab pill: same filtered count as tab strip; omit while loading with no data; never 0. */
   const headerActiveTabArticleCount = useMemo(() => {
     if (feedView === 'saved') {
       return listNews.length > 0 ? listNews.length : undefined
     }
-    if (loading || listNews.length === 0) return undefined
-    return listNews.length
-  }, [feedView, listNews.length, loading])
+    const c = activeTabId ? tabCountsByTabId[activeTabId] : undefined
+    if (c === undefined) return undefined
+    if (loading && c === 0) return undefined
+    return c > 0 ? c : undefined
+  }, [feedView, listNews.length, loading, activeTabId, tabCountsByTabId])
 
   const feedTabCountAriaLabel = useCallback(
     (tabName, count) => {
@@ -531,9 +551,9 @@ function AppContent() {
     })
   }, [])
 
-  // Get available categories (only those with matching articles)
+  // Categories from all tabs’ articles so filters apply consistently when switching tabs
   const availableCategories = getAvailableCategories(
-    feedView === 'saved' ? savedNewsItems : news,
+    feedView === 'saved' ? savedNewsItems : allNewsUnion,
     combinedCategories,
     filters
   )
@@ -624,6 +644,18 @@ function AppContent() {
     ]
   )
 
+  const filtersNudgeActive = useMemo(() => {
+    if (feedView !== 'feed') return false
+    if (!hasNarrowingFilters) return false
+    const hasRaw = tabs.some(
+      (t) => (t.sources || []).length > 0 && (newsByTabId[t.id] ?? []).length > 0
+    )
+    if (!hasRaw) return false
+    const tabsWithSrc = tabs.filter((t) => (t.sources || []).length > 0)
+    if (!tabsWithSrc.length) return false
+    return tabsWithSrc.every((t) => (tabCountsByTabId[t.id] ?? 0) === 0)
+  }, [feedView, hasNarrowingFilters, tabs, newsByTabId, tabCountsByTabId])
+
   const articleFilterActive = useMemo(
     () => ({
       newsFilter,
@@ -689,7 +721,10 @@ function AppContent() {
           <Header
             uiLanguage={uiLanguage}
             onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
-            onSettingsClick={() => setShowSettings(true)}
+            onSettingsClick={() => {
+              setArticleReaderItem(null)
+              setShowSettings(true)
+            }}
             isSettingsPage={false}
             onTitleClick={handleTitleClick}
             savedArticlesCount={readLaterItems.length}
@@ -728,6 +763,7 @@ function AppContent() {
             fontScaleAtMin={fontScaleAtMin}
             fontScaleAtMax={fontScaleAtMax}
             narrowingFiltersActive={hasNarrowingFilters}
+            nudgeFiltersButton={filtersNudgeActive}
             headerTabsSlot={
               tabs.length > 1 ? (
                 <TabNavigation
@@ -737,6 +773,7 @@ function AppContent() {
                   onTabRename={handleTabRename}
                   activeTabArticleCount={headerActiveTabArticleCount}
                   activeTabCountAriaLabel={feedTabCountAriaLabel}
+                  tabCountsById={tabCountsByTabId}
                 />
               ) : null
             }
@@ -795,8 +832,19 @@ function AppContent() {
             savedArticleIds={savedArticleIds}
             onToggleSavedArticle={handleToggleSavedArticle}
             onRemoveSavedArticle={handleRemoveSavedArticle}
+            onOpenArticleReader={
+              openArticleInReader ? (item) => setArticleReaderItem(item) : null
+            }
           />
         </main>
+        {articleReaderItem ? (
+          <ArticleReaderModal
+            key={articleReaderItem.id || articleReaderItem.link}
+            item={articleReaderItem}
+            onClose={() => setArticleReaderItem(null)}
+            uiLanguage={uiLanguage}
+          />
+        ) : null}
         <HelpModal
           open={showHelp}
           onClose={() => {
