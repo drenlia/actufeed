@@ -44,6 +44,8 @@ export const NewsItem = ({
   readLaterSaved = false,
   onToggleSavedArticle = null,
   onRemoveSavedArticle = null,
+  /** When set, title and hero image open the in-app article reader instead of a new tab. */
+  onOpenArticleReader = null,
 }) => {
   const t = translations[uiLanguage]
   const formatDateLocalized = (date) => formatDate(date, uiLanguage)
@@ -134,16 +136,33 @@ export const NewsItem = ({
       <div className="news-content-wrapper">
         {imageUrl && (
           <div className="news-image-container">
-            <a href={item.link} target="_blank" rel="noopener noreferrer" className="news-image-link">
-              <img
-                key={imageUrl}
-                src={imageUrl}
-                alt={item.title || item.source || 'Article'}
-                className={`news-image ${isFaviconLogo ? 'news-image--favicon' : ''} ${isFeedLogoOnly && !isFaviconLogo ? 'news-image--logo' : ''}`}
-                onError={handleImageError}
-                decoding="async"
-              />
-            </a>
+            {onOpenArticleReader ? (
+              <button
+                type="button"
+                className="news-image-link news-image-link--button"
+                onClick={() => onOpenArticleReader(item)}
+              >
+                <img
+                  key={imageUrl}
+                  src={imageUrl}
+                  alt={item.title || item.source || 'Article'}
+                  className={`news-image ${isFaviconLogo ? 'news-image--favicon' : ''} ${isFeedLogoOnly && !isFaviconLogo ? 'news-image--logo' : ''}`}
+                  onError={handleImageError}
+                  decoding="async"
+                />
+              </button>
+            ) : (
+              <a href={item.link} target="_blank" rel="noopener noreferrer" className="news-image-link">
+                <img
+                  key={imageUrl}
+                  src={imageUrl}
+                  alt={item.title || item.source || 'Article'}
+                  className={`news-image ${isFaviconLogo ? 'news-image--favicon' : ''} ${isFeedLogoOnly && !isFaviconLogo ? 'news-image--logo' : ''}`}
+                  onError={handleImageError}
+                  decoding="async"
+                />
+              </a>
+            )}
             {readLaterVariant === 'feed' && onToggleSavedArticle ? (
               <button
                 type="button"
@@ -202,9 +221,19 @@ export const NewsItem = ({
           <div className="news-header">
             {item.title && item.title.trim() !== '' ? (
               <h2 className="news-title">
-                <a href={item.link} target="_blank" rel="noopener noreferrer">
-                  {item.title}
-                </a>
+                {onOpenArticleReader ? (
+                  <button
+                    type="button"
+                    className="news-title-link"
+                    onClick={() => onOpenArticleReader(item)}
+                  >
+                    {item.title}
+                  </button>
+                ) : (
+                  <a href={item.link} target="_blank" rel="noopener noreferrer">
+                    {item.title}
+                  </a>
+                )}
               </h2>
             ) : null}
             <div className="news-meta">

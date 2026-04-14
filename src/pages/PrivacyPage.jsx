@@ -13,20 +13,28 @@ export function PrivacyPage() {
 
         <p>{strings.privacyP1}</p>
         <p>{strings.privacyP2}</p>
+        <p>{strings.privacyP3}</p>
 
         <h2>{strings.privacyH2Local}</h2>
         <p>{strings.privacyLocalP}</p>
 
-        <h2>{strings.privacyH2Server}</h2>
-        <p>{strings.privacyServerP}</p>
+        <h2>{strings.privacyH2UserContent}</h2>
+        <p>{strings.privacyUserContentP1}</p>
+        <p>{strings.privacyUserContentP2}</p>
 
-        <h2>{strings.privacyH2ThirdParty}</h2>
-        <p>{strings.privacyThirdPartyP}</p>
+        <h2>{strings.privacyH2Technical}</h2>
+        <p>{strings.privacyTechnicalP}</p>
+
+        <h2>{strings.privacyH2OpenArticles}</h2>
+        <p>{strings.privacyOpenArticlesP}</p>
+
+        <h2>{strings.privacyH2Rights}</h2>
+        <p>{strings.privacyRightsP}</p>
 
         <h2>{strings.privacyH2Contact}</h2>
         <p>
-          {strings.privacyContactBefore}{' '}
-          <Link to="/support">{strings.navSupport}</Link>
+          {strings.privacyContactBefore}
+          <Link to="/support">{strings.privacyContactLinkLabel}</Link>
           {strings.privacyContactAfter}
         </p>
       </main>

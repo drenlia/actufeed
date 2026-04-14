@@ -29,9 +29,10 @@ COPY --from=builder /app/package-lock.json ./
 # Install dependencies (including Express for backend proxy)
 RUN npm ci --ignore-scripts
 
-# Copy built files, server, and config from builder stage
+# Copy built files, server, server helpers (lib/), and config from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.js ./
+COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/vite.config.js ./
 
 # Expose port 3072 (backend server serves both API and static files)

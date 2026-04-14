@@ -8,6 +8,7 @@ export const TabNavigation = ({
   onTabRename,
   activeTabArticleCount,
   activeTabCountAriaLabel,
+  tabCountsById,
 }) => (
   <TabBar
     tabs={tabs}
@@ -17,5 +18,6 @@ export const TabNavigation = ({
     alwaysShow={false}
     activeTabArticleCount={activeTabArticleCount}
     activeTabCountAriaLabel={activeTabCountAriaLabel}
+    tabCountsById={tabCountsById}
   />
 )

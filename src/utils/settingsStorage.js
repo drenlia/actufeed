@@ -6,6 +6,44 @@ const SETTINGS_STORAGE_KEY = 'newsfeed-settings-preferences'
 /** Filters panel hidden until the user opens it; explicit false/true in storage overrides. */
 const DEFAULT_SUBHEADER_COLLAPSED = true
 
+/** Shared across all feed tabs (not per-tab). */
+export const defaultGlobalFeedFilters = () => ({
+  newsFilter: 'all',
+  selectedCategories: [],
+  sortBy: 'date',
+  showHighlyRated: false,
+  searchQuery: '',
+  sourceNameFilter: '',
+  minPopularityScore: null,
+})
+
+const coerceGlobalFeedFilters = (raw) => {
+  const d = defaultGlobalFeedFilters()
+  if (!raw || typeof raw !== 'object') return d
+  const newsFilter = raw.newsFilter === 'fr' || raw.newsFilter === 'en' ? raw.newsFilter : 'all'
+  const sortBy = raw.sortBy === 'popularity' ? 'popularity' : 'date'
+  const selectedCategories = Array.isArray(raw.selectedCategories)
+    ? raw.selectedCategories.filter((x) => typeof x === 'string')
+    : []
+  const showHighlyRated = raw.showHighlyRated === true
+  const searchQuery = typeof raw.searchQuery === 'string' ? raw.searchQuery : ''
+  const sourceNameFilter = typeof raw.sourceNameFilter === 'string' ? raw.sourceNameFilter : ''
+  let minPopularityScore = null
+  const minP = raw.minPopularityScore
+  if (typeof minP === 'number' && minP > 0 && Number.isFinite(minP)) {
+    minPopularityScore = Math.min(99, Math.floor(minP))
+  }
+  return {
+    newsFilter,
+    selectedCategories,
+    sortBy,
+    showHighlyRated,
+    searchQuery,
+    sourceNameFilter,
+    minPopularityScore,
+  }
+}
+
 export const loadSettingsPreferences = () => {
   try {
     const stored = localStorage.getItem(SETTINGS_STORAGE_KEY)
@@ -36,6 +74,9 @@ export const loadSettingsPreferences = () => {
         feedDescriptionFontScale: clampFeedDescriptionFontScale(
           typeof parsed.feedDescriptionFontScale === 'number' ? parsed.feedDescriptionFontScale : 1
         ),
+        openArticleInReader:
+          typeof parsed.openArticleInReader === 'boolean' ? parsed.openArticleInReader : true,
+        feedGlobalFilters: coerceGlobalFeedFilters(parsed.feedGlobalFilters),
       }
     }
   } catch (error) {
@@ -56,6 +97,8 @@ export const loadSettingsPreferences = () => {
     theme,
     feedLayoutPreference: 'auto',
     feedDescriptionFontScale: 1,
+    openArticleInReader: true,
+    feedGlobalFilters: defaultGlobalFeedFilters(),
   }
 }
 
@@ -89,6 +132,14 @@ export const saveSettingsPreferences = (preferences) => {
         preferences.feedDescriptionFontScale !== undefined
           ? clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale)
           : stored.feedDescriptionFontScale,
+      openArticleInReader:
+        preferences.openArticleInReader !== undefined
+          ? preferences.openArticleInReader
+          : stored.openArticleInReader !== false,
+      feedGlobalFilters:
+        preferences.feedGlobalFilters !== undefined
+          ? coerceGlobalFeedFilters(preferences.feedGlobalFilters)
+          : coerceGlobalFeedFilters(stored.feedGlobalFilters),
     }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toStore))
     return true

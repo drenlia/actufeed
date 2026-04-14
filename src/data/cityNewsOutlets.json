@@ -175,8 +175,8 @@
           "type": "broadcast"
         },
         {
-          "name": "CTVNews.ca - Top Stories - Public RSS",
-          "url": "https://www.ctvnews.ca/rss/ctvnews-ca-top-stories-public-rss-1.822009",
+          "name": "Global News",
+          "url": "https://globalnews.ca/feed/",
           "language": "en",
           "type": "broadcast"
         },
@@ -321,31 +321,31 @@
         {
           "name": "ZEIT ONLINE | Nachrichten, Hintergründe und Debatten",
           "url": "http://newsfeed.zeit.de/index",
-          "language": "fr",
+          "language": "de",
           "type": "online"
         },
         {
           "name": "FOCUS Online",
           "url": "https://rss.focus.de/fol/XML/rss_folnews.xml",
-          "language": "fr",
+          "language": "de",
           "type": "online"
         },
         {
           "name": "Aktuell - FAZ.NET",
           "url": "https://www.faz.net/rss/aktuell/",
-          "language": "fr",
+          "language": "de",
           "type": "online"
         },
         {
           "name": "tagesschau.de - Die Nachrichten der ARD",
           "url": "http://www.tagesschau.de/xml/rss2",
-          "language": "fr",
+          "language": "de",
           "type": "online"
         },
         {
           "name": "Deutsche Welle",
           "url": "https://rss.dw.com/rdf/rss-en-all",
-          "language": "fr",
+          "language": "en",
           "type": "online"
         }
       ]
@@ -1021,8 +1021,8 @@
           "type": "newspaper"
         },
         {
-          "name": "CTV News Montreal",
-          "url": "https://montreal.ctvnews.ca/rss/ctv-montreal-news-1.822294",
+          "name": "Global News Montreal",
+          "url": "https://globalnews.ca/montreal/feed/",
           "language": "en",
           "type": "broadcast"
         },

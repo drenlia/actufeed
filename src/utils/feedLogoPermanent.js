@@ -7,6 +7,12 @@
 const MONTREAL_GAZETTE_LOGO =
   'https://dcs-static.gprod.postmedia.digital/20.8.2/websites/images/apple-touch-icons/iphone-retina/icon-mg.png'
 
+const NATIONAL_POST_LOGO =
+  'https://dcs-static.gprod.postmedia.digital/20.8.2/websites/images/apple-touch-icons/iphone-retina/icon-np.png'
+
+const FINANCIAL_POST_LOGO =
+  'https://dcs-static.gprod.postmedia.digital/20.8.2/websites/images/apple-touch-icons/iphone-retina/icon-fp.png'
+
 /**
  * @param {string} feedUrl - source.url
  * @returns {string} absolute image URL or ''
@@ -17,6 +23,14 @@ export function getPermanentFeedLogoUrl(feedUrl) {
     const u = new URL(feedUrl.trim())
     const host = u.hostname.toLowerCase()
     if (host === 'montrealgazette.com' || host === 'www.montrealgazette.com') return MONTREAL_GAZETTE_LOGO
+    if (host === 'nationalpost.com' || host === 'www.nationalpost.com') return NATIONAL_POST_LOGO
+    if (
+      host === 'financialpost.com' ||
+      host === 'www.financialpost.com' ||
+      host === 'business.financialpost.com'
+    ) {
+      return FINANCIAL_POST_LOGO
+    }
   } catch {
     // ignore
   }

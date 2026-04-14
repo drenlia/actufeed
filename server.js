@@ -11,6 +11,12 @@ import iconv from 'iconv-lite';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import crypto from 'node:crypto';
+import {
+  fetchHtmlSnippetBounded,
+  MAX_HTML_LOGO_SNIPPET_BYTES,
+  MAX_HTML_YOUTUBE_RESOLVE_BYTES,
+} from './lib/fetchHtmlBounded.js';
+import { extractArticleWithCache } from './lib/articleExtract.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -181,6 +187,7 @@ const PROXY_GATED_PATHS = new Set([
   '/api/proxy/batch-complete',
   '/api/proxy/html',
   '/api/proxy/asset/check',
+  '/api/article/extract',
   '/api/youtube/resolve',
   '/api/youtube/channel-search',
 ]);
@@ -841,84 +848,6 @@ function describeFetchFailure(error) {
     }
   }
   return parts.filter(Boolean).join(' → ');
-}
-
-/** Fetch start of HTML document for logo discovery (bounded size, SSRF-safe URL only). */
-const MAX_HTML_LOGO_SNIPPET_BYTES = 450 * 1024;
-/** @handle /c/ pages put `<link rel="canonical" href="…/channel/UC…">` around ~600KB+; logo cap is too small. */
-const MAX_HTML_YOUTUBE_RESOLVE_BYTES = 1024 * 1024;
-
-/**
- * @param {string} pageUrl
- * @param {number} [maxBytes]
- * @param {boolean} [logBytes] Log downloaded size (always on when maxBytes exceeds logo snippet cap)
- */
-async function fetchHtmlSnippetBounded(pageUrl, maxBytes = MAX_HTML_LOGO_SNIPPET_BYTES, logBytes = false) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-  const userAgents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  ];
-  const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-
-  const response = await fetch(pageUrl, {
-    signal: controller.signal,
-    headers: {
-      'User-Agent': userAgent,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,fr-CA;q=0.7',
-      'Accept-Encoding': 'gzip, deflate, br',
-      Referer: new URL(pageUrl).origin + '/',
-      'Cache-Control': 'no-cache',
-      DNT: '1',
-      Connection: 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
-    },
-    redirect: 'follow',
-  });
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} ${response.statusText}`);
-  }
-
-  const shouldLogHtml = logBytes || maxBytes > MAX_HTML_LOGO_SNIPPET_BYTES;
-
-  if (!response.body) {
-    const buf = Buffer.from(await response.arrayBuffer()).slice(0, maxBytes);
-    if (shouldLogHtml) {
-      console.log(
-        `[Feed Fetch] HTML body ${buf.length} bytes (read cap ${maxBytes}, no stream) ← ${pageUrl}`
-      );
-    }
-    return buf.toString('utf8');
-  }
-
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
-  while (total < maxBytes) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value?.length) {
-      chunks.push(Buffer.from(value));
-      total += value.length;
-    }
-  }
-  try {
-    await reader.cancel();
-  } catch {
-    // ignore
-  }
-
-  const buf = Buffer.concat(chunks).slice(0, maxBytes);
-  if (shouldLogHtml) {
-    console.log(`[Feed Fetch] HTML body ${buf.length} bytes (read cap ${maxBytes}) ← ${pageUrl}`);
-  }
-  return buf.toString('utf8');
 }
 
 async function fetchHtmlSnippetForLogo(pageUrl) {
@@ -2349,6 +2278,46 @@ app.get('/api/proxy/html', apiLimiter, async (req, res) => {
       error: `Failed to fetch page: ${error.message}`,
       url: pageUrl,
     });
+  }
+});
+
+// Article text extraction (Mozilla Readability) — same trust model as /api/proxy/html
+app.get('/api/article/extract', apiLimiter, async (req, res) => {
+  const pageUrl = req.query.url;
+
+  if (!pageUrl) {
+    return res.status(400).json({ ok: false, error: 'Missing url parameter' });
+  }
+
+  const validation = validateFeedUrl(pageUrl);
+  if (!validation.valid) {
+    return res.status(400).json({ ok: false, error: validation.error });
+  }
+
+  let pageUrlObj;
+  try {
+    pageUrlObj = new URL(pageUrl);
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Invalid URL format' });
+  }
+
+  const resolvedOk = await assertSafeFetchTarget(pageUrlObj);
+  if (!resolvedOk.ok) {
+    return res.status(400).json({ ok: false, error: resolvedOk.error });
+  }
+
+  try {
+    const result = await extractArticleWithCache(pageUrl);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.json(result);
+  } catch (error) {
+    const statusCode = error.name === 'AbortError' ? 504 : 500;
+    const detail = describeFetchFailure(error);
+    console.warn(`[Article extract] ${pageUrl} — ${detail}`);
+    if (statusCode === 504) {
+      return res.status(504).json({ ok: false, error: 'Request timeout' });
+    }
+    res.status(500).json({ ok: false, error: 'Extraction failed' });
   }
 });
 
