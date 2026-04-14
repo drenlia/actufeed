@@ -22,22 +22,33 @@ export const legalStrings = {
 
     privacyDocTitle: 'Privacy Policy',
     privacyH1: 'Privacy Policy',
-    privacyLastUpdated: 'Last updated: March 2026',
+    privacyLastUpdated: 'Last updated: April 2026',
     privacyP1:
-      'This policy describes how ActuFeed handles information when you use the ActuFeed website and related services operated by Drenlia Inc. (“we”, “us”). It is meant to be clear and concise.',
-    privacyP2:
-      'ActuFeed does not require you to create an account. We do not use the app or website to build an advertising profile about you, and we do not sell your personal information.',
-    privacyH2Local: 'Data on your device',
+      'ActuFeed is a customizable news aggregator developed by Drenlia Inc. This policy explains how we handle information when you use the app and related services.',
+    privacyP2: 'We do not collect personal data for advertising or tracking.',
+    privacyP3:
+      'ActuFeed does not require an account, does not build advertising profiles, and does not sell any user data.',
+    privacyH2Local: 'Data stored on your device',
     privacyLocalP:
-      'The ActuFeed app stores your feed sources, tabs, filters, and preferences on your device (for example using local storage). That information stays on your device unless you export it or uninstall the app.',
-    privacyH2Server: 'When you load feeds',
-    privacyServerP:
-      'To avoid browser restrictions and to operate the service, feed requests from the app may be sent through our servers at actufeed.com. When that happens, we process the request like any normal HTTPS service: for example the feed URL you asked for, technical data such as your IP address, and standard server logs for security and operations. We use this to deliver the feed response, protect the service, and understand aggregate usage—not to track you across other companies’ apps or websites for advertising.',
-    privacyH2ThirdParty: 'Publishers and other services',
-    privacyThirdPartyP:
-      'When you open an article, you leave ActuFeed and interact with the publisher or other third parties under their own terms and privacy policies. Features that call third-party APIs (for example channel search) are subject to those providers’ policies as well.',
+      'Your tabs, feed sources, filters, preferences, and saved articles are stored locally on your device. This data remains on your device unless you choose to export it.',
+    privacyH2UserContent: 'Other User Content (Feed URLs and Article URLs)',
+    privacyUserContentP1:
+      'To fetch and display content, the app sends the RSS feed URLs and article URLs you add to our proxy server at actufeed.com. This is necessary for the core functionality of the app (retrieving feeds and extracting readable article text).',
+    privacyUserContentP2:
+      'This information is considered Other User Content under Apple’s definitions. It is used solely for providing the service and is not linked to your identity for tracking or advertising purposes. We do not combine this data with other information to identify you personally.',
+    privacyH2Technical: 'Technical and operational data',
+    privacyTechnicalP:
+      'When requests are sent to our servers, standard technical information (such as IP address and request headers) may be logged temporarily for security, debugging, and service improvement. These logs are not used for user profiling.',
+    privacyH2OpenArticles: 'When you open articles',
+    privacyOpenArticlesP:
+      'Clicking on an article takes you to the publisher’s website. Any further interaction is governed by that publisher’s own privacy policy.',
+    privacyH2Rights: 'Your rights',
+    privacyRightsP:
+      'You can export your tabs and preferences at any time from the Settings screen. You may also delete all local data by uninstalling the app.',
     privacyH2Contact: 'Contact',
-    privacyContactBefore: 'Questions about this policy or the service? See',
+    privacyContactBefore:
+      'If you have any questions about this policy, please contact us through the ',
+    privacyContactLinkLabel: 'support section',
     privacyContactAfter: '.',
   },
   fr: {
@@ -61,22 +72,33 @@ export const legalStrings = {
 
     privacyDocTitle: 'Politique de confidentialité',
     privacyH1: 'Politique de confidentialité',
-    privacyLastUpdated: 'Dernière mise à jour : mars 2026',
+    privacyLastUpdated: 'Dernière mise à jour : avril 2026',
     privacyP1:
-      'La présente politique décrit comment ActuFeed traite les informations lorsque vous utilisez le site ActuFeed et les services connexes exploités par Drenlia Inc. (« nous »). Elle vise à être claire et concise.',
-    privacyP2:
-      'ActuFeed ne vous oblige pas à créer un compte. Nous n’utilisons pas l’application ou le site pour constituer un profil publicitaire à votre sujet, et nous ne vendons pas vos renseignements personnels.',
-    privacyH2Local: 'Données sur votre appareil',
+      'ActuFeed est un agrégateur d’actualités personnalisable développé par Drenlia Inc. La présente politique explique comment nous traitons les informations lorsque vous utilisez l’application et les services associés.',
+    privacyP2: 'Nous ne collectons pas de données personnelles à des fins publicitaires ou de suivi.',
+    privacyP3:
+      'ActuFeed ne requiert pas de compte, ne constitue pas de profils publicitaires et ne vend aucune donnée utilisateur.',
+    privacyH2Local: 'Données stockées sur votre appareil',
     privacyLocalP:
-      'L’application ActuFeed enregistre vos sources de flux, onglets, filtres et préférences sur l’appareil (par exemple dans le stockage local). Ces données restent sur l’appareil sauf si vous les exportez ou désinstallez l’application.',
-    privacyH2Server: 'Lors du chargement des flux',
-    privacyServerP:
-      'Pour contourner certaines restrictions du navigateur et faire fonctionner le service, les requêtes de flux depuis l’application peuvent transiter par nos serveurs actufeed.com. Dans ce cas, nous traitons la requête comme tout service HTTPS habituel : par exemple l’URL du flux demandé, des données techniques telles que votre adresse IP, et des journaux serveur standards pour la sécurité et l’exploitation. Nous utilisons cela pour fournir la réponse du flux, protéger le service et comprendre l’usage global — pas pour vous suivre d’une application ou d’un site d’autres entreprises à des fins publicitaires.',
-    privacyH2ThirdParty: 'Éditeurs et autres services',
-    privacyThirdPartyP:
-      'Lorsque vous ouvrez un article, vous quittez ActuFeed et interagissez avec l’éditeur ou d’autres tiers selon leurs propres conditions et politiques de confidentialité. Les fonctions qui appellent des API tierces (par exemple la recherche de chaîne) sont également soumises aux politiques de ces fournisseurs.',
+      'Vos onglets, sources de flux, filtres, préférences et articles enregistrés sont stockés localement sur votre appareil. Ces données y demeurent sauf si vous choisissez de les exporter.',
+    privacyH2UserContent: 'Autres contenus utilisateur (URL de flux et URL d’articles)',
+    privacyUserContentP1:
+      'Pour récupérer et afficher le contenu, l’application envoie les URL de flux RSS et les URL d’articles que vous ajoutez vers notre serveur mandataire sur actufeed.com. Cela est nécessaire au fonctionnement principal de l’application (récupération des flux et extraction du texte lisible des articles).',
+    privacyUserContentP2:
+      'Ces informations relèvent des « autres contenus utilisateur » au sens d’Apple. Elles servent uniquement à fournir le service et ne sont pas associées à votre identité à des fins de suivi ou de publicité. Nous ne combinons pas ces données avec d’autres informations pour vous identifier personnellement.',
+    privacyH2Technical: 'Données techniques et opérationnelles',
+    privacyTechnicalP:
+      'Lorsque des requêtes sont envoyées à nos serveurs, des informations techniques habituelles (telles que l’adresse IP et les en-têtes de requête) peuvent être journalisées temporairement pour la sécurité, le débogage et l’amélioration du service. Ces journaux ne servent pas à établir des profils utilisateurs.',
+    privacyH2OpenArticles: 'Lorsque vous ouvrez un article',
+    privacyOpenArticlesP:
+      'En touchant un article, vous accédez au site de l’éditeur. Toute interaction ultérieure relève de la politique de confidentialité de cet éditeur.',
+    privacyH2Rights: 'Vos droits',
+    privacyRightsP:
+      'Vous pouvez exporter vos onglets et préférences à tout moment depuis l’écran Paramètres. Vous pouvez également supprimer toutes les données locales en désinstallant l’application.',
     privacyH2Contact: 'Contact',
-    privacyContactBefore: 'Questions sur cette politique ou le service ? Consultez',
-    privacyContactAfter: '.',
+    privacyContactBefore:
+      'Pour toute question relative à cette politique, contactez-nous via la ',
+    privacyContactLinkLabel: 'section Assistance',
+    privacyContactAfter: ' de l’application.',
   },
 }
