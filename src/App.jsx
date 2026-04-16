@@ -36,6 +36,9 @@ import {
 } from './utils/readLaterStorage'
 import { translations } from './constants/translations'
 import { DESKTOP_HEADER_LAYOUT_MEDIA, useMatchMedia } from './hooks/useMatchMedia'
+import { useAppleMobileWeb } from './hooks/useAppleMobileWeb'
+import { AppStoreIosBanner, persistAppStoreBannerDismissed, readAppStoreBannerDismissed } from './components/AppStoreIosBanner'
+import { AppStoreQrModal } from './components/AppStoreQrModal'
 import { isMinusKey, isPlusKey, isTypingInField } from './utils/keyboardShortcuts'
 
 // Inner App component that uses hooks (must be inside ToastProvider)
@@ -93,6 +96,14 @@ function AppContent() {
   const [articleReaderItem, setArticleReaderItem] = useState(null)
   const viewportWidth = useWindowWidth()
   const isWideFeedHeaderLayout = useMatchMedia(DESKTOP_HEADER_LAYOUT_MEDIA)
+  const isAppleMobileWeb = useAppleMobileWeb()
+  const [appStoreBannerDismissed, setAppStoreBannerDismissed] = useState(() =>
+    readAppStoreBannerDismissed()
+  )
+  const [appStoreQrModalOpen, setAppStoreQrModalOpen] = useState(false)
+
+  const showAppStoreIosBanner = isAppleMobileWeb && !appStoreBannerDismissed
+  const showAppStoreDesktopPromo = !isAppleMobileWeb && isWideFeedHeaderLayout
 
   const reloadReadLater = useCallback(() => {
     setReadLaterItems(loadReadLaterList())
@@ -879,6 +890,16 @@ function AppContent() {
   return (
     <div className="app">
         <div className="feed-chrome">
+          {showAppStoreIosBanner ? (
+            <AppStoreIosBanner
+              uiLanguage={uiLanguage}
+              visible
+              onDismiss={() => {
+                persistAppStoreBannerDismissed()
+                setAppStoreBannerDismissed(true)
+              }}
+            />
+          ) : null}
           <Header
             uiLanguage={uiLanguage}
             onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
@@ -925,6 +946,8 @@ function AppContent() {
             fontScaleAtMax={fontScaleAtMax}
             narrowingFiltersActive={hasNarrowingFilters}
             nudgeFiltersButton={filtersNudgeActive}
+            showAppStoreDesktopButton={showAppStoreDesktopPromo}
+            onAppStoreDesktopClick={() => setAppStoreQrModalOpen(true)}
             headerTabsSlot={
               tabs.length > 1 ? (
                 <TabNavigation
@@ -1009,6 +1032,11 @@ function AppContent() {
             setShowHelp(false)
             setHelpFocusSectionId(null)
           }}
+          uiLanguage={uiLanguage}
+        />
+        <AppStoreQrModal
+          open={appStoreQrModalOpen}
+          onClose={() => setAppStoreQrModalOpen(false)}
           uiLanguage={uiLanguage}
         />
       </div>

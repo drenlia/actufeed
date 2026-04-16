@@ -7,6 +7,7 @@ import {
   PHONE_LAYOUT_MEDIA,
   useMatchMedia,
 } from '../hooks/useMatchMedia'
+import { APP_STORE_BADGE_IMG } from '../constants/appStore'
 
 const LAYOUT_ICON_URL = {
   list: '/icons/as-list.png',
@@ -21,6 +22,19 @@ const LAYOUT_OPTION_ARIA_KEY = {
   columns2: 'feedLayoutOption2',
   columns3: 'feedLayoutOption3',
 }
+
+/** Official “Download on the App Store” badge (scaled in CSS via `.header-appstore-btn__badge`). */
+const AppStoreHeaderBadge = () => (
+  <img
+    className="header-appstore-btn__badge"
+    src={APP_STORE_BADGE_IMG}
+    alt=""
+    width={320}
+    height={108}
+    decoding="async"
+    draggable={false}
+  />
+)
 
 const utilSlot = (child) => <div className="header-util-slot">{child}</div>
 
@@ -57,6 +71,8 @@ export const Header = ({
   narrowingFiltersActive = false,
   /** Pulse the filter icon when filters may be hiding all articles across tabs. */
   nudgeFiltersButton = false,
+  showAppStoreDesktopButton = false,
+  onAppStoreDesktopClick,
 }) => {
   const t = translations[uiLanguage]
   const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
@@ -66,6 +82,8 @@ export const Header = ({
   const showFeedLayoutSelect =
     !isSettingsPage && isWideFeedHeaderLayout && Boolean(onFeedLayoutPreferenceChange)
   const showFontScaleButtons = !isSettingsPage && (onDescriptionFontSmaller || onDescriptionFontLarger)
+  const showAppStoreHeaderBtn =
+    Boolean(showAppStoreDesktopButton && onAppStoreDesktopClick)
   const layoutPreviewIcon = LAYOUT_ICON_URL[resolvedFeedLayout] || LAYOUT_ICON_URL.list
   const layoutMenuHighlightKey =
     feedLayoutPreference === 'auto' || !feedLayoutPreference ? resolvedFeedLayout : feedLayoutPreference
@@ -776,6 +794,17 @@ export const Header = ({
             <div className="header-news-meta header-news-meta--desktop">
               {showFeedLayoutSelect ? (
                 <div className="header-feed-layout-row">
+                  {showAppStoreHeaderBtn ? (
+                    <button
+                      type="button"
+                      className="header-appstore-btn"
+                      onClick={onAppStoreDesktopClick}
+                      title={t.appStoreDesktopBtnTitle}
+                      aria-label={t.appStoreDesktopBtnTitle}
+                    >
+                      <AppStoreHeaderBadge />
+                    </button>
+                  ) : null}
                   <div className="header-feed-layout-picker" ref={feedLayoutPickerRef}>
                     <button
                       type="button"
@@ -855,6 +884,17 @@ export const Header = ({
                 </div>
               ) : (
                 <div className="header-feed-layout-row header-feed-layout-row--font-only">
+                  {showAppStoreHeaderBtn ? (
+                    <button
+                      type="button"
+                      className="header-appstore-btn"
+                      onClick={onAppStoreDesktopClick}
+                      title={t.appStoreDesktopBtnTitle}
+                      aria-label={t.appStoreDesktopBtnTitle}
+                    >
+                      <AppStoreHeaderBadge />
+                    </button>
+                  ) : null}
                   <div className="header-font-scale-desktop" role="group" aria-label={t.feedFontScaleGroupAria}>
                     <button
                       type="button"
