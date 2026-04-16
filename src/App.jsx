@@ -35,6 +35,8 @@ import {
   savedArticleToNewsItem,
 } from './utils/readLaterStorage'
 import { translations } from './constants/translations'
+import { DESKTOP_HEADER_LAYOUT_MEDIA, useMatchMedia } from './hooks/useMatchMedia'
+import { isMinusKey, isPlusKey, isTypingInField } from './utils/keyboardShortcuts'
 
 // Inner App component that uses hooks (must be inside ToastProvider)
 function AppContent() {
@@ -83,10 +85,14 @@ function AppContent() {
   const [openArticleInReader, setOpenArticleInReader] = useState(
     () => loadSettingsPreferences().openArticleInReader !== false
   )
+  const [feedColumnCompactImageCrop, setFeedColumnCompactImageCrop] = useState(
+    () => loadSettingsPreferences().feedColumnCompactImageCrop === true
+  )
   const [feedView, setFeedView] = useState('feed')
   const [readLaterItems, setReadLaterItems] = useState(() => loadReadLaterList())
   const [articleReaderItem, setArticleReaderItem] = useState(null)
   const viewportWidth = useWindowWidth()
+  const isWideFeedHeaderLayout = useMatchMedia(DESKTOP_HEADER_LAYOUT_MEDIA)
 
   const reloadReadLater = useCallback(() => {
     setReadLaterItems(loadReadLaterList())
@@ -97,18 +103,6 @@ function AppContent() {
   useEffect(() => {
     document.documentElement.dataset.theme = colorMode
   }, [colorMode])
-
-  useEffect(() => {
-    if (showSplash) return undefined
-    const onKey = (e) => {
-      if (e.key === 'F1') {
-        e.preventDefault()
-        setShowHelp(true)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [showSplash])
 
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -172,6 +166,7 @@ function AppContent() {
       clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale ?? 1)
     )
     setOpenArticleInReader(preferences.openArticleInReader !== false)
+    setFeedColumnCompactImageCrop(preferences.feedColumnCompactImageCrop === true)
 
     const loadedTabs = loadTabs()
     setTabs(loadedTabs)
@@ -278,6 +273,7 @@ function AppContent() {
       clampFeedDescriptionFontScale(preferences.feedDescriptionFontScale ?? 1)
     )
     setOpenArticleInReader(preferences.openArticleInReader !== false)
+    setFeedColumnCompactImageCrop(preferences.feedColumnCompactImageCrop === true)
 
     const urlParams = new URLSearchParams(window.location.search)
     const tabNameFromUrl = urlParams.get('tab')
@@ -531,6 +527,179 @@ function AppContent() {
     })
   }, [])
 
+  const toggleDescriptionsBulk = useCallback(() => {
+    setDescBulkExpanded((prev) => {
+      const next = !prev
+      setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: next }))
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (showSplash) return undefined
+
+    const onKey = (e) => {
+      if (e.defaultPrevented) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      if (e.key === 'F1') {
+        e.preventDefault()
+        setShowHelp(true)
+        return
+      }
+
+      const k = e.key.length === 1 ? e.key.toLowerCase() : ''
+      if (k === 'a' && !isTypingInField(e.target)) {
+        e.preventDefault()
+        setShowHelp(false)
+        setShowSettings(false)
+        setArticleReaderItem(null)
+        setFeedView('feed')
+        scrollToTop()
+        return
+      }
+
+      if (showHelp) return
+      if (showSettings) return
+
+      const isHelpKey = e.key === '?' || (e.shiftKey && e.key === '/')
+
+      if (articleReaderItem) {
+        if (isHelpKey && !isTypingInField(e.target)) {
+          e.preventDefault()
+          setShowHelp(true)
+          return
+        }
+        if (isPlusKey(e)) {
+          e.preventDefault()
+          handleDescriptionFontLarger()
+          return
+        }
+        if (isMinusKey(e)) {
+          e.preventDefault()
+          handleDescriptionFontSmaller()
+          return
+        }
+        return
+      }
+
+      if (isTypingInField(e.target)) return
+
+      if (isHelpKey) {
+        e.preventDefault()
+        setShowHelp(true)
+        return
+      }
+
+      if (isPlusKey(e)) {
+        e.preventDefault()
+        handleDescriptionFontLarger()
+        return
+      }
+      if (isMinusKey(e)) {
+        e.preventDefault()
+        handleDescriptionFontSmaller()
+        return
+      }
+
+      if (k === 'e' && expandableDescCount >= 2) {
+        e.preventDefault()
+        toggleDescriptionsBulk()
+        return
+      }
+
+      if (k === 'f') {
+        e.preventDefault()
+        setFeedView('feed')
+        setSubheaderCollapsed((prev) => {
+          const next = !prev
+          saveSettingsPreferences({ subheaderCollapsed: next })
+          if (!next) {
+            window.requestAnimationFrame(() => {
+              document.getElementById('feed-search-input')?.focus()
+            })
+          }
+          return next
+        })
+        return
+      }
+
+      if (k === 's') {
+        e.preventDefault()
+        setFeedView('saved')
+        scrollToTop()
+        return
+      }
+
+      if (k === 'l') {
+        e.preventDefault()
+        setColorMode('light')
+        saveSettingsPreferences({ theme: 'light' })
+        return
+      }
+
+      if (k === 'n') {
+        e.preventDefault()
+        setColorMode('dark')
+        saveSettingsPreferences({ theme: 'dark' })
+        return
+      }
+
+      if (k === 'v') {
+        e.preventDefault()
+        const resolved = resolveFeedLayout(feedLayoutPreference, viewportWidth)
+        const cycle = ['list', 'columns2', 'columns3']
+        const idx = cycle.indexOf(resolved)
+        const i = idx >= 0 ? idx : 0
+        const next = cycle[(i + 1) % cycle.length]
+        setFeedLayoutPreference(next)
+        saveSettingsPreferences({ feedLayoutPreference: next })
+        return
+      }
+
+      if (k === 'i') {
+        e.preventDefault()
+        setFeedColumnCompactImageCrop((prev) => {
+          const next = !prev
+          saveSettingsPreferences({ feedColumnCompactImageCrop: next })
+          return next
+        })
+        return
+      }
+
+      if (k === 'c') {
+        e.preventDefault()
+        setArticleReaderItem(null)
+        setShowSettings(true)
+        return
+      }
+
+      if (k === 'h' && isWideFeedHeaderLayout) {
+        e.preventDefault()
+        const next = !feedHeaderWebShrunk
+        setFeedHeaderWebShrunk(next)
+        saveSettingsPreferences({ feedHeaderWebShrunk: next })
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [
+    showSplash,
+    showHelp,
+    showSettings,
+    articleReaderItem,
+    feedLayoutPreference,
+    feedHeaderWebShrunk,
+    isWideFeedHeaderLayout,
+    handleDescriptionFontLarger,
+    handleDescriptionFontSmaller,
+    scrollToTop,
+    expandableDescCount,
+    toggleDescriptionsBulk,
+    viewportWidth,
+  ])
+
   const fontScaleAtMin = feedDescriptionFontScale <= FEED_DESC_FONT_SCALE_MIN + 1e-6
   const fontScaleAtMax = feedDescriptionFontScale >= FEED_DESC_FONT_SCALE_MAX - 1e-6
 
@@ -542,14 +711,6 @@ function AppContent() {
   useEffect(() => {
     if (expandableDescCount < 2) setDescBulkExpanded(false)
   }, [expandableDescCount])
-
-  const toggleDescriptionsBulk = useCallback(() => {
-    setDescBulkExpanded((prev) => {
-      const next = !prev
-      setDescExpandAllSignal((s) => ({ nonce: s.nonce + 1, expanded: next }))
-      return next
-    })
-  }, [])
 
   // Categories from all tabs’ articles so filters apply consistently when switching tabs
   const availableCategories = getAvailableCategories(
@@ -804,10 +965,6 @@ function AppContent() {
             collapsed={subheaderCollapsed}
             feedView={feedView}
             hasActiveArticleFilters={hasNarrowingFilters}
-            onRequestExpandFilters={() => {
-              setSubheaderCollapsed(false)
-              saveSettingsPreferences({ subheaderCollapsed: false })
-            }}
           />
         </div>
 
@@ -827,6 +984,7 @@ function AppContent() {
             articleFilterActive={articleFilterActive}
             expandAllSignal={descExpandAllSignal}
             feedLayout={resolvedFeedLayout}
+            columnImageCompactCrop={feedColumnCompactImageCrop}
             descriptionFontScale={feedDescriptionFontScale}
             readLaterVariant={feedView === 'saved' ? 'saved' : 'feed'}
             savedArticleIds={savedArticleIds}

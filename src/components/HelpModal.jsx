@@ -1,5 +1,6 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { translations } from '../constants/translations'
+import { HELP_SHORTCUTS_DROPDOWN_MEDIA, useMatchMedia } from '../hooks/useMatchMedia'
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -139,6 +140,7 @@ export const HelpModal = ({
 }) => {
   const [helpDisplayLang, setHelpDisplayLang] = useState(uiLanguage)
   const t = translations[helpDisplayLang]
+  const showKeyboardShortcutHints = useMatchMedia(HELP_SHORTCUTS_DROPDOWN_MEDIA)
   const [searchQuery, setSearchQuery] = useState('')
   const bodyRef = useRef(null)
   const closeBtnRef = useRef(null)
@@ -237,6 +239,7 @@ export const HelpModal = ({
 
   const q = searchQuery.trim()
   const modalTitle = settingsOnly ? t.helpModalTitleSettings : t.helpModalTitle
+
   const noMatches =
     q &&
     !feedRows.some((row) => rowMatches(row, q)) &&
@@ -318,7 +321,9 @@ export const HelpModal = ({
             </button>
           </div>
         </div>
-        <p className="help-modal__hint">{t.helpModalHint}</p>
+        <p className="help-modal__hint">
+          {showKeyboardShortcutHints ? t.helpModalHint : t.helpModalHintTouch}
+        </p>
         <div className="help-modal__search-wrap">
           <input
             type="search"

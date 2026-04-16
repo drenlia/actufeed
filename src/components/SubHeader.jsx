@@ -31,7 +31,6 @@ function SubHeaderCollapsedActiveBar({
   minPopularityScore,
   onClearSourceFilter,
   onClearMinRankFilter,
-  onRequestExpandFilters,
 }) {
   const searchTrim = searchQuery.trim()
   const searchChipText =
@@ -134,18 +133,6 @@ function SubHeaderCollapsedActiveBar({
             </button>
           ) : null}
         </div>
-        <button
-          type="button"
-          className="sub-header__collapsed-active-expand"
-          onClick={onRequestExpandFilters}
-          title={t.showFilters}
-          aria-label={t.showFilters}
-        >
-          <svg className="sub-header__collapsed-active-expand-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-          </svg>
-          <span className="sub-header__collapsed-active-expand-text">{t.showFilters}</span>
-        </button>
       </div>
     </div>
   )
@@ -177,7 +164,6 @@ export const SubHeader = ({
   collapsed,
   feedView = 'feed',
   hasActiveArticleFilters = false,
-  onRequestExpandFilters,
 }) => {
   const t = translations[uiLanguage]
   const segmentedRef = useRef(null)
@@ -217,7 +203,7 @@ export const SubHeader = ({
   }
 
   if (collapsed) {
-    if (feedView !== 'feed' || !hasActiveArticleFilters || !onRequestExpandFilters) {
+    if (feedView !== 'feed' || !hasActiveArticleFilters) {
       return null
     }
     return (
@@ -238,7 +224,6 @@ export const SubHeader = ({
         minPopularityScore={minPopularityScore}
         onClearSourceFilter={onClearSourceFilter}
         onClearMinRankFilter={onClearMinRankFilter}
-        onRequestExpandFilters={onRequestExpandFilters}
       />
     )
   }
@@ -333,6 +318,7 @@ export const SubHeader = ({
           <div className="sub-header__chunk-controls">
             <div className="search-input-wrapper">
               <input
+                id="feed-search-input"
                 type="search"
                 className="search-input-compact"
                 placeholder={t.searchPlaceholder}

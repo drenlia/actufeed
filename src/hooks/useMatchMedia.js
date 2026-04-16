@@ -7,6 +7,12 @@ export const PHONE_LAYOUT_MEDIA = '(max-width: 640px)'
 export const DESKTOP_HEADER_LAYOUT_MEDIA = '(min-width: 641px)'
 
 /**
+ * When true, the help (?) control shows a shortcuts dropdown; when false (touch / iPad / no hover),
+ * ? opens Quick help directly and keyboard hints are hidden in the UI.
+ */
+export const HELP_SHORTCUTS_DROPDOWN_MEDIA = '(min-width: 1025px) and (hover: hover) and (pointer: fine)'
+
+/**
  * Subscribes to a media query. SSR-safe (false until mounted when `window` is absent).
  */
 export function useMatchMedia(query) {

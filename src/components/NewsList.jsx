@@ -18,6 +18,8 @@ export const NewsList = ({
   expandAllSignal = null,
   /** 'list' | 'columns2' | 'columns3' */
   feedLayout = 'list',
+  /** In 2- or 3-column grid: true = short strip (stronger crop); false = default taller 4:3 (toggle with i). */
+  columnImageCompactCrop = false,
   descriptionFontScale = 1,
   /** 'feed' = save/unsave on image; 'saved' = remove from saved */
   readLaterVariant = null,
@@ -61,10 +63,14 @@ export const NewsList = ({
 
   const layoutClass =
     feedLayout === 'columns2' || feedLayout === 'columns3' ? feedLayout : 'list'
+  const imageFitClass =
+    columnImageCompactCrop && (layoutClass === 'columns2' || layoutClass === 'columns3')
+      ? 'news-list--image-fit-compact'
+      : ''
 
   return (
     <div
-      className={`news-list news-list--layout-${layoutClass}`}
+      className={['news-list', `news-list--layout-${layoutClass}`, imageFitClass].filter(Boolean).join(' ')}
       style={{ '--news-desc-scale': String(descriptionFontScale) }}
     >
       {news.map((item) => (

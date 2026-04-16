@@ -609,6 +609,91 @@
   display: block;
 }
 
+.header-help-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.header-help-btn--open {
+  background: color-mix(in srgb, var(--af-border) 40%, transparent);
+}
+
+.header-help-dropdown {
+  position: fixed;
+  z-index: 10025;
+  box-sizing: border-box;
+  min-width: 260px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--af-border);
+  border-radius: 12px;
+  background: var(--af-surface);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+}
+
+.header-help-dropdown__scroll {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 8px 8px 12px;
+}
+
+.header-help-dropdown__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.header-help-dropdown__kbd {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: top;
+  padding: 4px 10px 4px 0;
+  font-weight: 600;
+  color: var(--af-text);
+}
+
+.header-help-dropdown__desc {
+  vertical-align: top;
+  padding: 4px 0;
+  color: var(--af-text-secondary);
+  line-height: 1.35;
+}
+
+.header-help-dropdown__cta {
+  flex-shrink: 0;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: none;
+  border-top: 1px solid var(--af-border);
+  border-radius: 0 0 11px 11px;
+  background: color-mix(in srgb, var(--af-accent) 8%, transparent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--af-accent);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.header-help-dropdown__cta:hover {
+  background: color-mix(in srgb, var(--af-accent) 14%, transparent);
+}
+
+.header-help-dropdown__cta:focus-visible {
+  outline: 2px solid var(--af-accent);
+  outline-offset: -2px;
+}
+
 .github-link {
   display: flex;
   align-items: center;
@@ -1955,50 +2040,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.sub-header__collapsed-active-expand {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--af-border) 90%, transparent);
-  background: color-mix(in srgb, var(--af-surface) 70%, var(--af-surface-muted));
-  color: var(--af-text-secondary);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.sub-header__collapsed-active-expand:hover {
-  color: var(--af-accent);
-  border-color: color-mix(in srgb, var(--af-accent) 35%, var(--af-border));
-  background: color-mix(in srgb, var(--af-accent) 10%, var(--af-surface));
-}
-
-.sub-header__collapsed-active-expand-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.sub-header__collapsed-active-expand-text {
-  display: none;
-}
-
-@media (min-width: 720px) {
-  .sub-header__collapsed-active-expand-text {
-    display: inline;
-  }
 }
 
 @media (min-width: 641px) {
@@ -3406,12 +3447,29 @@
   align-items: stretch;
 }
 
+/* Column grid: default taller 4:3 + cover (gentler crop); optional compact strip via .news-list--image-fit-compact (keyboard i) */
 .news-list.news-list--layout-columns2 .news-image-container,
 .news-list.news-list--layout-columns3 .news-image-container {
   width: 100%;
   min-width: 0;
+  height: auto;
+  min-height: 160px;
+  max-height: min(260px, 34vw);
+  aspect-ratio: 4 / 3;
+}
+
+.news-list.news-list--layout-columns2 .news-image:not(.news-image--logo):not(.news-image--favicon),
+.news-list.news-list--layout-columns3 .news-image:not(.news-image--logo):not(.news-image--favicon) {
+  object-fit: cover;
+  object-position: center center;
+}
+
+.news-list.news-list--image-fit-compact.news-list--layout-columns2 .news-image-container,
+.news-list.news-list--image-fit-compact.news-list--layout-columns3 .news-image-container {
   height: 150px;
+  min-height: 0;
   max-height: min(200px, 32vw);
+  aspect-ratio: unset;
 }
 
 .news-list.news-list--layout-columns2 .news-title,

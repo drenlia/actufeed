@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { translations } from '../constants/translations'
 import {
   DESKTOP_HEADER_LAYOUT_MEDIA,
+  HELP_SHORTCUTS_DROPDOWN_MEDIA,
   PHONE_LAYOUT_MEDIA,
   useMatchMedia,
 } from '../hooks/useMatchMedia'
@@ -60,6 +61,8 @@ export const Header = ({
   const t = translations[uiLanguage]
   const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
   const isWideFeedHeaderLayout = useMatchMedia(DESKTOP_HEADER_LAYOUT_MEDIA)
+  const showDesktopHelpShortcutsDropdown = useMatchMedia(HELP_SHORTCUTS_DROPDOWN_MEDIA)
+  const kbd = (key) => (showDesktopHelpShortcutsDropdown && t[key] ? ` ${t[key]}` : '')
   const showFeedLayoutSelect =
     !isSettingsPage && isWideFeedHeaderLayout && Boolean(onFeedLayoutPreferenceChange)
   const showFontScaleButtons = !isSettingsPage && (onDescriptionFontSmaller || onDescriptionFontLarger)
@@ -73,6 +76,70 @@ export const Header = ({
   const feedLayoutPickerRef = useRef(null)
   const utilToolbarRef = useRef(null)
   const [hideFontScaleInUtilToolbar, setHideFontScaleInUtilToolbar] = useState(false)
+  const [helpMenuOpen, setHelpMenuOpen] = useState(false)
+  const [helpMenuPos, setHelpMenuPos] = useState(null)
+  const helpWrapRef = useRef(null)
+  const helpDropdownRef = useRef(null)
+
+  const updateHelpMenuPosition = useCallback(() => {
+    const wrap = helpWrapRef.current
+    if (!wrap) return
+    const rect = wrap.getBoundingClientRect()
+    const rtl = document.documentElement.getAttribute('dir') === 'rtl'
+    if (rtl) {
+      setHelpMenuPos({
+        top: rect.bottom + 8,
+        left: Math.max(8, rect.left),
+        right: 'auto',
+      })
+    } else {
+      setHelpMenuPos({
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+        left: 'auto',
+      })
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!helpMenuOpen) {
+      setHelpMenuPos(null)
+      return undefined
+    }
+    updateHelpMenuPosition()
+    const onResize = () => updateHelpMenuPosition()
+    window.addEventListener('resize', onResize)
+    window.addEventListener('scroll', onResize, true)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('scroll', onResize, true)
+    }
+  }, [helpMenuOpen, updateHelpMenuPosition])
+
+  useEffect(() => {
+    if (showDesktopHelpShortcutsDropdown) return undefined
+    setHelpMenuOpen(false)
+    return undefined
+  }, [showDesktopHelpShortcutsDropdown])
+
+  useEffect(() => {
+    if (!helpMenuOpen) return undefined
+    const onDocMouseDown = (e) => {
+      const node = e.target
+      if (helpWrapRef.current?.contains(node)) return
+      if (helpDropdownRef.current?.contains(node)) return
+      setHelpMenuOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setHelpMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [helpMenuOpen])
 
   const handleFeedLayoutIconPick = useCallback(
     (value) => {
@@ -142,6 +209,7 @@ export const Header = ({
     savedArticlesCount > 0
       ? t.savedArticlesHeaderCountA11y.replace('{n}', String(savedArticlesCount))
       : t.savedArticlesHeaderA11y
+  const savedArticlesTooltip = `${savedArticlesTitleText}${kbd('shortcutBracketS')}`
 
   const expandBtn =
     showDescriptionsBulkToggle && onToggleDescriptionsBulk ? (
@@ -149,8 +217,12 @@ export const Header = ({
         type="button"
         className={`header-desc-icon-btn${descriptionsBulkExpanded ? ' header-desc-icon-btn--expanded' : ''}`}
         onClick={onToggleDescriptionsBulk}
-        title={descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions}
-        aria-label={descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions}
+        title={`${
+          descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions
+        }${kbd('shortcutBracketE')}`}
+        aria-label={`${
+          descriptionsBulkExpanded ? t.shrinkAllDescriptions : t.expandAllDescriptions
+        }${kbd('shortcutBracketE')}`}
         aria-pressed={descriptionsBulkExpanded}
       >
         <svg className="header-desc-bulk-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -177,8 +249,8 @@ export const Header = ({
       className={`header-saved-btn${isSavedArticlesView ? ' header-saved-btn--active' : ''}`}
       onClick={onSavedArticlesClick}
       aria-pressed={isSavedArticlesView}
-      aria-label={savedArticlesTitleText}
-      title={savedArticlesTitleText}
+      aria-label={savedArticlesTooltip}
+      title={savedArticlesTooltip}
     >
       <svg className="header-saved-btn__icon" viewBox="0 0 24 24" aria-hidden="true">
         <path
@@ -211,8 +283,8 @@ export const Header = ({
         filtersCollapsed ? 'header-filters-toggle-btn--off' : 'header-filters-toggle-btn--on'
       }${nudgeFiltersButton ? ' header-filters-toggle-btn--nudge' : ''}`}
       onClick={onToggleFilters}
-      title={filtersCollapsed ? t.showFilters : t.hideFilters}
-      aria-label={filtersCollapsed ? t.showFilters : t.hideFilters}
+      title={`${filtersCollapsed ? t.showFilters : t.hideFilters}${kbd('shortcutBracketF')}`}
+      aria-label={`${filtersCollapsed ? t.showFilters : t.hideFilters}${kbd('shortcutBracketF')}`}
       aria-expanded={!filtersCollapsed}
     >
       <svg className="header-filters-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -229,8 +301,12 @@ export const Header = ({
       type="button"
       className="header-theme-toggle-btn"
       onClick={onColorModeToggle}
-      title={colorMode === 'dark' ? t.themeSwitchToLight : t.themeSwitchToDark}
-      aria-label={colorMode === 'dark' ? t.themeSwitchToLight : t.themeSwitchToDark}
+      title={`${colorMode === 'dark' ? t.themeSwitchToLight : t.themeSwitchToDark}${
+        colorMode === 'dark' ? kbd('shortcutBracketL') : kbd('shortcutBracketN')
+      }`}
+      aria-label={`${colorMode === 'dark' ? t.themeSwitchToLight : t.themeSwitchToDark}${
+        colorMode === 'dark' ? kbd('shortcutBracketL') : kbd('shortcutBracketN')
+      }`}
     >
       {colorMode === 'dark' ? '☀️' : '🌙'}
     </button>
@@ -248,40 +324,124 @@ export const Header = ({
     </button>
   )
 
+  const shortcutsRows = t.helpShortcutsTable || []
   const helpBtn = onHelpClick ? (
-    <button
-      type="button"
-      className="header-help-btn"
-      onClick={onHelpClick}
-      aria-label={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
-      title={`${isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle} · F1`}
-    >
-      <svg
-        className="header-help-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        <circle
-          className="header-help-icon-ring"
-          cx="12"
-          cy="12"
-          r="9.5"
-          stroke="currentColor"
-          strokeWidth="1.1"
-        />
-        <path
-          className="header-help-icon-mark"
-          stroke="currentColor"
-          strokeWidth="1.65"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
-        />
-        <circle className="header-help-icon-dot" cx="12" cy="17" r="0.9" fill="currentColor" />
-      </svg>
-    </button>
+    showDesktopHelpShortcutsDropdown ? (
+      <>
+        <div ref={helpWrapRef} className="header-help-wrap">
+          <button
+            type="button"
+            className={`header-help-btn ${helpMenuOpen ? 'header-help-btn--open' : ''}`}
+            onClick={() => setHelpMenuOpen((o) => !o)}
+            aria-expanded={helpMenuOpen}
+            aria-haspopup="true"
+            aria-controls="header-help-dropdown"
+            aria-label={t.helpMenuButtonTitle}
+            title={t.helpMenuButtonTitle}
+          >
+            <svg
+              className="header-help-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <circle
+                className="header-help-icon-ring"
+                cx="12"
+                cy="12"
+                r="9.5"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+              <path
+                className="header-help-icon-mark"
+                stroke="currentColor"
+                strokeWidth="1.65"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <circle className="header-help-icon-dot" cx="12" cy="17" r="0.9" fill="currentColor" />
+            </svg>
+          </button>
+        </div>
+        {helpMenuOpen && helpMenuPos
+          ? createPortal(
+              <div
+                ref={helpDropdownRef}
+                id="header-help-dropdown"
+                className="header-help-dropdown"
+                style={helpMenuPos}
+                role="region"
+                aria-label={t.helpMenuPanelAria}
+              >
+                <div className="header-help-dropdown__scroll">
+                  <table className="header-help-dropdown__table" aria-label={t.helpMenuPanelAria}>
+                    <tbody>
+                      {shortcutsRows.map((row, i) => (
+                        <tr key={`hk-${i}`}>
+                          <th scope="row" className="header-help-dropdown__kbd">
+                            {row.group}
+                          </th>
+                          <td className="header-help-dropdown__desc">{row.text}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  type="button"
+                  className="header-help-dropdown__cta"
+                  onClick={() => {
+                    setHelpMenuOpen(false)
+                    onHelpClick()
+                  }}
+                >
+                  {isSettingsPage ? t.helpMenuOpenModalCtaSettings : t.helpMenuOpenModalCta}
+                </button>
+              </div>,
+              document.body
+            )
+          : null}
+      </>
+    ) : (
+      <div className="header-help-wrap">
+        <button
+          type="button"
+          className="header-help-btn"
+          onClick={() => onHelpClick()}
+          aria-label={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
+          title={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
+        >
+          <svg
+            className="header-help-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <circle
+              className="header-help-icon-ring"
+              cx="12"
+              cy="12"
+              r="9.5"
+              stroke="currentColor"
+              strokeWidth="1.1"
+            />
+            <path
+              className="header-help-icon-mark"
+              stroke="currentColor"
+              strokeWidth="1.65"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+            />
+            <circle className="header-help-icon-dot" cx="12" cy="17" r="0.9" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
+    )
   ) : null
 
   const settingsBtn = onSettingsClick ? (
@@ -289,8 +449,8 @@ export const Header = ({
       type="button"
       className={`header-settings-btn ${isSettingsPage ? 'active' : ''}`}
       onClick={onSettingsClick}
-      title={t.settings}
-      aria-label={t.settings}
+      title={`${t.settings}${kbd('shortcutBracketC')}`}
+      aria-label={`${t.settings}${kbd('shortcutBracketC')}`}
     >
       ⚙️
     </button>
@@ -306,8 +466,8 @@ export const Header = ({
         className="header-font-scale-btn header-font-scale-btn--toolbar"
         onClick={onDescriptionFontSmaller}
         disabled={fontScaleAtMin}
-        aria-label={t.feedFontSmaller}
-        title={t.feedFontSmaller}
+        aria-label={`${t.feedFontSmaller}${kbd('shortcutBracketMinus')}`}
+        title={`${t.feedFontSmaller}${kbd('shortcutBracketMinus')}`}
       >
         A−
       </button>
@@ -323,8 +483,8 @@ export const Header = ({
         className="header-font-scale-btn header-font-scale-btn--toolbar"
         onClick={onDescriptionFontLarger}
         disabled={fontScaleAtMax}
-        aria-label={t.feedFontLarger}
-        title={t.feedFontLarger}
+        aria-label={`${t.feedFontLarger}${kbd('shortcutBracketPlus')}`}
+        title={`${t.feedFontLarger}${kbd('shortcutBracketPlus')}`}
       >
         A+
       </button>
@@ -483,8 +643,12 @@ export const Header = ({
   const webFeedToggleShared = {
     onClick: () => onWebFeedHeaderShrunkChange?.(!webFeedHeaderShrunk),
     'aria-pressed': webFeedHeaderShrunk,
-    title: webFeedHeaderShrunk ? t.headerWebExpandFeedHeader : t.headerWebShrinkFeedHeader,
-    'aria-label': webFeedHeaderShrunk ? t.headerWebExpandFeedHeader : t.headerWebShrinkFeedHeader,
+    title: `${webFeedHeaderShrunk ? t.headerWebExpandFeedHeader : t.headerWebShrinkFeedHeader}${kbd(
+      'shortcutBracketH'
+    )}`,
+    'aria-label': `${webFeedHeaderShrunk ? t.headerWebExpandFeedHeader : t.headerWebShrinkFeedHeader}${kbd(
+      'shortcutBracketH'
+    )}`,
   }
 
   const webFeedToolbarToggle =
@@ -520,8 +684,8 @@ export const Header = ({
           filtersCollapsed ? ' header-web-feed-float-filters--off' : ' header-web-feed-float-filters--on'
         }${nudgeFiltersButton ? ' header-filters-toggle-btn--nudge' : ''}`}
         onClick={onToggleFilters}
-        title={filtersCollapsed ? t.showFilters : t.hideFilters}
-        aria-label={filtersCollapsed ? t.showFilters : t.hideFilters}
+        title={`${filtersCollapsed ? t.showFilters : t.hideFilters}${kbd('shortcutBracketF')}`}
+        aria-label={`${filtersCollapsed ? t.showFilters : t.hideFilters}${kbd('shortcutBracketF')}`}
         aria-expanded={!filtersCollapsed}
       >
         <svg className="header-web-feed-float-filters__icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -552,7 +716,8 @@ export const Header = ({
               type="button"
               className="site-title site-title-btn"
               onClick={() => onTitleClick?.()}
-              title={isSettingsPage ? t.titleBackToFeed : t.title}
+              title={isSettingsPage ? `${t.titleBackToFeed}${kbd('shortcutBracketA')}` : t.title}
+              aria-label={isSettingsPage ? `${t.titleBackToFeed}${kbd('shortcutBracketA')}` : undefined}
             >
               {t.title}
             </button>
@@ -615,8 +780,8 @@ export const Header = ({
                     <button
                       type="button"
                       className="header-feed-layout-trigger"
-                      aria-label={t.feedLayoutSelectAria}
-                      title={t.feedLayoutTriggerTooltip}
+                      aria-label={`${t.feedLayoutSelectAria}${kbd('shortcutBracketV')}`}
+                      title={`${t.feedLayoutTriggerTooltip}${kbd('shortcutBracketV')}`}
                       aria-expanded={feedLayoutPopoverOpen}
                       aria-haspopup="listbox"
                       onClick={() => setFeedLayoutPopoverOpen((o) => !o)}
@@ -670,8 +835,8 @@ export const Header = ({
                         className="header-font-scale-btn"
                         onClick={onDescriptionFontSmaller}
                         disabled={fontScaleAtMin}
-                        aria-label={t.feedFontSmaller}
-                        title={t.feedFontSmaller}
+                        aria-label={`${t.feedFontSmaller}${kbd('shortcutBracketMinus')}`}
+                        title={`${t.feedFontSmaller}${kbd('shortcutBracketMinus')}`}
                       >
                         A−
                       </button>
@@ -680,8 +845,8 @@ export const Header = ({
                         className="header-font-scale-btn"
                         onClick={onDescriptionFontLarger}
                         disabled={fontScaleAtMax}
-                        aria-label={t.feedFontLarger}
-                        title={t.feedFontLarger}
+                        aria-label={`${t.feedFontLarger}${kbd('shortcutBracketPlus')}`}
+                        title={`${t.feedFontLarger}${kbd('shortcutBracketPlus')}`}
                       >
                         A+
                       </button>
@@ -696,8 +861,8 @@ export const Header = ({
                       className="header-font-scale-btn"
                       onClick={onDescriptionFontSmaller}
                       disabled={fontScaleAtMin}
-                      aria-label={t.feedFontSmaller}
-                      title={t.feedFontSmaller}
+                      aria-label={`${t.feedFontSmaller}${kbd('shortcutBracketMinus')}`}
+                      title={`${t.feedFontSmaller}${kbd('shortcutBracketMinus')}`}
                     >
                       A−
                     </button>
@@ -706,8 +871,8 @@ export const Header = ({
                       className="header-font-scale-btn"
                       onClick={onDescriptionFontLarger}
                       disabled={fontScaleAtMax}
-                      aria-label={t.feedFontLarger}
-                      title={t.feedFontLarger}
+                      aria-label={`${t.feedFontLarger}${kbd('shortcutBracketPlus')}`}
+                      title={`${t.feedFontLarger}${kbd('shortcutBracketPlus')}`}
                     >
                       A+
                     </button>

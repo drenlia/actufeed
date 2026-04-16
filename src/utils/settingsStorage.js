@@ -44,6 +44,21 @@ const coerceGlobalFeedFilters = (raw) => {
   }
 }
 
+/**
+ * true = short strip (stronger crop). false = taller 4:3 softer crop (default).
+ * Legacy `feedColumnImageFitContain`: true meant soft/taller → compact false; false meant strip → compact true.
+ */
+function coerceFeedColumnCompactImageCrop(parsed) {
+  if (!parsed || typeof parsed !== 'object') return false
+  if (typeof parsed.feedColumnCompactImageCrop === 'boolean') {
+    return parsed.feedColumnCompactImageCrop
+  }
+  if (typeof parsed.feedColumnImageFitContain === 'boolean') {
+    return !parsed.feedColumnImageFitContain
+  }
+  return false
+}
+
 export const loadSettingsPreferences = () => {
   try {
     const stored = localStorage.getItem(SETTINGS_STORAGE_KEY)
@@ -76,6 +91,7 @@ export const loadSettingsPreferences = () => {
         ),
         openArticleInReader:
           typeof parsed.openArticleInReader === 'boolean' ? parsed.openArticleInReader : true,
+        feedColumnCompactImageCrop: coerceFeedColumnCompactImageCrop(parsed),
         feedGlobalFilters: coerceGlobalFeedFilters(parsed.feedGlobalFilters),
       }
     }
@@ -98,6 +114,7 @@ export const loadSettingsPreferences = () => {
     feedLayoutPreference: 'auto',
     feedDescriptionFontScale: 1,
     openArticleInReader: true,
+    feedColumnCompactImageCrop: false,
     feedGlobalFilters: defaultGlobalFeedFilters(),
   }
 }
@@ -136,6 +153,10 @@ export const saveSettingsPreferences = (preferences) => {
         preferences.openArticleInReader !== undefined
           ? preferences.openArticleInReader
           : stored.openArticleInReader !== false,
+      feedColumnCompactImageCrop:
+        preferences.feedColumnCompactImageCrop !== undefined
+          ? preferences.feedColumnCompactImageCrop
+          : stored.feedColumnCompactImageCrop,
       feedGlobalFilters:
         preferences.feedGlobalFilters !== undefined
           ? coerceGlobalFeedFilters(preferences.feedGlobalFilters)
