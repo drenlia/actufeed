@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { translations } from '../constants/translations'
 import {
   searchSources,
@@ -33,7 +33,9 @@ import {
   getActiveTabId,
   setActiveTabId,
   upsertDefaultTab,
+  getNextTabIdCyclicFromTabs,
 } from '../utils/tabsStorage'
+import { isTypingInField } from '../utils/keyboardShortcuts'
 import {
   classifyDefaultTab,
   sourcesForDefaultTab,
@@ -79,6 +81,8 @@ export const Settings = ({
   onHelpManualRssClick,
   mobileCompactToolbar = false,
   onMobileCompactToolbarChange,
+  /** When set, syncs manual feed modal for the guided tour (step indices match App). */
+  guidedTourStep = null,
 }) => {
   const t = translations[uiLanguage]
   const [tabs, setTabs] = useState([])
@@ -129,6 +133,16 @@ export const Settings = ({
       cancelAnimationFrame(id)
     }
   }, [manualFeedModalOpen])
+
+  useLayoutEffect(() => {
+    if (guidedTourStep == null) return
+    if (guidedTourStep === 7) {
+      setPresetBrowseOpen(false)
+      setManualFeedModalOpen(true)
+    } else if (guidedTourStep === 6 || guidedTourStep === 8) {
+      setManualFeedModalOpen(false)
+    }
+  }, [guidedTourStep])
 
   const [feedPreviewOpen, setFeedPreviewOpen] = useState(false)
   const [feedPreviewLoading, setFeedPreviewLoading] = useState(false)
@@ -868,18 +882,32 @@ export const Settings = ({
     success('Tab deleted')
   }
 
-  const handleSwitchTab = (tabId) => {
+  const handleSwitchTab = useCallback((tabId) => {
     setActiveTabIdState(tabId)
     setActiveTabId(tabId)
-    
-    // Update URL query parameter with tab name for navigation consistency
-    const tab = tabs.find(t => t.id === tabId)
+
+    const tab = tabs.find((t) => t.id === tabId)
     if (tab?.name) {
       const url = new URL(window.location.href)
       url.searchParams.set('tab', encodeURIComponent(tab.name))
       window.history.replaceState({}, '', url.toString())
     }
-  }
+  }, [tabs])
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.defaultPrevented) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const k = e.key.length === 1 ? e.key.toLowerCase() : ''
+      if (k !== 't') return
+      if (isTypingInField(e.target)) return
+      e.preventDefault()
+      const nextId = getNextTabIdCyclicFromTabs(tabs, activeTabId)
+      if (nextId) handleSwitchTab(nextId)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tabs, activeTabId, handleSwitchTab])
 
   if (!config) {
     return <div className="settings-loading">{t.loading}</div>
@@ -915,25 +943,30 @@ export const Settings = ({
           mobileCompactToolbar={mobileCompactToolbar}
           onMobileCompactToolbarChange={onMobileCompactToolbarChange}
           headerTabsSlot={
-            tabs.length > 0 ? (
-              <TabBar
-                tabs={tabs}
-                activeTabId={activeTabId}
-                onTabClick={handleSwitchTab}
-                onTabRename={handleTabRenameForSettings}
-                alwaysShow
-                allowDelete
-                onTabDelete={handleDeleteTab}
-                deleteTabTitle={t.deleteTab}
-                allowReorder
-                onReorder={handleReorderTabs}
-                showCreateButton
-                onCreateTab={handleCreateTab}
-                createTabLabel={t.createTab}
-                tabsListAriaLabel={t.tabsListAria}
-                tabSourcesCountAria={(n) => t.settingsTabSourcesCountA11y.replace('{n}', String(n))}
-              />
-            ) : null
+            <div
+              className="settings-header-tabbar-tour"
+              data-tour="tour-settings-tabbar"
+            >
+              {tabs.length > 0 ? (
+                <TabBar
+                  tabs={tabs}
+                  activeTabId={activeTabId}
+                  onTabClick={handleSwitchTab}
+                  onTabRename={handleTabRenameForSettings}
+                  alwaysShow
+                  allowDelete
+                  onTabDelete={handleDeleteTab}
+                  deleteTabTitle={t.deleteTab}
+                  allowReorder
+                  onReorder={handleReorderTabs}
+                  showCreateButton
+                  onCreateTab={handleCreateTab}
+                  createTabLabel={t.createTab}
+                  tabsListAriaLabel={t.tabsListAria}
+                  tabSourcesCountAria={(n) => t.settingsTabSourcesCountA11y.replace('{n}', String(n))}
+                />
+              ) : null}
+            </div>
           }
         />
       </div>
@@ -945,6 +978,7 @@ export const Settings = ({
                 <div className="settings-action-buttons" role="group" aria-label={t.addManualFeed}>
                   <button
                     type="button"
+                    data-tour="tour-manual-feed-btn"
                     className={`settings-action-buttons__btn${manualFeedModalOpen ? ' is-active' : ''}`}
                     title={t.addManualFeed}
                     onClick={() => {
@@ -959,6 +993,7 @@ export const Settings = ({
                   </button>
                   <button
                     type="button"
+                    data-tour="tour-browse"
                     className="settings-action-buttons__btn settings-action-buttons__btn--browse"
                     title={t.browsePresetFeeds}
                     onClick={() => {
@@ -974,6 +1009,7 @@ export const Settings = ({
                 </div>
                 <div
                   className="settings-toolbar-config settings-toolbar-config--separated"
+                  data-tour="tour-export-import"
                   role="group"
                   aria-label={t.settingsConfigLabel}
                 >
@@ -1022,7 +1058,7 @@ export const Settings = ({
                   <span className="settings-fetch-toast-switch-knob" aria-hidden />
                 </button>
               </div>
-              <div className="toast-toggle-container" title={t.openArticleInReaderTooltip}>
+              <div className="toast-toggle-container" data-tour="tour-reader-toggle" title={t.openArticleInReaderTooltip}>
                 <span id="settings-open-reader-desc" className="settings-toggle-tooltip-desc">
                   {t.openArticleInReaderTooltip}
                 </span>
@@ -1046,7 +1082,10 @@ export const Settings = ({
           </div>
 
           <div className="settings-content-card settings-glass-panel">
-              <div className="settings-active-panel settings-sources-body settings-main">
+              <div
+                className="settings-active-panel settings-sources-body settings-main"
+                data-tour="tour-settings-active-panel"
+              >
                 <p className="settings-active-panel__hint">{t.settingsActiveSourcesHint}</p>
                 <div className="sources-column sources-column--active-full">
                   <div className="column-header settings-active-panel__header">
@@ -1221,12 +1260,15 @@ export const Settings = ({
 
       {manualFeedModalOpen ? (
         <div
-          className="preset-browse-overlay"
+          className={`preset-browse-overlay${guidedTourStep === 7 ? ' preset-browse-overlay--tour-spotlight' : ''}`}
           role="presentation"
           onClick={closeManualFeedModal}
         >
           <div
-            className="preset-browse-dialog settings-glass-panel manual-feed-add-dialog"
+            className={`preset-browse-dialog settings-glass-panel manual-feed-add-dialog${
+              guidedTourStep === 7 ? ' manual-feed-add-dialog--tour-spotlight' : ''
+            }`}
+            data-tour="tour-manual-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="manual-feed-modal-title"

@@ -25,6 +25,15 @@
   border-bottom: 1px solid color-mix(in srgb, var(--af-border) 45%, transparent);
 }
 
+/* Settings header: tour anchor is always mounted so the tab strip spotlight works before tabs load */
+.settings-header-tabbar-tour {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 120px;
+  min-height: 38px;
+}
+
 .feed-chrome .site-header,
 .settings-chrome .site-header {
   position: relative;
@@ -618,9 +627,10 @@
   background: color-mix(in srgb, var(--af-border) 40%, transparent);
 }
 
+/* Above .preset-browse-overlay--tour-spotlight (10046) and .guided-tour-card (10055) so ? stays usable over modals */
 .header-help-dropdown {
   position: fixed;
-  z-index: 10025;
+  z-index: 10060;
   box-sizing: border-box;
   min-width: 260px;
   max-width: min(360px, calc(100vw - 16px));
@@ -633,6 +643,14 @@
   border-radius: 12px;
   background: var(--af-surface);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+}
+
+/* Guided tour: same stack as base dropdown; accent ring only */
+.header-help-dropdown.header-help-dropdown--tour-spotlight {
+  z-index: 10060;
+  box-shadow:
+    0 0 0 2px var(--af-accent),
+    0 12px 40px rgba(0, 0, 0, 0.16);
 }
 
 .header-help-dropdown__scroll {
@@ -673,7 +691,7 @@
   padding: 12px 14px;
   border: none;
   border-top: 1px solid var(--af-border);
-  border-radius: 0 0 11px 11px;
+  border-radius: 0;
   background: color-mix(in srgb, var(--af-accent) 8%, transparent);
   font-size: 0.88rem;
   font-weight: 600;
@@ -692,6 +710,36 @@
 .header-help-dropdown__cta:focus-visible {
   outline: 2px solid var(--af-accent);
   outline-offset: -2px;
+}
+
+.header-help-dropdown__cta:last-child {
+  border-radius: 0 0 11px 11px;
+}
+
+.header-help-dropdown__cta--tour {
+  background: color-mix(in srgb, var(--af-text) 5%, transparent);
+  color: var(--af-text);
+}
+
+.header-help-dropdown__cta--tour:hover {
+  background: color-mix(in srgb, var(--af-text) 10%, transparent);
+}
+
+.help-modal__start-tour {
+  margin-right: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--af-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--af-accent) 10%, transparent);
+  color: var(--af-accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.help-modal__start-tour:hover {
+  background: color-mix(in srgb, var(--af-accent) 16%, transparent);
 }
 
 .github-link {
@@ -1083,11 +1131,11 @@
   box-shadow: 0 4px 12px var(--af-shadow-lg);
 }
 
-/* Help modal (F1) */
+/* Help modal (F1) — above .preset-browse-overlay (2300) for Add feed / Browse modals */
 .help-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: 10070;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4694,6 +4742,20 @@ button.news-source.news-meta-filter-hit.news-source-link:hover {
   -webkit-backdrop-filter: blur(5px);
 }
 
+/* Above guided tour dim (10040); transparent scrim so the tour overlay + dialog stay legible */
+.preset-browse-overlay.preset-browse-overlay--tour-spotlight {
+  z-index: 10046;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.manual-feed-add-dialog.manual-feed-add-dialog--tour-spotlight {
+  box-shadow:
+    0 0 0 2px var(--af-accent),
+    0 12px 40px rgba(0, 0, 0, 0.16);
+}
+
 .preset-browse-dialog {
   width: 100%;
   max-width: min(1120px, calc(100vw - 32px));
@@ -8190,5 +8252,288 @@ button.news-image-link.news-image-link--button {
 .article-reader-share-sheet__btn--secondary:hover {
   background: color-mix(in srgb, var(--af-accent) 16%, transparent);
   border-color: color-mix(in srgb, var(--af-accent) 48%, transparent);
+}
+
+/* Welcome modal (first visit) */
+.welcome-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10035;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--af-text) 38%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.welcome-modal {
+  width: min(100%, 420px);
+  padding: 28px 24px 24px;
+  border-radius: 18px;
+  background: var(--af-surface);
+  color: var(--af-text);
+  border: 1px solid var(--af-border);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--af-text) 6%, transparent),
+    0 24px 56px var(--af-shadow-lg);
+}
+
+.welcome-modal__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.welcome-modal__logo {
+  margin: 0;
+  border-radius: 14px;
+}
+
+.welcome-modal__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.welcome-modal__body-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.welcome-modal__body {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--af-text) 88%, transparent);
+}
+
+.welcome-modal__lang-hint {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--af-text) 65%, transparent);
+}
+
+.welcome-modal__lang {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.welcome-modal__lang-btn {
+  min-width: 96px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--af-accent) 32%, transparent);
+  background: color-mix(in srgb, var(--af-accent) 9%, transparent);
+  color: var(--af-text);
+}
+
+.welcome-modal__lang-btn--active {
+  border-color: var(--af-accent);
+  background: color-mix(in srgb, var(--af-accent) 22%, transparent);
+}
+
+.welcome-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.welcome-modal__btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.welcome-modal__btn--secondary {
+  background: color-mix(in srgb, var(--af-text) 8%, transparent);
+  color: var(--af-text);
+}
+
+.welcome-modal__btn--primary {
+  background: linear-gradient(135deg, var(--af-accent) 0%, var(--af-accent-2) 100%);
+  color: #fff;
+}
+
+/* Single-tab feed: tour spotlight target for tab strip */
+.header-feed-tab-placeholder {
+  display: inline-block;
+  min-width: 120px;
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--af-text) 28%, transparent);
+  opacity: 0.65;
+  vertical-align: middle;
+}
+
+/* Guided tour overlay */
+.guided-tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  pointer-events: none;
+}
+
+.guided-tour-dim-svg {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.guided-tour-dim-svg-fill {
+  fill: color-mix(in srgb, var(--af-text) 42%, transparent);
+  pointer-events: auto;
+}
+
+.guided-tour-dim {
+  position: fixed;
+  z-index: 10040;
+  background: color-mix(in srgb, var(--af-text) 42%, transparent);
+  pointer-events: auto;
+}
+
+.guided-tour-dim--top {
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.guided-tour-dim--bottom {
+  left: 0;
+  right: 0;
+}
+
+.guided-tour-dim--left {
+  left: 0;
+}
+
+.guided-tour-dim--right {
+  right: 0;
+}
+
+.guided-tour-dim--full {
+  inset: 0;
+}
+
+.guided-tour-card {
+  position: fixed;
+  z-index: 10055;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(100% - 32px, 440px);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  background: var(--af-surface);
+  color: var(--af-text);
+  border: 1px solid var(--af-border);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--af-text) 6%, transparent),
+    0 24px 56px var(--af-shadow-lg);
+  pointer-events: auto;
+}
+
+.guided-tour-progress {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--af-text) 55%, transparent);
+}
+
+.guided-tour-title {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.guided-tour-kbd {
+  display: inline-block;
+  margin: 0 0.12em;
+  padding: 0.1em 0.45em 0.14em;
+  font-size: 0.85em;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 600;
+  line-height: 1.2;
+  vertical-align: 0.06em;
+  color: var(--af-text);
+  background: color-mix(in srgb, var(--af-text) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--af-text) 22%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--af-text) 18%, transparent);
+}
+
+.guided-tour-body {
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--af-text) 88%, transparent);
+}
+
+.guided-tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guided-tour-actions__main {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.guided-tour-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.guided-tour-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.guided-tour-btn--ghost {
+  background: transparent;
+  color: color-mix(in srgb, var(--af-text) 88%, transparent);
+}
+
+.guided-tour-btn--secondary {
+  background: color-mix(in srgb, var(--af-text) 8%, transparent);
+  color: var(--af-text);
+}
+
+.guided-tour-btn--primary {
+  background: linear-gradient(135deg, var(--af-accent) 0%, var(--af-accent-2) 100%);
+  color: #fff;
 }
 

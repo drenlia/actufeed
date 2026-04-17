@@ -137,6 +137,7 @@ export const HelpModal = ({
   uiLanguage,
   settingsOnly = false,
   focusSectionId = null,
+  onStartGuidedTour,
 }) => {
   const [helpDisplayLang, setHelpDisplayLang] = useState(uiLanguage)
   const t = translations[helpDisplayLang]
@@ -309,6 +310,18 @@ export const HelpModal = ({
                 EN
               </button>
             </div>
+            {onStartGuidedTour ? (
+              <button
+                type="button"
+                className="help-modal__start-tour"
+                onClick={() => {
+                  onStartGuidedTour()
+                  onClose()
+                }}
+              >
+                {t.helpMenuStartTourCta}
+              </button>
+            ) : null}
             <button
               ref={closeBtnRef}
               type="button"

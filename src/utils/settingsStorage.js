@@ -93,6 +93,8 @@ export const loadSettingsPreferences = () => {
           typeof parsed.openArticleInReader === 'boolean' ? parsed.openArticleInReader : true,
         feedColumnCompactImageCrop: coerceFeedColumnCompactImageCrop(parsed),
         feedGlobalFilters: coerceGlobalFeedFilters(parsed.feedGlobalFilters),
+        uiLanguage:
+          parsed.uiLanguage === 'fr' || parsed.uiLanguage === 'en' ? parsed.uiLanguage : undefined,
       }
     }
   } catch (error) {
@@ -116,6 +118,7 @@ export const loadSettingsPreferences = () => {
     openArticleInReader: true,
     feedColumnCompactImageCrop: false,
     feedGlobalFilters: defaultGlobalFeedFilters(),
+    uiLanguage: undefined,
   }
 }
 
@@ -161,6 +164,14 @@ export const saveSettingsPreferences = (preferences) => {
         preferences.feedGlobalFilters !== undefined
           ? coerceGlobalFeedFilters(preferences.feedGlobalFilters)
           : coerceGlobalFeedFilters(stored.feedGlobalFilters),
+      uiLanguage:
+        preferences.uiLanguage !== undefined
+          ? preferences.uiLanguage === 'fr'
+            ? 'fr'
+            : preferences.uiLanguage === 'en'
+              ? 'en'
+              : stored.uiLanguage
+          : stored.uiLanguage,
     }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toStore))
     return true

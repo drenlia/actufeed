@@ -178,6 +178,22 @@ export const setActiveTabId = (tabId) => {
   }
 }
 
+/** Next tab in order; after the last tab, wraps to the first. */
+export function getNextTabIdCyclicFromTabs(tabs, activeTabId) {
+  if (!tabs || tabs.length === 0) return null
+  const idx = tabs.findIndex((t) => t.id === activeTabId)
+  const i = idx >= 0 ? idx : 0
+  return tabs[(i + 1) % tabs.length].id
+}
+
+/** Uses stored tabs and active id (for keyboard handlers). */
+export function getNextTabIdCyclic() {
+  const tabs = loadTabs()
+  if (!tabs.length) return null
+  const currentId = getActiveTabId(tabs) || tabs[0].id
+  return getNextTabIdCyclicFromTabs(tabs, currentId)
+}
+
 // Get filters for a specific tab
 export const getTabFilters = (tabId) => {
   try {

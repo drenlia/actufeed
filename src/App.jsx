@@ -13,7 +13,15 @@ import { SplashScreen } from './components/SplashScreen'
 import { HelpModal } from './components/HelpModal'
 import { ArticleReaderModal } from './components/ArticleReaderModal'
 import { ToastProvider } from './contexts/ToastContext'
-import { loadTabs, getActiveTabId, setActiveTabId, getTabFilters, updateTabName, saveTabs } from './utils/tabsStorage'
+import {
+  loadTabs,
+  getActiveTabId,
+  setActiveTabId,
+  getTabFilters,
+  updateTabName,
+  saveTabs,
+  getNextTabIdCyclic,
+} from './utils/tabsStorage'
 import {
   loadSettingsPreferences,
   saveSettingsPreferences,
@@ -40,10 +48,22 @@ import { useAppleMobileWeb } from './hooks/useAppleMobileWeb'
 import { AppStoreIosBanner, persistAppStoreBannerDismissed, readAppStoreBannerDismissed } from './components/AppStoreIosBanner'
 import { AppStoreQrModal } from './components/AppStoreQrModal'
 import { isMinusKey, isPlusKey, isTypingInField } from './utils/keyboardShortcuts'
+import { WelcomeModal } from './components/WelcomeModal'
+import { GuidedTourOverlay } from './components/GuidedTourOverlay'
+import { isWelcomeTourCompleted, markWelcomeTourCompleted } from './utils/welcomeTourStorage'
+import { GUIDED_TOUR_STEP_COUNT } from './constants/guidedTour'
 
 // Inner App component that uses hooks (must be inside ToastProvider)
 function AppContent() {
-  const [uiLanguage, setUiLanguage] = useState('en')
+  const [uiLanguage, setUiLanguage] = useState(() => {
+    const p = loadSettingsPreferences()
+    if (p.uiLanguage === 'fr' || p.uiLanguage === 'en') return p.uiLanguage
+    if (typeof navigator !== 'undefined') {
+      const browserLang = navigator.language || ''
+      return browserLang.startsWith('fr') ? 'fr' : 'en'
+    }
+    return 'en'
+  })
   const [newsFilter, setNewsFilter] = useState('all') // 'all', 'fr', 'en'
   const [selectedCategories, setSelectedCategories] = useState(new Set())
   const [sortBy, setSortBy] = useState('date') // 'date' or 'popularity'
@@ -101,6 +121,11 @@ function AppContent() {
     readAppStoreBannerDismissed()
   )
   const [appStoreQrModalOpen, setAppStoreQrModalOpen] = useState(false)
+
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false)
+  const [guidedTourActive, setGuidedTourActive] = useState(false)
+  const [tourStepIndex, setTourStepIndex] = useState(0)
+  const tourStepRef = useRef(0)
 
   const showAppStoreIosBanner = isAppleMobileWeb && !appStoreBannerDismissed
   const showAppStoreDesktopPromo = !isAppleMobileWeb && isWideFeedHeaderLayout
@@ -163,10 +188,21 @@ function AppContent() {
     })
   }, [])
 
+  const handleUiLanguageToggle = useCallback(() => {
+    setUiLanguage((prev) => {
+      const next = prev === 'fr' ? 'en' : 'fr'
+      saveSettingsPreferences({ uiLanguage: next })
+      return next
+    })
+  }, [])
+
   // Load tabs on mount and read active tab from URL or localStorage
   useEffect(() => {
     // Load subheader collapsed state and toast messages preference from preferences
     const preferences = loadSettingsPreferences()
+    if (preferences.uiLanguage === 'fr' || preferences.uiLanguage === 'en') {
+      setUiLanguage(preferences.uiLanguage)
+    }
     setSubheaderCollapsed(preferences.subheaderCollapsed)
     setShowToastMessages(preferences.showToastMessages !== undefined ? preferences.showToastMessages : false)
     setColorMode(preferences.theme)
@@ -428,12 +464,19 @@ function AppContent() {
   )
   const categories = useCategories(allNewsUnion)
 
-  // Detect browser language on mount
   useEffect(() => {
-    const browserLang = navigator.language || navigator.userLanguage
-    const detectedLang = browserLang.startsWith('fr') ? 'fr' : 'en'
-    setUiLanguage(detectedLang)
-  }, [])
+    tourStepRef.current = tourStepIndex
+  }, [tourStepIndex])
+
+  useEffect(() => {
+    if (!guidedTourActive) return
+    if (tourStepIndex !== 2 || feedView !== 'feed') return
+    setSubheaderCollapsed((prev) => {
+      if (!prev) return prev
+      saveSettingsPreferences({ subheaderCollapsed: false })
+      return false
+    })
+  }, [guidedTourActive, tourStepIndex, feedView])
 
   // Auto-refresh every 5 minutes (all tabs)
   useEffect(() => {
@@ -548,10 +591,13 @@ function AppContent() {
 
   useEffect(() => {
     if (showSplash) return undefined
+    if (guidedTourActive) return undefined
 
     const onKey = (e) => {
       if (e.defaultPrevented) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      const isHelpKey = e.key === '?' || (e.shiftKey && e.key === '/')
 
       if (e.key === 'F1') {
         e.preventDefault()
@@ -571,9 +617,28 @@ function AppContent() {
       }
 
       if (showHelp) return
-      if (showSettings) return
-
-      const isHelpKey = e.key === '?' || (e.shiftKey && e.key === '/')
+      // Settings: help + theme shortcuts only; other feed keys stay disabled below
+      if (showSettings) {
+        if (isTypingInField(e.target)) return
+        if (isHelpKey) {
+          e.preventDefault()
+          setShowHelp(true)
+          return
+        }
+        if (k === 'l') {
+          e.preventDefault()
+          setColorMode('light')
+          saveSettingsPreferences({ theme: 'light' })
+          return
+        }
+        if (k === 'n') {
+          e.preventDefault()
+          setColorMode('dark')
+          saveSettingsPreferences({ theme: 'dark' })
+          return
+        }
+        return
+      }
 
       if (articleReaderItem) {
         if (isHelpKey && !isTypingInField(e.target)) {
@@ -595,6 +660,18 @@ function AppContent() {
       }
 
       if (isTypingInField(e.target)) return
+
+      if (e.key === 'Escape' && feedView === 'feed') {
+        e.preventDefault()
+        setSelectedCategories(new Set())
+        setNewsFilter('all')
+        setShowHighlyRated(false)
+        setSearchQuery('')
+        setSourceNameFilter('')
+        setMinPopularityScore(null)
+        setSortBy('date')
+        return
+      }
 
       if (isHelpKey) {
         e.preventDefault()
@@ -639,6 +716,13 @@ function AppContent() {
         e.preventDefault()
         setFeedView('saved')
         scrollToTop()
+        return
+      }
+
+      if (k === 't') {
+        e.preventDefault()
+        const nextId = getNextTabIdCyclic()
+        if (nextId) handleTabChange(nextId)
         return
       }
 
@@ -697,6 +781,7 @@ function AppContent() {
     return () => window.removeEventListener('keydown', onKey)
   }, [
     showSplash,
+    guidedTourActive,
     showHelp,
     showSettings,
     articleReaderItem,
@@ -709,6 +794,7 @@ function AppContent() {
     expandableDescCount,
     toggleDescriptionsBulk,
     viewportWidth,
+    feedView,
   ])
 
   const fontScaleAtMin = feedDescriptionFontScale <= FEED_DESC_FONT_SCALE_MIN + 1e-6
@@ -842,6 +928,106 @@ function AppContent() {
     setShowSplash(false)
   }, [])
 
+  useEffect(() => {
+    if (showSplash) return
+    if (isWelcomeTourCompleted()) return
+    setShowWelcomeModal(true)
+  }, [showSplash])
+
+  const handleWelcomePickLanguage = useCallback((lang) => {
+    const next = lang === 'fr' ? 'fr' : 'en'
+    setUiLanguage(next)
+    saveSettingsPreferences({ uiLanguage: next })
+  }, [])
+
+  const handleWelcomeSkip = useCallback(() => {
+    markWelcomeTourCompleted()
+    setShowWelcomeModal(false)
+  }, [])
+
+  const handleWelcomeStartTour = useCallback(() => {
+    setShowWelcomeModal(false)
+    setTourStepIndex(0)
+    setGuidedTourActive(true)
+  }, [])
+
+  const handleStartGuidedTourFromHelp = useCallback(() => {
+    setShowHelp(false)
+    setHelpFocusSectionId(null)
+    setShowWelcomeModal(false)
+    if (showSettings) {
+      syncFeedStateAfterSettingsClose()
+      setShowSettings(false)
+    }
+    setFeedView('feed')
+    setTourStepIndex(0)
+    setGuidedTourActive(true)
+  }, [showSettings, syncFeedStateAfterSettingsClose])
+
+  const handleTourSkip = useCallback(() => {
+    setShowHelp(false)
+    setHelpFocusSectionId(null)
+    if (showSettings) {
+      syncFeedStateAfterSettingsClose()
+      setShowSettings(false)
+    }
+    markWelcomeTourCompleted()
+    setGuidedTourActive(false)
+    setTourStepIndex(0)
+  }, [showSettings, syncFeedStateAfterSettingsClose])
+
+  const handleTourNext = useCallback(() => {
+    const s = tourStepRef.current
+    const max = GUIDED_TOUR_STEP_COUNT - 1
+
+    if (s === 4) {
+      setTourStepIndex(5)
+      return
+    }
+    if (s === 5) {
+      setShowSettings(true)
+      setTourStepIndex(6)
+      return
+    }
+    if (s === 11) {
+      syncFeedStateAfterSettingsClose()
+      setShowSettings(false)
+      setFeedView('feed')
+      scrollToTop()
+      markWelcomeTourCompleted()
+      setGuidedTourActive(false)
+      setTourStepIndex(0)
+      return
+    }
+    if (s >= max) {
+      markWelcomeTourCompleted()
+      setGuidedTourActive(false)
+      setTourStepIndex(0)
+      return
+    }
+    setTourStepIndex(s + 1)
+  }, [syncFeedStateAfterSettingsClose, scrollToTop])
+
+  const handleTourBack = useCallback(() => {
+    const s = tourStepRef.current
+    if (s <= 0) return
+    if (s === 4) {
+      setTourStepIndex(3)
+      return
+    }
+    if (s === 5) {
+      setTourStepIndex(4)
+      return
+    }
+    if (s === 6) {
+      syncFeedStateAfterSettingsClose()
+      setShowSettings(false)
+      setTourStepIndex(5)
+      return
+    }
+    setTourStepIndex(s - 1)
+  }, [syncFeedStateAfterSettingsClose])
+
   // Show Splash Screen on first load (never mounted if splash already completed — see useState init)
   if (showSplash) {
     return <SplashScreen onComplete={dismissSplash} />
@@ -856,8 +1042,9 @@ function AppContent() {
           onClose={handleCloseSettings}
           colorMode={colorMode}
           onColorModeToggle={toggleColorMode}
-          onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
+          onLanguageToggle={handleUiLanguageToggle}
           onExitSettings={handleCloseSettings}
+          guidedTourStep={guidedTourActive ? tourStepIndex : null}
           onHelpClick={() => {
             setHelpFocusSectionId(null)
             setShowHelp(true)
@@ -881,6 +1068,15 @@ function AppContent() {
           uiLanguage={uiLanguage}
           settingsOnly
           focusSectionId={helpFocusSectionId}
+          onStartGuidedTour={handleStartGuidedTourFromHelp}
+        />
+        <GuidedTourOverlay
+          open={guidedTourActive}
+          stepIndex={tourStepIndex}
+          uiLanguage={uiLanguage}
+          onNext={handleTourNext}
+          onBack={handleTourBack}
+          onSkip={handleTourSkip}
         />
       </div>
     )
@@ -902,7 +1098,7 @@ function AppContent() {
           ) : null}
           <Header
             uiLanguage={uiLanguage}
-            onLanguageToggle={() => setUiLanguage(uiLanguage === 'fr' ? 'en' : 'fr')}
+            onLanguageToggle={handleUiLanguageToggle}
             onSettingsClick={() => {
               setArticleReaderItem(null)
               setShowSettings(true)
@@ -948,6 +1144,8 @@ function AppContent() {
             nudgeFiltersButton={filtersNudgeActive}
             showAppStoreDesktopButton={showAppStoreDesktopPromo}
             onAppStoreDesktopClick={() => setAppStoreQrModalOpen(true)}
+            tourHelpMenuOpen={guidedTourActive ? tourStepIndex === 4 : undefined}
+            onGuidedTourClick={handleStartGuidedTourFromHelp}
             headerTabsSlot={
               tabs.length > 1 ? (
                 <TabNavigation
@@ -959,7 +1157,9 @@ function AppContent() {
                   activeTabCountAriaLabel={feedTabCountAriaLabel}
                   tabCountsById={tabCountsByTabId}
                 />
-              ) : null
+              ) : (
+                <span className="header-feed-tab-placeholder" aria-hidden />
+              )
             }
           />
           <SubHeader
@@ -1033,11 +1233,27 @@ function AppContent() {
             setHelpFocusSectionId(null)
           }}
           uiLanguage={uiLanguage}
+          onStartGuidedTour={handleStartGuidedTourFromHelp}
         />
         <AppStoreQrModal
           open={appStoreQrModalOpen}
           onClose={() => setAppStoreQrModalOpen(false)}
           uiLanguage={uiLanguage}
+        />
+        <WelcomeModal
+          open={showWelcomeModal}
+          uiLanguage={uiLanguage}
+          onPickLanguage={handleWelcomePickLanguage}
+          onSkip={handleWelcomeSkip}
+          onStartTour={handleWelcomeStartTour}
+        />
+        <GuidedTourOverlay
+          open={guidedTourActive}
+          stepIndex={tourStepIndex}
+          uiLanguage={uiLanguage}
+          onNext={handleTourNext}
+          onBack={handleTourBack}
+          onSkip={handleTourSkip}
         />
       </div>
   )

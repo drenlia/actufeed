@@ -73,6 +73,10 @@ export const Header = ({
   nudgeFiltersButton = false,
   showAppStoreDesktopButton = false,
   onAppStoreDesktopClick,
+  /** When true/false, force help menu open/closed (guided tour). Undefined = no override. */
+  tourHelpMenuOpen,
+  /** Start guided tour from help dropdown (desktop). */
+  onGuidedTourClick,
 }) => {
   const t = translations[uiLanguage]
   const isPhoneLayout = useMatchMedia(PHONE_LAYOUT_MEDIA)
@@ -139,6 +143,14 @@ export const Header = ({
     setHelpMenuOpen(false)
     return undefined
   }, [showDesktopHelpShortcutsDropdown])
+
+  useEffect(() => {
+    if (tourHelpMenuOpen === undefined) return
+    setHelpMenuOpen(tourHelpMenuOpen)
+    if (tourHelpMenuOpen) {
+      queueMicrotask(() => updateHelpMenuPosition())
+    }
+  }, [tourHelpMenuOpen, updateHelpMenuPosition])
 
   useEffect(() => {
     if (!helpMenuOpen) return undefined
@@ -264,6 +276,7 @@ export const Header = ({
   const savedArticlesBtn = showSavedArticlesButton ? (
     <button
       type="button"
+      data-tour="tour-saved"
       className={`header-saved-btn${isSavedArticlesView ? ' header-saved-btn--active' : ''}`}
       onClick={onSavedArticlesClick}
       aria-pressed={isSavedArticlesView}
@@ -297,6 +310,7 @@ export const Header = ({
   const filtersBtn = onToggleFilters ? (
     <button
       type="button"
+      data-tour={!isSettingsPage ? 'tour-filters' : undefined}
       className={`header-filters-toggle-btn ${
         filtersCollapsed ? 'header-filters-toggle-btn--off' : 'header-filters-toggle-btn--on'
       }${nudgeFiltersButton ? ' header-filters-toggle-btn--nudge' : ''}`}
@@ -350,6 +364,7 @@ export const Header = ({
           <button
             type="button"
             className={`header-help-btn ${helpMenuOpen ? 'header-help-btn--open' : ''}`}
+            data-tour={!isSettingsPage ? 'tour-help' : undefined}
             onClick={() => setHelpMenuOpen((o) => !o)}
             aria-expanded={helpMenuOpen}
             aria-haspopup="true"
@@ -389,7 +404,9 @@ export const Header = ({
               <div
                 ref={helpDropdownRef}
                 id="header-help-dropdown"
-                className="header-help-dropdown"
+                className={`header-help-dropdown${
+                  tourHelpMenuOpen === true ? ' header-help-dropdown--tour-spotlight' : ''
+                }`}
                 style={helpMenuPos}
                 role="region"
                 aria-label={t.helpMenuPanelAria}
@@ -418,6 +435,18 @@ export const Header = ({
                 >
                   {isSettingsPage ? t.helpMenuOpenModalCtaSettings : t.helpMenuOpenModalCta}
                 </button>
+                {!isSettingsPage && onGuidedTourClick ? (
+                  <button
+                    type="button"
+                    className="header-help-dropdown__cta header-help-dropdown__cta--tour"
+                    onClick={() => {
+                      setHelpMenuOpen(false)
+                      onGuidedTourClick()
+                    }}
+                  >
+                    {t.helpMenuStartTourCta}
+                  </button>
+                ) : null}
               </div>,
               document.body
             )
@@ -428,6 +457,7 @@ export const Header = ({
         <button
           type="button"
           className="header-help-btn"
+          data-tour={!isSettingsPage ? 'tour-help' : undefined}
           onClick={() => onHelpClick()}
           aria-label={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
           title={isSettingsPage ? t.helpModalTitleSettings : t.helpModalTitle}
@@ -465,6 +495,7 @@ export const Header = ({
   const settingsBtn = onSettingsClick ? (
     <button
       type="button"
+      data-tour={!isSettingsPage ? 'tour-settings' : undefined}
       className={`header-settings-btn ${isSettingsPage ? 'active' : ''}`}
       onClick={onSettingsClick}
       title={`${t.settings}${kbd('shortcutBracketC')}`}
@@ -733,6 +764,7 @@ export const Header = ({
             <button
               type="button"
               className="site-title site-title-btn"
+              data-tour={isSettingsPage ? 'tour-settings-back' : undefined}
               onClick={() => onTitleClick?.()}
               title={isSettingsPage ? `${t.titleBackToFeed}${kbd('shortcutBracketA')}` : t.title}
               aria-label={isSettingsPage ? `${t.titleBackToFeed}${kbd('shortcutBracketA')}` : undefined}
@@ -787,7 +819,11 @@ export const Header = ({
           </button>
         )}
 
-        {feedTabsInHeader ? <div className="header-feed-tabs">{headerTabsSlot}</div> : null}
+        {feedTabsInHeader ? (
+          <div className="header-feed-tabs" data-tour={!isSettingsPage ? 'tour-tabs' : undefined}>
+            {headerTabsSlot}
+          </div>
+        ) : null}
 
         <div className="header-desktop-actions">
           {showDesktopFeedMeta ? (
@@ -805,7 +841,11 @@ export const Header = ({
                       <AppStoreHeaderBadge />
                     </button>
                   ) : null}
-                  <div className="header-feed-layout-picker" ref={feedLayoutPickerRef}>
+                  <div
+                    className="header-feed-layout-picker"
+                    ref={feedLayoutPickerRef}
+                    data-tour={!isSettingsPage ? 'tour-layout' : undefined}
+                  >
                     <button
                       type="button"
                       className="header-feed-layout-trigger"
@@ -932,7 +972,9 @@ export const Header = ({
     </header>
     {showWebShrunkTabsBar ? (
       <div className="feed-chrome-shrunk-tabs">
-        <div className="header-feed-tabs">{headerTabsSlot}</div>
+        <div className="header-feed-tabs" data-tour={!isSettingsPage ? 'tour-tabs' : undefined}>
+          {headerTabsSlot}
+        </div>
       </div>
     ) : null}
     {webFeedFiltersFixedToggle}

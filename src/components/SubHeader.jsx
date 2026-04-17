@@ -44,7 +44,12 @@ function SubHeaderCollapsedActiveBar({
   )
 
   return (
-    <div className="sub-header sub-header--collapsed-active" role="region" aria-label={t.filterCollapsedSummaryAria}>
+    <div
+      className="sub-header sub-header--collapsed-active"
+      data-tour="tour-filters-strip"
+      role="region"
+      aria-label={t.filterCollapsedSummaryAria}
+    >
       <div className="sub-header__toolbar sub-header__toolbar--collapsed-active">
         <div className="sub-header__collapsed-active-scroll">
           {newsFilter === 'fr' ? (
@@ -229,7 +234,7 @@ export const SubHeader = ({
   }
 
   return (
-    <div className="sub-header">
+    <div className="sub-header" data-tour="tour-filters-strip">
       <div className="sub-header__toolbar controls-container">
         <div className="sub-header__chunk">
           <div className="sub-header__chunk-controls">

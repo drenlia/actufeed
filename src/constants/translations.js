@@ -307,6 +307,7 @@ export const translations = {
     helpMenuButtonTitle: 'Keyboard shortcuts and help [? / F1]',
     helpMenuPanelAria: 'Keyboard shortcuts',
     helpMenuOpenModalCta: 'Open Quick help…',
+    helpMenuStartTourCta: 'Guided tour',
     helpMenuOpenModalCtaSettings: 'Open Settings help…',
     helpShortcutsTable: [
       { group: '? / F1', text: 'Open Quick help.' },
@@ -315,6 +316,10 @@ export const translations = {
       { group: 'a', text: 'Back to the main feed (closes the reader, Settings, or help).' },
       { group: 'e', text: 'Expand or collapse all descriptions (when at least two cards can expand).' },
       { group: 's', text: 'Open Saved articles.' },
+      {
+        group: 't',
+        text: 'Switch to the next tab (after the last tab, wraps to the first). Works on the feed and in Settings.',
+      },
       { group: 'l', text: 'Light theme.' },
       { group: 'n', text: 'Dark theme.' },
       {
@@ -327,6 +332,10 @@ export const translations = {
       },
       { group: 'c', text: 'Open Settings.' },
       { group: 'h', text: 'Show or hide the full feed header (wide screens).' },
+      {
+        group: 'Esc',
+        text: 'Clear all feed filters (language, categories, text search, sort, and more) when the main feed is visible.',
+      },
     ],
     helpModalSearchPlaceholder: 'Search help…',
     helpModalNoMatches: 'No matches in help.',
@@ -452,6 +461,67 @@ export const translations = {
       {
         group: 'Reader',
         text: 'If on: title/image opens the in-app reader; globe in the reader opens the site in a new tab. If off: title/image opens the article in a new tab.',
+      },
+    ],
+    welcomeModalTitle: 'Welcome to ActuFeed',
+    welcomeModalBody:
+      'ActuFeed brings news sources you care about into one place. Skim the latest headlines, open articles in a reader, and organize how you follow the news—without hopping between sites.',
+    welcomeModalBodySecond: 'You can start this guided tour anytime from the Help menu.',
+    welcomeModalStart: 'Start the tour',
+    welcomeModalSkip: 'Skip',
+    tourNext: 'Next',
+    tourEndTour: 'End tour',
+    tourBack: 'Back',
+    tourSkipTour: 'Skip tour',
+    tourStepProgress: 'Step {current} of {total}',
+    tourSteps: [
+      {
+        title: 'Tabs',
+        body: 'Switch between tabs to change which bundle of sources you are viewing. Double-click a tab name to rename it.',
+      },
+      {
+        title: 'Article layout',
+        body: 'Choose list, two columns, or three columns view. On smaller screens this control is hidden. Press {{kbd:V}} to cycle layouts.',
+      },
+      {
+        title: 'Filters',
+        body: 'The filter strip allows you to refine the articles by language, categories, text, change the sorting order, and more. Press {{kbd:F}} on the feed to show or hide it.',
+      },
+      {
+        title: 'Saved articles',
+        body: 'Open articles you saved for later. On the feed, save with the bookmark (+) control on a card. Press {{kbd:S}} to jump here from the feed.',
+      },
+      {
+        title: 'Help',
+        body: 'Use this menu to read shortcut keys in the table above. Quick help opens with {{kbd:?}} or {{kbd:F1}}.',
+      },
+      {
+        title: 'Settings',
+        body: 'Use the gear in the header to open Settings. The shortcut key is {{kbd:C}}.',
+      },
+      {
+        title: 'Tabs and sources',
+        body: 'The selected tab is the feed you are editing. Active sources lists the feeds attached to that tab.',
+      },
+      {
+        title: '+ Manual URL',
+        body: 'Use Add feed to paste or enter an RSS or Atom URL, validate it, or search for a YouTube channel.',
+      },
+      {
+        title: 'Browse',
+        body: 'Browse the catalog of preset feeds to add outlets quickly.',
+      },
+      {
+        title: 'Export and import',
+        body: 'Export saves your tabs and sources to a file. Import loads that file—useful to copy your setup to another browser or device.',
+      },
+      {
+        title: 'Open in ActuFeed reader',
+        body: 'When this is on, tapping a headline or image opens the in-app reader; when off, the article opens in a new tab.',
+      },
+      {
+        title: 'Back to the feed',
+        body: 'End the tour to return to the main news feed. {{kbd:A}} brings you back to the main ActuFeed view.',
       },
     ],
   },
@@ -761,6 +831,7 @@ export const translations = {
     helpMenuButtonTitle: 'Raccourcis clavier et aide [? / F1]',
     helpMenuPanelAria: 'Raccourcis clavier',
     helpMenuOpenModalCta: 'Ouvrir l’aide rapide…',
+    helpMenuStartTourCta: 'Visite guidée',
     helpMenuOpenModalCtaSettings: 'Ouvrir l’aide — paramètres…',
     helpShortcutsTable: [
       { group: '? / F1', text: 'Ouvrir l’aide rapide.' },
@@ -769,6 +840,10 @@ export const translations = {
       { group: 'a', text: 'Retour au fil (ferme le lecteur, les paramètres ou l’aide).' },
       { group: 'e', text: 'Tout développer ou tout réduire (si au moins deux cartes peuvent s’ouvrir).' },
       { group: 's', text: 'Ouvrir les articles enregistrés.' },
+      {
+        group: 't',
+        text: 'Onglet suivant (après le dernier onglet, retour au premier). Sur le fil d’actualités et dans Paramètres.',
+      },
       { group: 'l', text: 'Thème clair.' },
       { group: 'n', text: 'Thème sombre.' },
       {
@@ -781,6 +856,10 @@ export const translations = {
       },
       { group: 'c', text: 'Ouvrir Paramètres.' },
       { group: 'h', text: 'Afficher ou masquer le bandeau du fil (grand écran).' },
+      {
+        group: 'Esc',
+        text: 'Réinitialiser tous les filtres du fil (langue, catégories, recherche, tri, etc.) lorsque le fil principal est visible.',
+      },
     ],
     helpModalSearchPlaceholder: 'Rechercher dans l’aide…',
     helpModalNoMatches: 'Aucune correspondance.',
@@ -903,6 +982,67 @@ export const translations = {
       {
         group: 'Lecteur',
         text: 'Si l’option est activée : titre et image ouvrent le lecteur intégré ; le globe dans le lecteur ouvre le site dans un nouvel onglet. Sinon : titre et image ouvrent l’article dans un nouvel onglet.',
+      },
+    ],
+    welcomeModalTitle: 'Bienvenue sur ActuFeed',
+    welcomeModalBody:
+      'ActuFeed regroupe au même endroit les sources d’actualité qui vous intéressent. Parcourez les dernières nouvelles, ouvrez les articles dans un lecteur intégré et organisez votre façon de suivre l’actualité—sans passer d’un site à l’autre.',
+    welcomeModalBodySecond: 'Vous pouvez lancer cette visite guidée à tout moment depuis le menu Aide.',
+    welcomeModalStart: 'Commencer la visite',
+    welcomeModalSkip: 'Passer',
+    tourNext: 'Suivant',
+    tourEndTour: 'Terminer la visite',
+    tourBack: 'Retour',
+    tourSkipTour: 'Quitter la visite',
+    tourStepProgress: 'Étape {current} sur {total}',
+    tourSteps: [
+      {
+        title: 'Onglets',
+        body: 'Changez d’onglet pour voir un autre groupe de sources. Double-cliquez sur le nom pour le renommer.',
+      },
+      {
+        title: 'Mise en page',
+        body: 'Choisissez une vue liste, deux ou trois colonnes. Sur petit écran ce contrôle est masqué. Touche {{kbd:V}} pour faire défiler les dispositions.',
+      },
+      {
+        title: 'Filtres',
+        body: 'La barre de filtres permet d’affiner les articles par langue, catégories, texte, ordre de tri, et plus encore. Touche {{kbd:F}} sur le fil pour l’afficher ou la masquer.',
+      },
+      {
+        title: 'Articles enregistrés',
+        body: 'Ouvrez les articles mis de côté. Sur le fil, enregistrez avec le marque-page (+) sur une carte. Touche {{kbd:S}} pour y accéder depuis le fil.',
+      },
+      {
+        title: 'Aide',
+        body: 'Utilisez ce menu pour parcourir les raccourcis dans le tableau ci-dessus. L’aide rapide s’ouvre avec {{kbd:?}} ou {{kbd:F1}}.',
+      },
+      {
+        title: 'Paramètres',
+        body: 'L’icône d’engrenage dans l’en-tête ouvre les paramètres. Le raccourci clavier est {{kbd:C}}.',
+      },
+      {
+        title: 'Onglets et sources',
+        body: 'L’onglet sélectionné est celui que vous éditez. Sources actives liste les fils rattachés à cet onglet.',
+      },
+      {
+        title: '+ URL manuelle',
+        body: 'Ajouter un flux : collez ou saisissez une URL RSS ou Atom, validez-la ou recherchez une chaîne YouTube.',
+      },
+      {
+        title: 'Parcourir',
+        body: 'Parcourez le catalogue de fils préréglés pour ajouter des médias rapidement.',
+      },
+      {
+        title: 'Exporter et importer',
+        body: 'L’export enregistre vos onglets et sources dans un fichier. L’import charge ce fichier—pratique pour copier la configuration vers un autre navigateur ou appareil.',
+      },
+      {
+        title: 'Ouvrir dans le lecteur ActuFeed',
+        body: 'Activé : titre ou image ouvre le lecteur intégré. Désactivé : ouverture dans un nouvel onglet.',
+      },
+      {
+        title: 'Retour au fil',
+        body: 'Terminez la visite pour revenir au fil d’actualités principal. {{kbd:A}} ramène à la vue ActuFeed principale.',
       },
     ],
   },
