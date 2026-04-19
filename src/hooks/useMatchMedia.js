@@ -13,6 +13,12 @@ export const DESKTOP_HEADER_LAYOUT_MEDIA = '(min-width: 641px)'
 export const HELP_SHORTCUTS_DROPDOWN_MEDIA = '(min-width: 1025px) and (hover: hover) and (pointer: fine)'
 
 /**
+ * When true, guided tour copy omits keyboard shortcuts (phones, tablets, coarse pointer).
+ * Matches typical mobile browsers where hardware keyboard shortcuts do not apply.
+ */
+export const GUIDED_TOUR_TOUCH_COPY_MEDIA = '(hover: none), (pointer: coarse)'
+
+/**
  * Subscribes to a media query. SSR-safe (false until mounted when `window` is absent).
  */
 export function useMatchMedia(query) {

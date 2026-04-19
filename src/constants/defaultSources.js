@@ -35,12 +35,6 @@ export const MONTREAL_DEFAULT_SOURCES = [
     region: 'Montreal',
   },
   {
-    name: 'Radio-Canada En-continu',
-    url: 'https://ici.radio-canada.ca/info/rss/info/en-continu',
-    language: 'fr',
-    region: 'Montreal',
-  },
-  {
     name: 'La Presse',
     url: 'https://www.lapresse.ca/actualites/rss',
     language: 'fr',

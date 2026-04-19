@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { translations } from '../constants/translations'
 import { GUIDED_TOUR_STEP_TARGET_LISTS } from '../constants/guidedTour'
+import { useMatchMedia, GUIDED_TOUR_TOUCH_COPY_MEDIA } from '../hooks/useMatchMedia'
 
 const PAD = 10
 
@@ -141,7 +142,11 @@ export function GuidedTourOverlay({
   onSkip,
 }) {
   const t = translations[uiLanguage]
-  const steps = t.tourSteps || []
+  const touchTourCopy = useMatchMedia(GUIDED_TOUR_TOUCH_COPY_MEDIA)
+  const steps =
+    touchTourCopy && Array.isArray(t.tourStepsTouch) && t.tourStepsTouch.length > 0
+      ? t.tourStepsTouch
+      : t.tourSteps || []
   const total = steps.length
   const safeIndex = Math.min(Math.max(0, stepIndex), Math.max(0, total - 1))
   const step = steps[safeIndex]
@@ -180,7 +185,7 @@ export function GuidedTourOverlay({
           width="100%"
           height="100%"
           aria-hidden
-          style={{ position: 'fixed', inset: 0, zIndex: 10040, pointerEvents: 'auto' }}
+          style={{ position: 'fixed', inset: 0, pointerEvents: 'auto' }}
         >
           <defs>
             <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width={vw} height={vh}>

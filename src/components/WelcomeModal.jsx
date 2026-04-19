@@ -27,6 +27,38 @@ export function WelcomeModal({
         aria-labelledby="welcome-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="welcome-modal__top">
+          <div className="help-modal__lang" role="group" aria-label={t.helpModalLangGroupAria}>
+            <button
+              type="button"
+              className={
+                uiLanguage === 'fr'
+                  ? 'help-modal__lang-btn help-modal__lang-btn--active'
+                  : 'help-modal__lang-btn'
+              }
+              onClick={() => onPickLanguage?.('fr')}
+              aria-pressed={uiLanguage === 'fr'}
+              aria-label={t.welcomeModalLangTitleFr}
+              title={t.welcomeModalLangTitleFr}
+            >
+              FR
+            </button>
+            <button
+              type="button"
+              className={
+                uiLanguage === 'en'
+                  ? 'help-modal__lang-btn help-modal__lang-btn--active'
+                  : 'help-modal__lang-btn'
+              }
+              onClick={() => onPickLanguage?.('en')}
+              aria-pressed={uiLanguage === 'en'}
+              aria-label={t.welcomeModalLangTitleEn}
+              title={t.welcomeModalLangTitleEn}
+            >
+              EN
+            </button>
+          </div>
+        </div>
         <div className="welcome-modal__brand">
           <img
             src="/actufeed-icon.svg"
@@ -45,22 +77,6 @@ export function WelcomeModal({
           {t.welcomeModalBodySecond ? (
             <p className="welcome-modal__body">{t.welcomeModalBodySecond}</p>
           ) : null}
-        </div>
-        <div className="welcome-modal__lang" role="group" aria-label={t.helpModalLangGroupAria}>
-          <button
-            type="button"
-            className={`welcome-modal__lang-btn${uiLanguage === 'en' ? ' welcome-modal__lang-btn--active' : ''}`}
-            onClick={() => onPickLanguage?.('en')}
-          >
-            English
-          </button>
-          <button
-            type="button"
-            className={`welcome-modal__lang-btn${uiLanguage === 'fr' ? ' welcome-modal__lang-btn--active' : ''}`}
-            onClick={() => onPickLanguage?.('fr')}
-          >
-            Français
-          </button>
         </div>
         <div className="welcome-modal__actions">
           <button type="button" className="welcome-modal__btn welcome-modal__btn--secondary" onClick={onSkip}>

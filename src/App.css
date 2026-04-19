@@ -627,7 +627,7 @@
   background: color-mix(in srgb, var(--af-border) 40%, transparent);
 }
 
-/* Above .preset-browse-overlay--tour-spotlight (10046) and .guided-tour-card (10055) so ? stays usable over modals */
+/* Above guided tour root (10090) so Quick help stays usable during the tour */
 .header-help-dropdown {
   position: fixed;
   z-index: 10060;
@@ -4742,7 +4742,7 @@ button.news-source.news-meta-filter-hit.news-source-link:hover {
   -webkit-backdrop-filter: blur(5px);
 }
 
-/* Above guided tour dim (10040); transparent scrim so the tour overlay + dialog stay legible */
+/* Above guided tour layer (10090); transparent scrim so the tour dim + dialog stay legible */
 .preset-browse-overlay.preset-browse-overlay--tour-spotlight {
   z-index: 10046;
   background: transparent !important;
@@ -8270,7 +8270,7 @@ button.news-image-link.news-image-link--button {
 
 .welcome-modal {
   width: min(100%, 420px);
-  padding: 28px 24px 24px;
+  padding: 18px 24px 24px;
   border-radius: 18px;
   background: var(--af-surface);
   color: var(--af-text);
@@ -8278,6 +8278,14 @@ button.news-image-link.news-image-link--button {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--af-text) 6%, transparent),
     0 24px 56px var(--af-shadow-lg);
+}
+
+.welcome-modal__top {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 8px;
+  min-height: 40px;
 }
 
 .welcome-modal__brand {
@@ -8321,30 +8329,6 @@ button.news-image-link.news-image-link--button {
   color: color-mix(in srgb, var(--af-text) 65%, transparent);
 }
 
-.welcome-modal__lang {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 16px;
-}
-
-.welcome-modal__lang-btn {
-  min-width: 96px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1.5px solid color-mix(in srgb, var(--af-accent) 32%, transparent);
-  background: color-mix(in srgb, var(--af-accent) 9%, transparent);
-  color: var(--af-text);
-}
-
-.welcome-modal__lang-btn--active {
-  border-color: var(--af-accent);
-  background: color-mix(in srgb, var(--af-accent) 22%, transparent);
-}
-
 .welcome-modal__actions {
   display: flex;
   flex-wrap: wrap;
@@ -8384,18 +8368,18 @@ button.news-image-link.news-image-link--button {
   vertical-align: middle;
 }
 
-/* Guided tour overlay */
+/* Guided tour overlay — whole layer above Add feed / Browse modals (10046) so the step card stays readable */
 .guided-tour-root {
   position: fixed;
   inset: 0;
-  z-index: 10040;
+  z-index: 10090;
   pointer-events: none;
 }
 
 .guided-tour-dim-svg {
   position: fixed;
   inset: 0;
-  z-index: 10040;
+  z-index: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -8408,7 +8392,7 @@ button.news-image-link.news-image-link--button {
 
 .guided-tour-dim {
   position: fixed;
-  z-index: 10040;
+  z-index: 0;
   background: color-mix(in srgb, var(--af-text) 42%, transparent);
   pointer-events: auto;
 }
@@ -8438,7 +8422,7 @@ button.news-image-link.news-image-link--button {
 
 .guided-tour-card {
   position: fixed;
-  z-index: 10055;
+  z-index: 1;
   left: 50%;
   bottom: max(24px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
