@@ -35,8 +35,8 @@ export const MONTREAL_DEFAULT_SOURCES = [
     region: 'Montreal',
   },
   {
-    name: 'Radio-Canada En-bref',
-    url: 'https://ici.radio-canada.ca/info/rss/info/en-bref',
+    name: 'Radio-Canada En-continu',
+    url: 'https://ici.radio-canada.ca/info/rss/info/en-continu',
     language: 'fr',
     region: 'Montreal',
   },
@@ -62,8 +62,8 @@ export const CANADA_DEFAULT_SOURCES = [
     region: 'Canada',
   },
   {
-    name: 'Radio-Canada Actualités',
-    url: 'https://ici.radio-canada.ca/info/rss/4201.xml',
+    name: 'Radio-Canada À la une',
+    url: 'https://ici.radio-canada.ca/info/rss/info/a-la-une',
     language: 'fr',
     region: 'Canada',
   },
