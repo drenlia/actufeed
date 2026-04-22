@@ -1,4 +1,5 @@
 import { LegalPageLayout } from './LegalPageLayout.jsx'
+import { DRENLIA_WEBSITE_URL } from './legalTranslations.js'
 import { useLegalLocale } from './useLegalLocale.js'
 
 const CONTACT_EMAIL = 'info@drenlia.com'
@@ -13,7 +14,16 @@ export function ContactPage() {
         <p>{strings.contactIntro}</p>
 
         <div className="legal-page__contact-block">
-          <p className="legal-page__org-name">{strings.contactCompany}</p>
+          <p className="legal-page__org-name">
+            <a
+              className="legal-page__org-link"
+              href={DRENLIA_WEBSITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {strings.contactCompany}
+            </a>
+          </p>
           <p className="legal-page__address-line">{strings.contactLineStreet}</p>
           <p className="legal-page__address-line">{strings.contactLineCity}</p>
           <p className="legal-page__address-line">{strings.contactLineCountry}</p>

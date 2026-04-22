@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { LegalPageLayout } from './LegalPageLayout.jsx'
+import { DRENLIA_WEBSITE_URL } from './legalTranslations.js'
 import { useLegalLocale } from './useLegalLocale.js'
 
 export function PrivacyPage() {
@@ -11,7 +12,13 @@ export function PrivacyPage() {
         <h1>{strings.privacyH1}</h1>
         <p className="legal-page__last-updated">{strings.privacyLastUpdated}</p>
 
-        <p>{strings.privacyP1}</p>
+        <p>
+          {strings.privacyP1Before}
+          <a href={DRENLIA_WEBSITE_URL} target="_blank" rel="noopener noreferrer">
+            {strings.contactCompany}
+          </a>
+          {strings.privacyP1After}
+        </p>
         <p>{strings.privacyP2}</p>
         <p>{strings.privacyP3}</p>
 

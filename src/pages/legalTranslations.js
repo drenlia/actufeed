@@ -1,5 +1,7 @@
 /** UI copy for /support, /privacy, and /contact (EN + FR). */
 
+export const DRENLIA_WEBSITE_URL = 'https://drenlia.com'
+
 export const legalStrings = {
   en: {
     navSupport: 'Support',
@@ -24,8 +26,10 @@ export const legalStrings = {
     privacyDocTitle: 'Privacy Policy',
     privacyH1: 'Privacy Policy',
     privacyLastUpdated: 'Last updated: April 2026',
-    privacyP1:
-      'ActuFeed is a customizable news aggregator developed by Drenlia Inc. This policy explains how we handle information when you use the app and related services.',
+    privacyP1Before:
+      'ActuFeed is a customizable news aggregator developed by ',
+    privacyP1After:
+      '. This policy explains how we handle information when you use the app and related services.',
     privacyP2: 'We do not collect personal data for advertising or tracking.',
     privacyP3:
       'ActuFeed does not require an account, does not build advertising profiles, and does not sell any user data.',
@@ -86,8 +90,10 @@ export const legalStrings = {
     privacyDocTitle: 'Politique de confidentialité',
     privacyH1: 'Politique de confidentialité',
     privacyLastUpdated: 'Dernière mise à jour : avril 2026',
-    privacyP1:
-      'ActuFeed est un agrégateur d’actualités personnalisable développé par Drenlia Inc. La présente politique explique comment nous traitons les informations lorsque vous utilisez l’application et les services associés.',
+    privacyP1Before:
+      'ActuFeed est un agrégateur d’actualités personnalisable développé par ',
+    privacyP1After:
+      '. La présente politique explique comment nous traitons les informations lorsque vous utilisez l’application et les services associés.',
     privacyP2: 'Nous ne collectons pas de données personnelles à des fins publicitaires ou de suivi.',
     privacyP3:
       'ActuFeed ne requiert pas de compte, ne constitue pas de profils publicitaires et ne vend aucune donnée utilisateur.',
