@@ -1357,6 +1357,30 @@
   max-width: 11rem;
 }
 
+.help-modal__about-contact-line {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--af-text-secondary);
+}
+
+.help-modal__about-contact-link {
+  color: var(--af-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.help-modal__about-contact-link:hover {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--af-accent) 55%, transparent);
+}
+
+.help-modal__about-contact-link:focus-visible {
+  outline: 2px solid var(--af-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .help-modal__lang {
   display: inline-flex;
   border-radius: 10px;

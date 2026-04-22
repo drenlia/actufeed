@@ -155,3 +155,50 @@
   border-top: 1px solid var(--af-border-strong);
 }
 
+/* /contact */
+.legal-page__contact-block {
+  margin: 1.5rem 0 0;
+  padding: 1.35rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--af-border-strong);
+  background: color-mix(in srgb, var(--af-surface-muted) 85%, var(--af-surface));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--af-text) 4%, transparent);
+}
+
+.legal-page__org-name {
+  margin: 0 0 0.65rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--af-text);
+  letter-spacing: -0.01em;
+}
+
+/* Tighter than .legal-page p — avoid large gaps between address lines */
+.legal-page p.legal-page__address-line {
+  margin: 0 0 0.1rem;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--af-text-secondary);
+}
+
+.legal-page p.legal-page__address-line--postal {
+  margin-top: 0.2rem;
+  margin-bottom: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.legal-page__email-line {
+  margin: 1.1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--af-border-strong);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--af-text-secondary);
+}
+
+.legal-page__email-label {
+  font-weight: 600;
+  color: var(--af-text);
+}
+

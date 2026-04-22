@@ -1,4 +1,5 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { translations } from '../constants/translations'
 import { HELP_SHORTCUTS_DROPDOWN_MEDIA, useMatchMedia } from '../hooks/useMatchMedia'
 
@@ -165,6 +166,7 @@ export const HelpModal = ({
     t.helpAboutButton,
     t.helpAboutDevCta,
     t.helpAboutGithubCta,
+    t.helpAboutContactLink,
   ]
 
   const aboutMatchesSearch = (needle) => {
@@ -496,6 +498,17 @@ export const HelpModal = ({
                 <span className="help-modal__about-github-tile__sub">{t.helpAboutGithubCta}</span>
               </a>
             </div>
+            <p className="help-modal__about-contact-line">
+              <Link
+                to="/contact"
+                className="help-modal__about-contact-link"
+                onClick={() => onClose?.()}
+                title={t.helpAboutContactLinkTitle}
+                aria-label={t.helpAboutContactLinkAria}
+              >
+                {t.helpAboutContactLink}
+              </Link>
+            </p>
           </section>
         </div>
         <p className="help-modal__icons8-attribution">

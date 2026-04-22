@@ -6,6 +6,7 @@ import './index.css'
 import App from './App.jsx'
 import { LegalRoutesLayout } from './pages/LegalRoutesLayout.jsx'
 import { SupportPage } from './pages/SupportPage.jsx'
+import { ContactPage } from './pages/ContactPage.jsx'
 import { PrivacyPage } from './pages/PrivacyPage.jsx'
 
 // Suppress harmless CORS errors from RSS feed HTML rendering
@@ -50,6 +51,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />} />
         <Route element={<LegalRoutesLayout />}>
           <Route path="support" element={<SupportPage />} />
+          <Route path="contact" element={<ContactPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
         </Route>
       </Routes>

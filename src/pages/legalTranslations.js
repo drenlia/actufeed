@@ -1,8 +1,9 @@
-/** UI copy for /support and /privacy (EN + FR). */
+/** UI copy for /support, /privacy, and /contact (EN + FR). */
 
 export const legalStrings = {
   en: {
     navSupport: 'Support',
+    navContact: 'Contact',
     navPrivacy: 'Privacy',
     langLabel: 'Language',
     langEn: 'EN',
@@ -50,9 +51,21 @@ export const legalStrings = {
       'If you have any questions about this policy, please contact us through the ',
     privacyContactLinkLabel: 'support section',
     privacyContactAfter: '.',
+
+    contactDocTitle: 'Contact us',
+    contactH1: 'Contact us',
+    contactIntro: 'This application was created by:',
+    contactCompany: 'Drenlia Inc.',
+    contactLineStreet: '7037 rue des Tournesols',
+    contactLineCity: 'Saint-Hubert, QC',
+    contactLineCountry: 'Canada',
+    contactLinePostal: 'J3Y 8S2',
+    contactEmailLabel: 'Email:',
+
   },
   fr: {
     navSupport: 'Assistance',
+    navContact: 'Nous joindre',
     navPrivacy: 'Confidentialité',
     langLabel: 'Langue',
     langEn: 'EN',
@@ -100,5 +113,15 @@ export const legalStrings = {
       'Pour toute question relative à cette politique, contactez-nous via la ',
     privacyContactLinkLabel: 'section Assistance',
     privacyContactAfter: ' de l’application.',
+
+    contactDocTitle: 'Nous joindre',
+    contactH1: 'Nous joindre',
+    contactIntro: 'Cette application a été créée par :',
+    contactCompany: 'Drenlia Inc.',
+    contactLineStreet: '7037 rue des Tournesols',
+    contactLineCity: 'Saint-Hubert (QC)',
+    contactLineCountry: 'Canada',
+    contactLinePostal: 'J3Y 8S2',
+    contactEmailLabel: 'Courriel :',
   },
 }

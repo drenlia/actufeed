@@ -18,7 +18,7 @@ function initThemeFromStorage() {
 }
 
 /**
- * @param {{ page: 'support' | 'privacy'; children: import('react').ReactNode }} props
+ * @param {{ page: 'support' | 'privacy' | 'contact'; children: import('react').ReactNode }} props
  */
 export function LegalPageLayout({ page, children }) {
   const { locale, setLocale, strings } = useLegalLocale()
@@ -28,14 +28,19 @@ export function LegalPageLayout({ page, children }) {
   }, [])
 
   useEffect(() => {
-    const docTitle = page === 'support' ? strings.supportDocTitle : strings.privacyDocTitle
+    const docTitle =
+      page === 'support'
+        ? strings.supportDocTitle
+        : page === 'privacy'
+          ? strings.privacyDocTitle
+          : strings.contactDocTitle
     document.title = `${docTitle} · ActuFeed`
     document.documentElement.lang = locale
     return () => {
       document.title = 'ACTUFEED'
       document.documentElement.lang = 'en'
     }
-  }, [page, locale, strings.supportDocTitle, strings.privacyDocTitle])
+  }, [page, locale, strings.supportDocTitle, strings.privacyDocTitle, strings.contactDocTitle])
 
   return (
     <div className="legal-page">
@@ -47,6 +52,7 @@ export function LegalPageLayout({ page, children }) {
           <div className="legal-page__nav-right">
             <nav className="legal-page__links" aria-label="Legal">
               <Link to="/support">{strings.navSupport}</Link>
+              <Link to="/contact">{strings.navContact}</Link>
               <Link to="/privacy">{strings.navPrivacy}</Link>
             </nav>
             <div className="legal-page__lang-switch" role="group" aria-label={strings.langLabel}>
