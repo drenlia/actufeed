@@ -48,6 +48,7 @@ import { useAppleMobileWeb } from './hooks/useAppleMobileWeb'
 import { AppStoreIosBanner, persistAppStoreBannerDismissed, readAppStoreBannerDismissed } from './components/AppStoreIosBanner'
 import { AppStoreQrModal } from './components/AppStoreQrModal'
 import { isMinusKey, isPlusKey, isTypingInField } from './utils/keyboardShortcuts'
+import { FeedScrollToTopButton } from './components/FeedScrollToTopButton'
 import { WelcomeModal } from './components/WelcomeModal'
 import { GuidedTourOverlay } from './components/GuidedTourOverlay'
 import { isWelcomeTourCompleted, markWelcomeTourCompleted } from './utils/welcomeTourStorage'
@@ -1218,6 +1219,11 @@ function AppContent() {
             }
           />
         </main>
+        <FeedScrollToTopButton
+          uiLanguage={uiLanguage}
+          onScrollToTop={scrollToTop}
+          hidden={!!articleReaderItem}
+        />
         {articleReaderItem ? (
           <ArticleReaderModal
             key={articleReaderItem.id || articleReaderItem.link}
