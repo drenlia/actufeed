@@ -7,7 +7,7 @@ import {
   PHONE_LAYOUT_MEDIA,
   useMatchMedia,
 } from '../hooks/useMatchMedia'
-import { APP_STORE_BADGE_IMG } from '../constants/appStore'
+import { appStoreBadgePathForLanguage, googlePlayBadgePathForLanguage } from '../constants/appStore'
 
 const LAYOUT_ICON_URL = {
   list: '/icons/as-list.png',
@@ -23,18 +23,50 @@ const LAYOUT_OPTION_ARIA_KEY = {
   columns3: 'feedLayoutOption3',
 }
 
-/** Official “Download on the App Store” badge (scaled in CSS via `.header-appstore-btn__badge`). */
-const AppStoreHeaderBadge = () => (
-  <img
-    className="header-appstore-btn__badge"
-    src={APP_STORE_BADGE_IMG}
-    alt=""
-    width={320}
-    height={108}
-    decoding="async"
-    draggable={false}
-  />
-)
+/** Desktop feed: App Store + Google Play badges — both open the QR modal for that store. */
+function HeaderDesktopStoreBadges({ uiLanguage, onAppStoreDesktopClick, onGooglePlayDesktopClick }) {
+  const tb = translations[uiLanguage]
+  const appBadgeSrc = appStoreBadgePathForLanguage(uiLanguage)
+  const playBadgeSrc = googlePlayBadgePathForLanguage(uiLanguage)
+  return (
+    <div className="header-store-badges">
+      <button
+        type="button"
+        className="header-appstore-btn"
+        onClick={onAppStoreDesktopClick}
+        title={tb.appStoreDesktopBtnTitle}
+        aria-label={tb.appStoreDesktopBtnTitle}
+      >
+        <img
+          className="header-appstore-btn__badge"
+          src={appBadgeSrc}
+          alt=""
+          width={320}
+          height={108}
+          decoding="async"
+          draggable={false}
+        />
+      </button>
+      <button
+        type="button"
+        className="header-googleplay-btn"
+        onClick={onGooglePlayDesktopClick}
+        title={tb.googlePlayDesktopBtnTitle}
+        aria-label={tb.googlePlayDesktopBtnTitle}
+      >
+        <img
+          className="header-googleplay-btn__badge"
+          src={playBadgeSrc}
+          alt=""
+          width={564}
+          height={168}
+          decoding="async"
+          draggable={false}
+        />
+      </button>
+    </div>
+  )
+}
 
 const utilSlot = (child) => <div className="header-util-slot">{child}</div>
 
@@ -73,6 +105,7 @@ export const Header = ({
   nudgeFiltersButton = false,
   showAppStoreDesktopButton = false,
   onAppStoreDesktopClick,
+  onGooglePlayDesktopClick,
   /** When true/false, force help menu open/closed (guided tour). Undefined = no override. */
   tourHelpMenuOpen,
   /** Start guided tour from help dropdown (desktop). */
@@ -87,7 +120,7 @@ export const Header = ({
     !isSettingsPage && isWideFeedHeaderLayout && Boolean(onFeedLayoutPreferenceChange)
   const showFontScaleButtons = !isSettingsPage && (onDescriptionFontSmaller || onDescriptionFontLarger)
   const showAppStoreHeaderBtn =
-    Boolean(showAppStoreDesktopButton && onAppStoreDesktopClick)
+    Boolean(showAppStoreDesktopButton && onAppStoreDesktopClick && onGooglePlayDesktopClick)
   const layoutPreviewIcon = LAYOUT_ICON_URL[resolvedFeedLayout] || LAYOUT_ICON_URL.list
   const layoutMenuHighlightKey =
     feedLayoutPreference === 'auto' || !feedLayoutPreference ? resolvedFeedLayout : feedLayoutPreference
@@ -831,15 +864,11 @@ export const Header = ({
               {showFeedLayoutSelect ? (
                 <div className="header-feed-layout-row">
                   {showAppStoreHeaderBtn ? (
-                    <button
-                      type="button"
-                      className="header-appstore-btn"
-                      onClick={onAppStoreDesktopClick}
-                      title={t.appStoreDesktopBtnTitle}
-                      aria-label={t.appStoreDesktopBtnTitle}
-                    >
-                      <AppStoreHeaderBadge />
-                    </button>
+                    <HeaderDesktopStoreBadges
+                      uiLanguage={uiLanguage}
+                      onAppStoreDesktopClick={onAppStoreDesktopClick}
+                      onGooglePlayDesktopClick={onGooglePlayDesktopClick}
+                    />
                   ) : null}
                   <div
                     className="header-feed-layout-picker"
@@ -925,15 +954,11 @@ export const Header = ({
               ) : (
                 <div className="header-feed-layout-row header-feed-layout-row--font-only">
                   {showAppStoreHeaderBtn ? (
-                    <button
-                      type="button"
-                      className="header-appstore-btn"
-                      onClick={onAppStoreDesktopClick}
-                      title={t.appStoreDesktopBtnTitle}
-                      aria-label={t.appStoreDesktopBtnTitle}
-                    >
-                      <AppStoreHeaderBadge />
-                    </button>
+                    <HeaderDesktopStoreBadges
+                      uiLanguage={uiLanguage}
+                      onAppStoreDesktopClick={onAppStoreDesktopClick}
+                      onGooglePlayDesktopClick={onGooglePlayDesktopClick}
+                    />
                   ) : null}
                   <div className="header-font-scale-desktop" role="group" aria-label={t.feedFontScaleGroupAria}>
                     <button

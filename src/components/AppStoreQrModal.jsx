@@ -1,14 +1,32 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { translations } from '../constants/translations'
-import { APP_STORE_URL } from '../constants/appStore'
+import { APP_STORE_URL, GOOGLE_PLAY_STORE_URL } from '../constants/appStore'
 
-const QR_IMG = (() => {
-  const encoded = encodeURIComponent(APP_STORE_URL)
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encoded}`
-})()
+const QR_BASE = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10'
 
-export const AppStoreQrModal = ({ open, onClose, uiLanguage }) => {
+function qrImgSrcForUrl(storeUrl) {
+  return `${QR_BASE}&data=${encodeURIComponent(storeUrl)}`
+}
+
+/**
+ * QR modal for scanning a phone to open the native store listing — App Store or Google Play.
+ * @param {{ open: boolean; onClose: () => void; uiLanguage: string; storeKind?: 'appstore' | 'googleplay' }} props
+ */
+export const AppStoreQrModal = ({
+  open,
+  onClose,
+  uiLanguage,
+  storeKind = 'appstore',
+}) => {
   const t = translations[uiLanguage]
+  const isPlay = storeKind === 'googleplay'
+  const storeUrl = isPlay ? GOOGLE_PLAY_STORE_URL : APP_STORE_URL
+  const qrSrc = useMemo(() => qrImgSrcForUrl(storeUrl), [storeUrl])
+
+  const title = isPlay ? t.googlePlayQrModalTitle : t.appStoreQrModalTitle
+  const lead = isPlay ? t.googlePlayQrModalLead : t.appStoreQrModalLead
+  const hint = isPlay ? t.googlePlayQrModalHint : t.appStoreQrModalHint
+  const openStoreLabel = isPlay ? t.googlePlayQrModalOpenStore : t.appStoreQrModalOpenStore
 
   useEffect(() => {
     if (!open) return undefined
@@ -45,11 +63,11 @@ export const AppStoreQrModal = ({ open, onClose, uiLanguage }) => {
         className="appstore-qr-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="appstore-qr-modal-title"
+        aria-labelledby="store-qr-modal-title"
       >
         <div className="appstore-qr-modal__head">
-          <h2 id="appstore-qr-modal-title" className="appstore-qr-modal__title">
-            {t.appStoreQrModalTitle}
+          <h2 id="store-qr-modal-title" className="appstore-qr-modal__title">
+            {title}
           </h2>
           <button
             type="button"
@@ -61,10 +79,10 @@ export const AppStoreQrModal = ({ open, onClose, uiLanguage }) => {
             ×
           </button>
         </div>
-        <p className="appstore-qr-modal__lead">{t.appStoreQrModalLead}</p>
+        <p className="appstore-qr-modal__lead">{lead}</p>
         <div className="appstore-qr-modal__qr-wrap">
           <img
-            src={QR_IMG}
+            src={qrSrc}
             alt=""
             width={220}
             height={220}
@@ -72,14 +90,14 @@ export const AppStoreQrModal = ({ open, onClose, uiLanguage }) => {
             decoding="async"
           />
         </div>
-        <p className="appstore-qr-modal__hint">{t.appStoreQrModalHint}</p>
+        <p className="appstore-qr-modal__hint">{hint}</p>
         <a
           className="appstore-qr-modal__link"
-          href={APP_STORE_URL}
+          href={storeUrl}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {t.appStoreQrModalOpenStore}
+          {openStoreLabel}
         </a>
       </div>
     </div>

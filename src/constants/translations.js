@@ -53,13 +53,24 @@ export const translations = {
     appStoreIosBannerText:
       'Full articles offline, saved reading sync, and an interface built for touch — without leaving your flow.',
     appStoreIosBannerDismiss: 'Continue on web',
+    googlePlayAndroidBannerAria: 'ActuFeed on Google Play',
+    googlePlayAndroidBannerBadgeAlt: 'Get it on Google Play',
+    googlePlayAndroidBannerText:
+      'Offline reading, saved articles synced, and an interface tuned for Android — install from Google Play.',
+    googlePlayAndroidBannerDismiss: 'Continue on web',
     appStoreDesktopBtnTitle: 'Get ActuFeed on the App Store',
+    googlePlayDesktopBtnTitle: 'Get ActuFeed on Google Play',
     appStoreQrModalTitle: 'ActuFeed on the App Store',
     appStoreQrModalLead:
       'Install the free ActuFeed app on your iPhone or iPad. Scan this code with your camera.',
     appStoreQrModalHint: 'Opens the App Store when scanned with an Apple device.',
     appStoreQrModalOpenStore: 'Open in App Store',
     appStoreQrModalClose: 'Close',
+    googlePlayQrModalTitle: 'ActuFeed on Google Play',
+    googlePlayQrModalLead:
+      'Install the free ActuFeed app on your Android phone or tablet. Scan this code with your camera.',
+    googlePlayQrModalHint: 'Opens Google Play when scanned with an Android device.',
+    googlePlayQrModalOpenStore: 'Open in Google Play',
     savedArticlesHeaderA11y: 'Saved articles',
     savedArticlesHeaderCountA11y: 'Saved articles, {n} items',
     savedArticlesTitle: 'Saved',
@@ -636,13 +647,24 @@ export const translations = {
     appStoreIosBannerText:
       'Articles hors ligne, lecture enregistrée et interface pensée pour le tactile — tout en restant dans votre fil.',
     appStoreIosBannerDismiss: 'Continuer sur le web',
+    googlePlayAndroidBannerAria: 'ActuFeed sur Google Play',
+    googlePlayAndroidBannerBadgeAlt: 'Télécharger sur Google Play',
+    googlePlayAndroidBannerText:
+      'Lecture hors ligne, articles enregistrés synchronisés et interface adaptée à Android — installez depuis Google Play.',
+    googlePlayAndroidBannerDismiss: 'Continuer sur le web',
     appStoreDesktopBtnTitle: 'Télécharger ActuFeed sur l’App Store',
+    googlePlayDesktopBtnTitle: 'Télécharger ActuFeed sur Google Play',
     appStoreQrModalTitle: 'ActuFeed sur l’App Store',
     appStoreQrModalLead:
       'Installez l’app gratuite ActuFeed sur votre iPhone ou iPad. Scannez ce code avec l’appareil photo.',
     appStoreQrModalHint: 'Ouvre l’App Store une fois scanné avec un appareil Apple.',
     appStoreQrModalOpenStore: 'Ouvrir dans l’App Store',
     appStoreQrModalClose: 'Fermer',
+    googlePlayQrModalTitle: 'ActuFeed sur Google Play',
+    googlePlayQrModalLead:
+      'Installez l’application gratuite ActuFeed sur votre téléphone ou tablette Android. Scannez ce code avec l’appareil photo.',
+    googlePlayQrModalHint: 'Ouvre Google Play une fois scanné avec un appareil Android.',
+    googlePlayQrModalOpenStore: 'Ouvrir dans Google Play',
     savedArticlesHeaderA11y: 'Articles enregistrés',
     savedArticlesHeaderCountA11y: 'Articles enregistrés, {n}',
     savedArticlesTitle: 'Enregistrés',

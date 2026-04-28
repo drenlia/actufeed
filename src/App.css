@@ -2422,6 +2422,14 @@
   margin-left: 4px;
 }
 
+.header-store-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  flex-shrink: 0;
+}
+
 .header-appstore-btn {
   display: inline-flex;
   align-items: center;
@@ -2461,7 +2469,47 @@
   vertical-align: middle;
 }
 
-.appstore-ios-banner {
+.header-googleplay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 4px 6px;
+  min-height: 36px;
+  flex-shrink: 0;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.header-googleplay-btn:hover {
+  background: color-mix(in srgb, var(--af-text) 6%, transparent);
+  border-color: var(--af-border);
+}
+
+.header-googleplay-btn:focus-visible {
+  outline: none;
+  border-color: var(--af-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--af-accent) 22%, transparent);
+}
+
+.header-googleplay-btn__badge {
+  display: block;
+  height: 32px;
+  width: auto;
+  max-width: min(124px, 30vw);
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.appstore-ios-banner,
+.googleplay-android-banner {
   width: 100%;
   box-sizing: border-box;
   padding: 14px max(16px, env(safe-area-inset-right)) 14px max(16px, env(safe-area-inset-left));
@@ -2475,7 +2523,8 @@
   box-shadow: 0 1px 0 color-mix(in srgb, var(--af-text) 4%, transparent);
 }
 
-.appstore-ios-banner__inner {
+.appstore-ios-banner__inner,
+.googleplay-android-banner__inner {
   max-width: 960px;
   margin: 0 auto;
   display: grid;
@@ -2484,7 +2533,8 @@
   gap: 14px 18px;
 }
 
-.appstore-ios-banner__badge-link {
+.appstore-ios-banner__badge-link,
+.googleplay-android-banner__badge-link {
   flex-shrink: 0;
   display: inline-flex;
   line-height: 0;
@@ -2492,28 +2542,33 @@
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.appstore-ios-banner__badge-link:hover {
+.appstore-ios-banner__badge-link:hover,
+.googleplay-android-banner__badge-link:hover {
   opacity: 0.92;
 }
 
-.appstore-ios-banner__badge-link:active {
+.appstore-ios-banner__badge-link:active,
+.googleplay-android-banner__badge-link:active {
   transform: scale(0.98);
 }
 
-.appstore-ios-banner__badge-link:focus-visible {
+.appstore-ios-banner__badge-link:focus-visible,
+.googleplay-android-banner__badge-link:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--af-accent) 35%, transparent);
   border-radius: 8px;
 }
 
-.appstore-ios-banner__badge {
+.appstore-ios-banner__badge,
+.googleplay-android-banner__badge {
   display: block;
   height: auto;
   width: min(100%, 200px);
   max-height: 52px;
 }
 
-.appstore-ios-banner__text {
+.appstore-ios-banner__text,
+.googleplay-android-banner__text {
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.45;
@@ -2521,7 +2576,8 @@
   letter-spacing: 0.01em;
 }
 
-.appstore-ios-banner__dismiss {
+.appstore-ios-banner__dismiss,
+.googleplay-android-banner__dismiss {
   margin: 0;
   padding: 10px 16px;
   font-size: 0.875rem;
@@ -2540,31 +2596,36 @@
     color 0.15s ease;
 }
 
-.appstore-ios-banner__dismiss:hover {
+.appstore-ios-banner__dismiss:hover,
+.googleplay-android-banner__dismiss:hover {
   background: color-mix(in srgb, var(--af-text) 5%, transparent);
   color: var(--af-text);
   border-color: var(--af-text-muted);
 }
 
-.appstore-ios-banner__dismiss:focus-visible {
+.appstore-ios-banner__dismiss:focus-visible,
+.googleplay-android-banner__dismiss:focus-visible {
   outline: none;
   border-color: var(--af-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--af-accent) 22%, transparent);
 }
 
 @media (max-width: 520px) {
-  .appstore-ios-banner__inner {
+  .appstore-ios-banner__inner,
+  .googleplay-android-banner__inner {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
     gap: 12px;
   }
 
-  .appstore-ios-banner__text {
+  .appstore-ios-banner__text,
+  .googleplay-android-banner__text {
     max-width: 28rem;
   }
 
-  .appstore-ios-banner__dismiss {
+  .appstore-ios-banner__dismiss,
+  .googleplay-android-banner__dismiss {
     width: 100%;
     max-width: 280px;
   }

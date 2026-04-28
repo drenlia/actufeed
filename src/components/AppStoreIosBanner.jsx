@@ -1,4 +1,8 @@
-import { APP_STORE_URL, APP_STORE_BANNER_DISMISSED_KEY, APP_STORE_BADGE_IMG } from '../constants/appStore'
+import {
+  APP_STORE_URL,
+  APP_STORE_BANNER_DISMISSED_KEY,
+  appStoreBadgePathForLanguage,
+} from '../constants/appStore'
 import { translations } from '../constants/translations'
 
 export const AppStoreIosBanner = ({ uiLanguage, visible, onDismiss }) => {
@@ -16,7 +20,7 @@ export const AppStoreIosBanner = ({ uiLanguage, visible, onDismiss }) => {
         >
           <img
             className="appstore-ios-banner__badge"
-            src={APP_STORE_BADGE_IMG}
+            src={appStoreBadgePathForLanguage(uiLanguage)}
             alt={t.appStoreIosBannerBadgeAlt}
             width={320}
             height={108}

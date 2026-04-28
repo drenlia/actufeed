@@ -44,8 +44,14 @@ import {
 } from './utils/readLaterStorage'
 import { translations } from './constants/translations'
 import { DESKTOP_HEADER_LAYOUT_MEDIA, useMatchMedia } from './hooks/useMatchMedia'
+import { useAndroidMobileWeb } from './hooks/useAndroidMobileWeb'
 import { useAppleMobileWeb } from './hooks/useAppleMobileWeb'
 import { AppStoreIosBanner, persistAppStoreBannerDismissed, readAppStoreBannerDismissed } from './components/AppStoreIosBanner'
+import {
+  GooglePlayAndroidBanner,
+  persistGooglePlayAndroidBannerDismissed,
+  readGooglePlayAndroidBannerDismissed,
+} from './components/GooglePlayAndroidBanner'
 import { AppStoreQrModal } from './components/AppStoreQrModal'
 import { isMinusKey, isPlusKey, isTypingInField } from './utils/keyboardShortcuts'
 import { FeedScrollToTopButton } from './components/FeedScrollToTopButton'
@@ -118,10 +124,15 @@ function AppContent() {
   const viewportWidth = useWindowWidth()
   const isWideFeedHeaderLayout = useMatchMedia(DESKTOP_HEADER_LAYOUT_MEDIA)
   const isAppleMobileWeb = useAppleMobileWeb()
+  const isAndroidMobileWeb = useAndroidMobileWeb()
   const [appStoreBannerDismissed, setAppStoreBannerDismissed] = useState(() =>
     readAppStoreBannerDismissed()
   )
-  const [appStoreQrModalOpen, setAppStoreQrModalOpen] = useState(false)
+  const [googlePlayAndroidBannerDismissed, setGooglePlayAndroidBannerDismissed] = useState(() =>
+    readGooglePlayAndroidBannerDismissed()
+  )
+  /** `null` closed; which store listing the QR encodes (desktop header badges). */
+  const [storeQrModal, setStoreQrModal] = useState(null)
 
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [guidedTourActive, setGuidedTourActive] = useState(false)
@@ -129,7 +140,9 @@ function AppContent() {
   const tourStepRef = useRef(0)
 
   const showAppStoreIosBanner = isAppleMobileWeb && !appStoreBannerDismissed
-  const showAppStoreDesktopPromo = !isAppleMobileWeb && isWideFeedHeaderLayout
+  const showGooglePlayAndroidBanner =
+    isAndroidMobileWeb && !isAppleMobileWeb && !googlePlayAndroidBannerDismissed
+  const showAppStoreDesktopPromo = !isAppleMobileWeb && !isAndroidMobileWeb && isWideFeedHeaderLayout
 
   const reloadReadLater = useCallback(() => {
     setReadLaterItems(loadReadLaterList())
@@ -1097,6 +1110,16 @@ function AppContent() {
               }}
             />
           ) : null}
+          {showGooglePlayAndroidBanner ? (
+            <GooglePlayAndroidBanner
+              uiLanguage={uiLanguage}
+              visible
+              onDismiss={() => {
+                persistGooglePlayAndroidBannerDismissed()
+                setGooglePlayAndroidBannerDismissed(true)
+              }}
+            />
+          ) : null}
           <Header
             uiLanguage={uiLanguage}
             onLanguageToggle={handleUiLanguageToggle}
@@ -1144,7 +1167,8 @@ function AppContent() {
             narrowingFiltersActive={hasNarrowingFilters}
             nudgeFiltersButton={filtersNudgeActive}
             showAppStoreDesktopButton={showAppStoreDesktopPromo}
-            onAppStoreDesktopClick={() => setAppStoreQrModalOpen(true)}
+            onAppStoreDesktopClick={() => setStoreQrModal('appstore')}
+            onGooglePlayDesktopClick={() => setStoreQrModal('googleplay')}
             tourHelpMenuOpen={guidedTourActive ? tourStepIndex === 4 : undefined}
             onGuidedTourClick={handleStartGuidedTourFromHelp}
             headerTabsSlot={
@@ -1242,8 +1266,9 @@ function AppContent() {
           onStartGuidedTour={handleStartGuidedTourFromHelp}
         />
         <AppStoreQrModal
-          open={appStoreQrModalOpen}
-          onClose={() => setAppStoreQrModalOpen(false)}
+          open={storeQrModal != null}
+          storeKind={storeQrModal === 'googleplay' ? 'googleplay' : 'appstore'}
+          onClose={() => setStoreQrModal(null)}
           uiLanguage={uiLanguage}
         />
         <WelcomeModal
