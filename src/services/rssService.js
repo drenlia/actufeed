@@ -784,6 +784,21 @@ export function rssItemEntryHasArticleThumbnail(item, isAtom) {
   return Boolean(url && String(url).trim())
 }
 
+/**
+ * Atom 24h ingest window: entry is kept if either `published` or `updated`
+ * falls in [now − 24h, now]. Matches feeds like YouTube where `updated` moves on metadata edits.
+ */
+const atomPublishedOrUpdatedWithinRecentWindow = (publishedIso, updatedIso) => {
+  const within24hPast = (iso) => {
+    if (!iso || !String(iso).trim()) return false
+    const d = new Date(iso.trim())
+    if (isNaN(d.getTime())) return false
+    const hoursDiff = (Date.now() - d.getTime()) / (1000 * 60 * 60)
+    return hoursDiff >= 0 && hoursDiff <= 24
+  }
+  return within24hPast(publishedIso) || within24hPast(updatedIso)
+}
+
 /** Atom 1.0 <entry> → same article shape as {@link parseRssItem} */
 const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss', previewMode = false) => {
   const titleEl = entry.querySelector('title')
@@ -794,10 +809,9 @@ const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss', 
   title = decodeHtmlEntities(title.trim())
 
   const link = getAtomEntryLink(entry)
-  const pubDate =
-    entry.querySelector('published')?.textContent?.trim() ||
-    entry.querySelector('updated')?.textContent?.trim() ||
-    ''
+  const publishedRaw = entry.querySelector('published')?.textContent?.trim() || ''
+  const updatedRaw = entry.querySelector('updated')?.textContent?.trim() || ''
+  const pubDate = publishedRaw || updatedRaw || ''
 
   const sum = atomElementToPlainAndHtml(entry.querySelector('summary'))
   const cont = atomElementToPlainAndHtml(entry.querySelector('content'))
@@ -877,9 +891,7 @@ const parseAtomEntry = (entry, source, feedImageUrl = '', feedLogoTier = 'rss', 
   }
 
   if (!previewMode) {
-    const now = new Date()
-    const hoursDiff = (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60)
-    if (hoursDiff > 24 || hoursDiff < 0) {
+    if (!atomPublishedOrUpdatedWithinRecentWindow(publishedRaw, updatedRaw)) {
       return null
     }
   }
@@ -1520,7 +1532,7 @@ export const fetchRssFeed = async (source, { maxRetries = 2, batchId = null } = 
 
         if (sourceNews.length === 0 && entryList.length > 0) {
           console.warn(
-            `[${source.name}] Parsed ${entryList.length} Atom entries but none matched the date filter (last 24 hours)`
+            `[${source.name}] Parsed ${entryList.length} Atom entries but none matched the date filter (last 24 hours, using published or updated)`
           )
           const sampleDates = Array.from(entryList)
             .slice(0, 3)

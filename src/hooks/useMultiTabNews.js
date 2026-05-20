@@ -3,8 +3,18 @@ import { fetchTabArticles } from '../services/fetchTabArticles'
 import { saveNewsToCache, loadCachedNews, loadCachedArticleIds } from '../utils/storageUtils'
 import { useToastContext } from '../contexts/ToastContext'
 
+/** Mutable queue + lock for serialized refresh passes (mounted on a Ref). */
+function createQueuedRefreshGate() {
+  return {
+    locked: false,
+    pendingUserPass: false,
+    pendingSilentPass: false,
+  }
+}
+
 /**
  * Fetch and cache news for every tab: active tab first, then other tabs in the background.
+ * Refreshes are serialized; overlapping triggers queue at most one extra full pass (user wins priority).
  */
 export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
   const [newsByTabId, setNewsByTabId] = useState({})
@@ -13,6 +23,18 @@ export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
   const [feedFetchHadFailures, setFeedFetchHadFailures] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [newItemIds, setNewItemIds] = useState(new Set())
+
+  const gateRef = useRef(createQueuedRefreshGate())
+  /** @type {import('react').MutableRefObject<((v: boolean) => void) | null>} */
+  const setLoadingRef = useRef(setLoading)
+
+  setLoadingRef.current = setLoading
+
+  const tabsRef = useRef(tabs)
+  const activeTabIdRef = useRef(activeTabId)
+
+  tabsRef.current = tabs
+  activeTabIdRef.current = activeTabId
 
   const previousNewsIdsRef = useRef(new Set())
   const toastRef = useRef(null)
@@ -38,26 +60,23 @@ export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
     setNewsByTabId((prev) => ({ ...prev, [tabId]: newsOut }))
   }, [])
 
-  const applyNewItemsForActive = useCallback(
-    (tabId, newsOut) => {
-      if (tabId !== activeTabId) return
-      const previousIds = previousNewsIdsRef.current
-      const newIds = new Set()
-      newsOut.forEach((item) => {
-        if (!previousIds.has(item.id)) newIds.add(item.id)
-      })
-      if (newIds.size > 0) {
-        setNewItemIds(newIds)
-        setTimeout(() => setNewItemIds(new Set()), 3000)
-      }
-      previousNewsIdsRef.current = new Set(newsOut.map((i) => i.id))
-    },
-    [activeTabId]
-  )
+  const applyNewItemsForActive = useCallback((tabId, newsOut) => {
+    if (tabId !== activeTabIdRef.current) return
+    const previousIds = previousNewsIdsRef.current
+    const newIds = new Set()
+    newsOut.forEach((item) => {
+      if (!previousIds.has(item.id)) newIds.add(item.id)
+    })
+    if (newIds.size > 0) {
+      setNewItemIds(newIds)
+      setTimeout(() => setNewItemIds(new Set()), 3000)
+    }
+    previousNewsIdsRef.current = new Set(newsOut.map((i) => i.id))
+  }, [])
 
   const fetchOneTab = useCallback(
     async (tabId, { isPriority = false, showToast = false } = {}) => {
-      const tab = tabs.find((t) => t.id === tabId)
+      const tab = tabsRef.current.find((t) => t.id === tabId)
       const sources = tab?.sources || []
       if (sources.length === 0) {
         setNewsByTabId((prev) => ({ ...prev, [tabId]: [] }))
@@ -73,27 +92,110 @@ export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
 
       const feedEmpty =
         news.length === 0 && failedFeeds.length > 0 && successfulFeeds.length === 0
-      if (tabId === activeTabId) {
+      if (tabId === activeTabIdRef.current) {
         setFeedFetchHadFailures(feedEmpty)
       }
 
-      if (isPriority && showToast && showToastMessages && result.diskCacheForFailure && failedFeeds.length > 0) {
+      if (
+        isPriority &&
+        showToast &&
+        showToastMessages &&
+        result.diskCacheForFailure &&
+        failedFeeds.length > 0
+      ) {
         toastRef.current.warning('Could not refresh feeds. Showing saved articles from this tab.', 8000)
       }
     },
-    [tabs, persistTabNews, applyNewItemsForActive, activeTabId, showToastMessages]
+    [persistTabNews, applyNewItemsForActive, showToastMessages],
   )
 
+  const refreshAllTabsNetworkPass = useCallback(
+    async (showToastOnActiveTab) => {
+      setError(null)
+      const tList = tabsRef.current || []
+      const actId = activeTabIdRef.current
+      for (const t of tList) {
+        const src = t.sources || []
+        if (!src.length) continue
+        await fetchOneTab(t.id, {
+          isPriority: t.id === actId,
+          showToast: !!showToastOnActiveTab && t.id === actId,
+        })
+      }
+    },
+    [fetchOneTab],
+  )
+
+  /**
+   * Serialized refresh: drains optional queued passes. Sets loading=true for the locked region only.
+   * @returns {'queued' | 'started'} queued = another run holds the gate; hooks must not toggle loading here.
+   */
+  const enqueueOrExecuteExclusiveRefreshSession = useCallback(
+    /** @returns {Promise<'queued' | 'started'>} */
+    async (firstPassToast, meta, runner) => {
+      const gate = gateRef.current
+      const userTriggered = meta.userTriggered ?? false
+
+      if (gate.locked) {
+        if (firstPassToast || userTriggered) gate.pendingUserPass = true
+        else gate.pendingSilentPass = true
+        return 'queued'
+      }
+
+      gate.locked = true
+      setLoadingRef.current(true)
+
+      /** @type {boolean} */
+      let showToastActive = !!firstPassToast
+
+      try {
+        let passAgain = false
+        do {
+          passAgain = false
+          await runner(showToastActive)
+          const wantUser = gate.pendingUserPass
+          const wantSilent = gate.pendingSilentPass
+          gate.pendingUserPass = false
+          gate.pendingSilentPass = false
+          if (wantUser) {
+            showToastActive = true
+            passAgain = true
+          } else if (wantSilent) {
+            showToastActive = false
+            passAgain = true
+          }
+        } while (passAgain)
+      } finally {
+        gate.locked = false
+        setLoadingRef.current(false)
+      }
+      return 'started'
+    },
+    [],
+  )
+
+  /** Initial / tabs-changed: hydrate from disk first (always), then serialized network passes */
   const runLoadSequence = useCallback(
     async (showToastForActive) => {
-      if (!tabs?.length || !activeTabId) {
+      const tabsList = tabsRef.current || []
+      const actId = activeTabIdRef.current
+
+      if (!tabsList?.length || !actId) {
+        setLoading(false)
+        setIsInitialLoad(false)
+        return
+      }
+
+      const activeTab = tabsList.find((t) => t.id === actId)
+      if (!(activeTab?.sources || []).length) {
+        setFeedFetchHadFailures(false)
         setLoading(false)
         setIsInitialLoad(false)
         return
       }
 
       const next = {}
-      for (const t of tabs) {
+      for (const t of tabsList) {
         const src = t.sources || []
         if (src.length) {
           const c = loadCachedNews(src, t.id)
@@ -102,40 +204,21 @@ export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
       }
       if (Object.keys(next).length) {
         setNewsByTabId((prev) => ({ ...prev, ...next }))
-        const prevActive = next[activeTabId]
+        const prevActive = next[actId]
         if (prevActive?.length) {
-          previousNewsIdsRef.current = loadCachedArticleIds(activeTabId)
+          previousNewsIdsRef.current = loadCachedArticleIds(actId)
         }
       }
 
-      const activeTab = tabs.find((t) => t.id === activeTabId)
-      const hasSources = (activeTab?.sources || []).length > 0
-      if (hasSources && !next[activeTabId]?.length) {
-        setLoading(true)
-      } else {
-        setLoading(false)
-      }
-      setError(null)
-
-      if (!hasSources) {
-        setFeedFetchHadFailures(false)
-        setLoading(false)
-        setIsInitialLoad(false)
-        return
-      }
-
-      await fetchOneTab(activeTabId, { isPriority: true, showToast: showToastForActive })
-      setLoading(false)
       setIsInitialLoad(false)
 
-      for (const t of tabs) {
-        if (t.id === activeTabId) continue
-        const src = t.sources || []
-        if (!src.length) continue
-        await fetchOneTab(t.id, { isPriority: false, showToast: false })
-      }
+      await enqueueOrExecuteExclusiveRefreshSession(
+        !!showToastForActive,
+        { userTriggered: false },
+        refreshAllTabsNetworkPass,
+      )
     },
-    [tabs, activeTabId, fetchOneTab]
+    [enqueueOrExecuteExclusiveRefreshSession, refreshAllTabsNetworkPass],
   )
 
   const prevTabsKeyRef = useRef(null)
@@ -151,7 +234,7 @@ export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
     prevTabsKeyRef.current = tabsKey
 
     if (isFirst || tabsChanged) {
-      runLoadSequence(true)
+      void runLoadSequence(true)
     }
   }, [tabsKey, tabs?.length, activeTabId, runLoadSequence])
 
@@ -162,42 +245,43 @@ export function useMultiTabNews(tabs, activeTabId, showToastMessages) {
 
   const fetchNews = useCallback(
     async (useCache = true, forceRefresh = false) => {
-      if (!activeTabId) return
-      const activeTab = tabs.find((t) => t.id === activeTabId)
+      const actId = activeTabIdRef.current
+      if (!actId) return
+      const activeTab = tabsRef.current?.find((t) => t.id === actId)
       const sources = activeTab?.sources || []
       if (!sources.length) return
 
       if (useCache && !forceRefresh) {
-        const cached = loadCachedNews(sources, activeTabId)
+        const cached = loadCachedNews(sources, actId)
         if (cached?.length) {
-          setNewsByTabId((prev) => ({ ...prev, [activeTabId]: cached }))
+          setNewsByTabId((prev) => ({ ...prev, [actId]: cached }))
           previousNewsIdsRef.current = new Set(cached.map((i) => i.id))
           setLoading(false)
           setTimeout(() => {
-            fetchOneTab(activeTabId, { isPriority: true, showToast: false })
+            void enqueueOrExecuteExclusiveRefreshSession(false, { userTriggered: false }, refreshAllTabsNetworkPass)
           }, 100)
           return
         }
       }
 
-      setLoading(true)
       setError(null)
-      await fetchOneTab(activeTabId, { isPriority: true, showToast: true })
-      setLoading(false)
+      await enqueueOrExecuteExclusiveRefreshSession(true, { userTriggered: true }, refreshAllTabsNetworkPass)
     },
-    [activeTabId, tabs, fetchOneTab]
+    [enqueueOrExecuteExclusiveRefreshSession, refreshAllTabsNetworkPass],
   )
 
-  const refreshNews = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    for (const t of tabs) {
-      const src = t.sources || []
-      if (!src.length) continue
-      await fetchOneTab(t.id, { isPriority: t.id === activeTabId, showToast: t.id === activeTabId })
-    }
-    setLoading(false)
-  }, [tabs, activeTabId, fetchOneTab])
+  /**
+   * @param {{ userTriggered?: boolean }} [options]
+   * `userTriggered: true` — default — priority-tab toasts permitted on first pass(es).
+   */
+  const refreshNews = useCallback(
+    async (options = {}) => {
+      const userTriggered = options.userTriggered !== false
+      setError(null)
+      await enqueueOrExecuteExclusiveRefreshSession(userTriggered, { userTriggered }, refreshAllTabsNetworkPass)
+    },
+    [enqueueOrExecuteExclusiveRefreshSession, refreshAllTabsNetworkPass],
+  )
 
   return {
     news,

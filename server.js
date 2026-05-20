@@ -1844,8 +1844,29 @@ app.get('/api/proxy/rss', apiLimiter, async (req, res) => {
     let contentType = 'application/atom+xml';
 
     const ytCh = extractYoutubeChannelIdFromFeedsVideosUrl(resolvedFeedUrl);
-    if (ytCh && process.env.YOUTUBE_DATA_API_KEY?.trim()) {
-      text = await buildYoutubeAtomFeedXmlFromPlaylistItems(ytCh);
+
+    /**
+     * Prefer YouTube's official channel Atom (videos.xml): it carries real `<updated>` timestamps.
+     * When YOUTUBE_DATA_API_KEY is set we used to synthesize from playlistItems only; that XML sets
+     * `<updated>` equal to `<published>`, which breaks client "last 24h" logic when videos are older than
+     * 24h but were recently revised in the official feed — and shows nothing useful for those entries.
+     * Fallback to Data API synthesis when HTTPS fetch consistently fails / is flaky here.
+     */
+    if (ytCh) {
+      try {
+        const official = await fetchWithRetry(resolvedFeedUrl, 2, {
+          clientUserAgent: forwardUa,
+        });
+        text = official.text;
+        contentType = official.contentType || 'application/atom+xml';
+      } catch (e) {
+        console.warn(
+          `[RSS Proxy] YouTube official Atom fetch failed (${e?.message || e}); fallback if API key configured`
+        );
+      }
+      if (!text && process.env.YOUTUBE_DATA_API_KEY?.trim()) {
+        text = await buildYoutubeAtomFeedXmlFromPlaylistItems(ytCh);
+      }
     }
 
     if (!text) {

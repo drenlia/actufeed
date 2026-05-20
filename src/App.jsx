@@ -60,6 +60,9 @@ import { GuidedTourOverlay } from './components/GuidedTourOverlay'
 import { isWelcomeTourCompleted, markWelcomeTourCompleted } from './utils/welcomeTourStorage'
 import { GUIDED_TOUR_STEP_COUNT } from './constants/guidedTour'
 
+/** Gap between chained auto-refreshes. The next cycle starts after the previous run completes. */
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000
+
 // Inner App component that uses hooks (must be inside ToastProvider)
 function AppContent() {
   const [uiLanguage, setUiLanguage] = useState(() => {
@@ -463,15 +466,17 @@ function AppContent() {
     error,
     feedFetchHadFailures,
     newItemIds,
-    fetchNews,
     refreshNews,
   } = useMultiTabNews(tabs, activeTabId, showToastMessages)
-  
-  // Store refreshNews in a ref so it's available in the Settings onClose callback
-  const refreshNewsRef = useRef(refreshNews)
+
+  /** Silent full-tab refresh (auto-refresh). Manual toolbar refresh uses refreshNews explicitly. */
+  const autoRefreshSilentRef = useRef(async () => {})
   useEffect(() => {
-    refreshNewsRef.current = refreshNews
+    autoRefreshSilentRef.current = async () => {
+      await refreshNews({ userTriggered: false })
+    }
   }, [refreshNews])
+
   const allNewsUnion = useMemo(
     () => (tabs || []).flatMap((t) => newsByTabId[t.id] ?? []),
     [tabs, newsByTabId]
@@ -492,15 +497,31 @@ function AppContent() {
     })
   }, [guidedTourActive, tourStepIndex, feedView])
 
-  // Auto-refresh every 5 minutes (all tabs)
+  /** Auto-refresh starts the next cycle only after the previous run finishes (avoids overlapping refreshes). */
   useEffect(() => {
     if (!autoRefresh) return
 
-    const interval = setInterval(() => {
-      refreshNewsRef.current()
-    }, 5 * 60 * 1000)
+    let cancelled = false
+    let timerId = null
 
-    return () => clearInterval(interval)
+    const runThenSchedule = async () => {
+      if (cancelled) return
+      try {
+        await autoRefreshSilentRef.current()
+      } catch {
+        /* refreshNews catches internally; tolerate unexpected rejects */
+      } finally {
+        if (!cancelled) {
+          timerId = window.setTimeout(runThenSchedule, AUTO_REFRESH_INTERVAL_MS)
+        }
+      }
+    }
+
+    timerId = window.setTimeout(runThenSchedule, AUTO_REFRESH_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      if (timerId != null) window.clearTimeout(timerId)
+    }
   }, [autoRefresh])
 
   // Get combined categories
@@ -839,7 +860,7 @@ function AppContent() {
     if (feedView === 'saved') {
       reloadReadLater()
     } else {
-      refreshNews()
+      void refreshNews({ userTriggered: true })
     }
   }, [feedView, reloadReadLater, refreshNews])
 
